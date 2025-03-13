@@ -87,8 +87,8 @@ def get_recent_popular_shorts(api_key, min_views=10000, days_ago=5, max_results=
 
         # 비디오가 조건을 충족하는지 확인
         if (view_count >= min_views and
-            duration_seconds <= duration_max and
-            is_vertical):
+            duration_seconds <= duration_max): # and is_vertical):  # is_vertical 조건 주석 처리
+
 
             filtered_videos.append({
                 'id': item['id'],
