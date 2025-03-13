@@ -202,11 +202,11 @@
 
                         const videoCard = `
                             <div class="card h-100">
-                                <a href="<span class="math-inline">\{video\.url\}" target\="\_blank"\>
-<img src\="</span>{video.thumbnail}" class="card-img-top" alt="<span class="math-inline">\{video\.title\}"\>
-</a\>
-<div class\="card\-body"\>
-<h6 class\="card\-title"\></span>{video.title}</h6>
+                                <a href="${video.url}" target="_blank">
+                                    <img src="${video.thumbnail}" class="card-img-top" alt="${video.title}">
+                                </a>
+                                <div class="card-body">
+                                    <h6 class="card-title">${video.title}</h6>
                                     <p class="card-text small text-muted">${video.channelTitle}</p>
                                     <div class="stats">
                                         <span>
