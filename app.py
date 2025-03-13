@@ -13,25 +13,7 @@ API_KEY = os.environ.get('YOUTUBE_API_KEY')
 def get_recent_popular_shorts(api_key, min_views=10000, days_ago=5, max_results=50,
                              category_id=None, region_code="KR", language=None,
                              duration_max=60, keyword=None):
-    print(f"API 검색 시작: 조회수 {min_views}+, {days_ago}일 이내, 카테고리: {category_id if category_id else '없음(any)'}, 키워드: {keyword if keyword else '없음'}")
-
-    """
-    최근 n일 이내의 특정 조회수 이상 YouTube Shorts 검색
-
-    매개변수:
-        api_key (str): YouTube API 키
-        min_views (int): 최소 조회수
-        days_ago (int): 며칠 이내의 동영상을 검색할지 (기본값: 5)
-        max_results (int): 반환할 최대 결과 수 (기본값: 50, 최대: 50)
-        category_id (str): 특정 카테고리 ID (선택 사항)
-        region_code (str): 국가 코드 (기본값: "KR" - 한국)
-        language (str): 언어 코드 (선택 사항)
-        duration_max (int): 최대 영상 길이(초) (기본값: 60초)
-        keyword (str): 검색 키워드 (선택 사항)
-
-    반환값:
-        list: 검색 결과 동영상 목록
-    """
+    print(f"API 검색 시작: 조회수 {min_views}+, {days_ago}일 이내, 카테고리: {category_id if category_id else '없음(any)'}, 키워드: {keyword if keyword else '없음'}, 언어: {language if language and language != 'any' else '모두'}")
 
     youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=api_key)
 
@@ -51,13 +33,15 @@ def get_recent_popular_shorts(api_key, min_views=10000, days_ago=5, max_results=
     }
     if keyword:
         search_params['q'] = keyword
-
+        # Keyword가 있을 때만 relevanceLanguage 설정
+        if language and language != "any":
+            search_params['relevanceLanguage'] = language
+    else:  # Keyword가 없을 때는 relevanceLanguage 설정 안 함
+        if language and language != "any":
+             print("경고: 키워드 없이 언어 필터가 적용되었습니다. 결과가 제한될 수 있습니다.")
     # 선택적 파라미터 추가
     if category_id and category_id != "any":
         search_params['videoCategoryId'] = category_id
-
-    if language and language != "any":
-        search_params['relevanceLanguage'] = language
 
     # 검색 실행
     try:
