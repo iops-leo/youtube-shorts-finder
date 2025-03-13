@@ -7,13 +7,13 @@ import os
 
 app = Flask(__name__)
 
-# 환경 변수에서 API 키 가져오기 (보안을 위해)
+# 환경 변수에서 API 키 가져오기
 API_KEY = os.environ.get('YOUTUBE_API_KEY')
 
 def get_recent_popular_shorts(api_key, min_views=10000, days_ago=5, max_results=50,
                              category_id=None, region_code="KR", language=None,
                              duration_max=60, keyword=None):
-    print(f"API 검색 시작: 조회수 {min_views}+, {days_ago}일 이내, 카테고리: {category_id if category_id else '없음(any)'}, 키워드: {keyword if keyword else '없음'}, 언어: {language if language and language != 'any' else '모두'}")
+    print(f"API 검색 시작: 조회수 {min_views}+, {days_ago}일 이내, 카테고리: {category_id if category_id else '없음(any)'}, 키워드: {keyword if keyword else '없음'}, 지역: {region_code}, 언어: {language if language and language != 'any' else '모두'}")
 
     youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=api_key)
 
@@ -21,24 +21,24 @@ def get_recent_popular_shorts(api_key, min_views=10000, days_ago=5, max_results=
     now = datetime.now(pytz.UTC)
     published_after = (now - timedelta(days=days_ago)).isoformat()
 
-    # 검색 파라미터 설정. keyword가 있으면 q 파라미터 사용, 없으면 생략
+    # 검색 파라미터 설정
     search_params = {
         'part': 'snippet',
         'type': 'video',
         'maxResults': max_results,
         'publishedAfter': published_after,
         'videoDuration': 'short',
-        'regionCode': region_code,
+        'regionCode': region_code,  # regionCode 사용
         'order': 'viewCount'
     }
+
+    # keyword와 language 처리
     if keyword:
         search_params['q'] = keyword
-        # Keyword가 있을 때만 relevanceLanguage 설정
         if language and language != "any":
             search_params['relevanceLanguage'] = language
-    else:  # Keyword가 없을 때는 relevanceLanguage 설정 안 함
-        if language and language != "any":
-             print("경고: 키워드 없이 언어 필터가 적용되었습니다. 결과가 제한될 수 있습니다.")
+    # 키워드 없을 때, relevanceLanguage는 설정하지 않음 (이전 답변에서 설명)
+
     # 선택적 파라미터 추가
     if category_id and category_id != "any":
         search_params['videoCategoryId'] = category_id
@@ -51,7 +51,7 @@ def get_recent_popular_shorts(api_key, min_views=10000, days_ago=5, max_results=
         print(f"YouTube API 검색 오류: {str(e)}")
         return []
 
-    # 검색된 비디오 ID 목록 추출 (검색 결과가 없는 경우 빈 리스트 반환)
+    # (나머지 비디오 필터링 로직은 동일) ...
     video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
     if not video_ids:
         return []
@@ -108,9 +108,11 @@ def get_recent_popular_shorts(api_key, min_views=10000, days_ago=5, max_results=
 
     return filtered_videos
 
+
+
 @app.route('/')
 def index():
-    # 카테고리 리스트
+    # 카테고리, 국가, 언어 리스트 (이전과 동일)
     categories = [
         {"id": "any", "name": "모든 카테고리"},
         {"id": "1", "name": "영화 & 애니메이션"},
@@ -127,8 +129,6 @@ def index():
         {"id": "27", "name": "교육"},
         {"id": "28", "name": "과학 & 기술"}
     ]
-
-    # 국가 코드 리스트
     regions = [
         {"code": "KR", "name": "대한민국"},
         {"code": "US", "name": "미국"},
@@ -140,8 +140,6 @@ def index():
         {"code": "AU", "name": "호주"},
         {"code": "CN", "name": "중국"}
     ]
-
-    # 언어 코드 리스트
     languages = [
         {"code": "any", "name": "모든 언어"},
         {"code": "ko", "name": "한국어"},
@@ -153,7 +151,14 @@ def index():
         {"code": "de", "name": "독일어"}
     ]
 
-    return render_template('index.html', categories=categories, regions=regions, languages=languages)
+    # 기본값 설정 (또는 세션에서 가져오기)
+    selected_region = 'KR'  # 기본값
+    selected_language = 'ko'  # 기본값
+
+    return render_template('index.html', categories=categories, regions=regions, languages=languages,
+                           selected_region=selected_region, selected_language=selected_language)
+
+
 
 @app.route('/search', methods=['POST'])
 def search():
@@ -166,8 +171,8 @@ def search():
         days_ago = int(data.get('days_ago', 5))
         max_results = int(data.get('max_results', 50))
         category_id = data.get('category_id', 'any')
-        region_code = data.get('region_code', 'KR')
-        language = data.get('language', 'any')
+        region_code = data.get('region_code', 'KR')  # 사용자가 선택한 값 사용
+        language = data.get('language', 'any')      # 사용자가 선택한 값 사용
         duration_max = int(data.get('duration_max', 60))
         keyword = data.get('keyword', '')
 
@@ -182,15 +187,13 @@ def search():
             days_ago=days_ago,
             max_results=max_results,
             category_id=category_id if category_id != 'any' else None,
-            region_code=region_code,
-            language=language if language != 'any' else None,
+            region_code=region_code,  # 전달받은 region_code 사용
+            language=language if language != 'any' else None,  # 전달받은 language 사용
             duration_max=duration_max,
             keyword=keyword
         )
 
         print(f"검색 결과: {len(results)}개 항목 찾음")
-
-
         return jsonify({"status": "success", "results": results, "count": len(results)})
 
     except Exception as e:
@@ -198,12 +201,10 @@ def search():
         return jsonify({"status": "error", "message": str(e)})
 
 if __name__ == '__main__':
-    # 환경 변수에 API_KEY가 없으면 경고
     if not API_KEY:
         print("경고: YOUTUBE_API_KEY 환경 변수가 설정되지 않았습니다.")
         print("다음 명령으로 설정하세요: export YOUTUBE_API_KEY='YOUR_API_KEY'")
 
-    # Render, Heroku 등의 호스팅 환경에서 자동으로 포트 설정
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
 
