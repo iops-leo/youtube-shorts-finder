@@ -13,6 +13,8 @@ API_KEY = os.environ.get('YOUTUBE_API_KEY')
 def get_recent_popular_shorts(api_key, min_views=10000, days_ago=5, max_results=50, 
                              category_id=None, region_code="KR", language=None,
                              duration_max=60, keyword=None):
+    print(f"API 검색 시작: 조회수 {min_views}+, {days_ago}일 이내, 카테고리: {category_id}")
+
     """
     최근 n일 이내의 특정 조회수 이상 YouTube Shorts 검색
     
@@ -37,7 +39,7 @@ def get_recent_popular_shorts(api_key, min_views=10000, days_ago=5, max_results=
     published_after = (now - timedelta(days=days_ago)).isoformat()
     
     # 검색 쿼리 파라미터 설정
-    search_query = '#shorts'
+    search_query = ''
     if keyword:
         search_query += f" {keyword}"
         
@@ -60,7 +62,13 @@ def get_recent_popular_shorts(api_key, min_views=10000, days_ago=5, max_results=
         search_params['relevanceLanguage'] = language
         
     # 검색 실행
-    search_response = youtube.search().list(**search_params).execute()
+    try:
+        search_response = youtube.search().list(**search_params).execute()
+        video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
+        print(f"YouTube 검색 응답: {len(video_ids)}개 비디오 ID 찾음")
+    except Exception as e:
+        print(f"YouTube API 검색 오류: {str(e)}")
+        return []
     
     # 검색된 비디오 ID 목록 추출
     video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
@@ -165,6 +173,8 @@ def index():
 def search():
     try:
         data = request.form
+
+        print("검색 요청 파라미터:", data)  # 로그 추가
         
         min_views = int(data.get('min_views', 10000))
         days_ago = int(data.get('days_ago', 5))
@@ -174,6 +184,11 @@ def search():
         language = data.get('language', 'any')
         duration_max = int(data.get('duration_max', 60))
         keyword = data.get('keyword', '')
+
+        if not API_KEY:
+            print("경고: API 키가 설정되지 않았습니다.")
+            return jsonify({"status": "error", "message": "API 키가 설정되지 않았습니다."})
+        
         
         results = get_recent_popular_shorts(
             api_key=API_KEY,
@@ -186,10 +201,14 @@ def search():
             duration_max=duration_max,
             keyword=keyword if keyword else None
         )
+
+        print(f"검색 결과: {len(results)}개 항목 찾음")  # 로그 추가
+
         
         return jsonify({"status": "success", "results": results, "count": len(results)})
     
     except Exception as e:
+        print(f"검색 중 오류 발생: {str(e)}")  # 로그 추가
         return jsonify({"status": "error", "message": str(e)})
 
 if __name__ == '__main__':
@@ -201,3 +220,18 @@ if __name__ == '__main__':
     # Render, Heroku 등의 호스팅 환경에서 자동으로 포트 설정
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
+
+@app.route('/api-test', methods=['GET'])
+def api_test():
+    try:
+        if not API_KEY:
+            return jsonify({"status": "error", "message": "API 키가 설정되지 않았습니다."})
+        
+        # 간단한 API 호출로 키 테스트
+        youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=API_KEY)
+        response = youtube.channels().list(part="snippet", mine=False, maxResults=1).execute()
+        
+        return jsonify({"status": "success", "message": "API 키가 정상적으로 작동합니다.", "response": "API 연결 성공"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"API 키 오류: {str(e)}"})
