@@ -6,8 +6,8 @@
     <title>인기 YouTube Shorts 검색기</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        /* (스타일은 이전과 동일) ... */
-        .card {
+       /* (스타일은 이전과 동일) */
+       .card {
             transition: transform 0.3s;
         }
         .card:hover {
@@ -73,6 +73,10 @@
                                     <label for="min_views" class="form-label">최소 조회수</label>
                                     <input type="number" class="form-control" id="min_views" name="min_views" value="10000" min="1000">
                                 </div>
+                                 <div class="col-md-6">
+                                    <label for="max_views" class="form-label">최대 조회수 (선택 사항)</label>
+                                    <input type="number" class="form-control" id="max_views" name="max_views" placeholder="제한 없음">
+                                </div>
                                 <div class="col-md-6">
                                     <label for="days_ago" class="form-label">최근 기간 (일)</label>
                                     <input type="number" class="form-control" id="days_ago" name="days_ago" value="5" min="1" max="30">
@@ -113,6 +117,10 @@
                                     <label for="keyword" class="form-label">키워드 (선택사항)</label>
                                     <input type="text" class="form-control" id="keyword" name="keyword" placeholder="검색할 키워드">
                                 </div>
+                                 <div class="col-md-6">
+                                    <label for="title_contains" class="form-label">제목 포함 (선택 사항)</label>
+                                    <input type="text" class="form-control" id="title_contains" name="title_contains" placeholder="제목에 포함될 단어">
+                                </div>
                                 <div class="col-12">
                                     <button type="submit" class="btn btn-primary w-100">검색</button>
                                 </div>
@@ -143,7 +151,7 @@
     </footer>
 
     <script>
-       // (JavaScript 코드는 이전과 동일) ...
+       // (JavaScript 코드는 거의 동일,  formData 처리 부분만 수정) ...
        document.getElementById('searchForm').addEventListener('submit', function(e) {
             e.preventDefault();
 
@@ -154,6 +162,12 @@
 
             // 폼 데이터 가져오기
             const formData = new FormData(this);
+
+            // max_views 값이 비어있으면 formData에서 제거 (None으로 처리하기 위해)
+            if (formData.get('max_views').trim() === '') {
+                formData.delete('max_views');
+            }
+
 
             // API 요청
             fetch('/search', {
@@ -188,11 +202,11 @@
 
                         const videoCard = `
                             <div class="card h-100">
-                                <a href="${video.url}" target="_blank">
-                                    <img src="${video.thumbnail}" class="card-img-top" alt="${video.title}">
-                                </a>
-                                <div class="card-body">
-                                    <h6 class="card-title">${video.title}</h6>
+                                <a href="<span class="math-inline">\{video\.url\}" target\="\_blank"\>
+<img src\="</span>{video.thumbnail}" class="card-img-top" alt="<span class="math-inline">\{video\.title\}"\>
+</a\>
+<div class\="card\-body"\>
+<h6 class\="card\-title"\></span>{video.title}</h6>
                                     <p class="card-text small text-muted">${video.channelTitle}</p>
                                     <div class="stats">
                                         <span>
@@ -269,7 +283,6 @@
             }
             return num.toString();
         }
-
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>

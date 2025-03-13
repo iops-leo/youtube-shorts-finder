@@ -10,10 +10,10 @@ app = Flask(__name__)
 # 환경 변수에서 API 키 가져오기
 API_KEY = os.environ.get('YOUTUBE_API_KEY')
 
-def get_recent_popular_shorts(api_key, min_views=10000, days_ago=5, max_results=50,
+def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago=5, max_results=50,  # max_views 추가
                              category_id=None, region_code="KR", language=None,
-                             duration_max=60, keyword=None):
-    print(f"API 검색 시작: 조회수 {min_views}+, {days_ago}일 이내, 카테고리: {category_id if category_id else '없음(any)'}, 키워드: {keyword if keyword else '없음'}, 지역: {region_code}, 언어: {language if language and language != 'any' else '모두'}")
+                             duration_max=60, keyword=None, title_contains=None):
+    print(f"API 검색 시작: 조회수 {min_views}~{max_views if max_views else '무제한'}, {days_ago}일 이내, 카테고리: {category_id if category_id else '없음(any)'}, 키워드: {keyword if keyword else '없음'}, 지역: {region_code}, 언어: {language if language and language != 'any' else '모두'}")
 
     youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=api_key)
 
@@ -28,18 +28,15 @@ def get_recent_popular_shorts(api_key, min_views=10000, days_ago=5, max_results=
         'maxResults': max_results,
         'publishedAfter': published_after,
         'videoDuration': 'short',
-        'regionCode': region_code,  # regionCode 사용
+        'regionCode': region_code,
         'order': 'viewCount'
     }
 
-    # keyword와 language 처리
     if keyword:
         search_params['q'] = keyword
         if language and language != "any":
             search_params['relevanceLanguage'] = language
-    # 키워드 없을 때, relevanceLanguage는 설정하지 않음 (이전 답변에서 설명)
 
-    # 선택적 파라미터 추가
     if category_id and category_id != "any":
         search_params['videoCategoryId'] = category_id
 
@@ -51,30 +48,21 @@ def get_recent_popular_shorts(api_key, min_views=10000, days_ago=5, max_results=
         print(f"YouTube API 검색 오류: {str(e)}")
         return []
 
-    # (나머지 비디오 필터링 로직은 동일) ...
     video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
     if not video_ids:
         return []
 
-
-    # 비디오 상세 정보 가져오기
     video_response = youtube.videos().list(
         part='snippet,statistics,contentDetails',
         id=','.join(video_ids)
     ).execute()
 
-    # 조건에 맞는 비디오 필터링
     filtered_videos = []
     for item in video_response.get('items', []):
-        # 조회수 확인
         view_count = int(item['statistics'].get('viewCount', 0))
-
-        # 비디오 길이 확인
         duration = item['contentDetails']['duration']
         duration_seconds = isodate.parse_duration(duration).total_seconds()
 
-        # 수직 비율 확인 (Shorts는 일반적으로 9:16 비율)
-        # high 썸네일이 있으면 그걸 사용, 없으면 medium 썸네일 확인. 둘 다 없으면 수직으로 간주.
         if 'high' in item['snippet']['thumbnails']:
             thumbnail = item['snippet']['thumbnails']['high']
             is_vertical = thumbnail['height'] > thumbnail['width']
@@ -82,13 +70,18 @@ def get_recent_popular_shorts(api_key, min_views=10000, days_ago=5, max_results=
             thumbnail = item['snippet']['thumbnails']['medium']
             is_vertical = thumbnail['height'] > thumbnail['width']
         else:
-            is_vertical = True  # 썸네일 정보가 없으면 기본적으로 수직으로 가정
+            is_vertical = True
 
 
         # 비디오가 조건을 충족하는지 확인
         if (view_count >= min_views and
-            duration_seconds <= duration_max): # and is_vertical):  # is_vertical 조건 주석 처리
+            (max_views is None or view_count <= max_views) and  # max_views 조건 추가
+            duration_seconds <= duration_max and
+            is_vertical):
 
+            if title_contains:
+                if title_contains.lower() not in item['snippet']['title'].lower():
+                    continue
 
             filtered_videos.append({
                 'id': item['id'],
@@ -103,9 +96,7 @@ def get_recent_popular_shorts(api_key, min_views=10000, days_ago=5, max_results=
                 'thumbnail': item['snippet']['thumbnails']['high']['url'] if 'high' in item['snippet']['thumbnails'] else ''
             })
 
-    # 조회수 기준으로 정렬
     filtered_videos.sort(key=lambda x: x['viewCount'], reverse=True)
-
     return filtered_videos
 
 
