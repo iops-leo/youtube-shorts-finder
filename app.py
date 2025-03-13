@@ -76,8 +76,8 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
         # 비디오가 조건을 충족하는지 확인
         if (view_count >= min_views and
             (max_views is None or view_count <= max_views) and  # max_views 조건 추가
-            duration_seconds <= duration_max and
-            is_vertical):
+            duration_seconds <= duration_max): # and is_vertical):  # is_vertical 조건 주석 처리
+
 
             if title_contains:
                 if title_contains.lower() not in item['snippet']['title'].lower():
