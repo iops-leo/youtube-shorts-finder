@@ -1,117 +1,89 @@
-/* 카드 스타일 */
-.card {
-    transition: transform 0.3s;
-}
-.card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-}
-
-/* 로딩 애니메이션 */
-.loader {
-    display: none;
-    border: 6px solid #f3f3f3;
-    border-top: 6px solid #3498db;
-    border-radius: 50%;
-    width: 50px;
-    height: 50px;
-    animation: spin 2s linear infinite;
-    margin: 20px auto;
-}
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* 비디오 그리드 레이아웃 */
-.video-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
-}
-.card-img-top {
-    height: 180px;
-    object-fit: cover;
-}
-
-/* 비디오 카드 내부 스타일 */
-.stats {
+/* 선택된 채널 컨테이너 스타일 */
+.selected-channels-container {
     display: flex;
-    justify-content: space-between;
-    margin-top: 10px;
-    font-size: 0.85rem;
-}
-.stats span {
-    display: flex;
-    align-items: center;
-}
-
-/* 채널 검색 결과 스타일 */
-.channel-search-results {
-    position: absolute;
-    z-index: 1000;
-    background: white;
-    border: 1px solid #ced4da;
-    border-radius: 0.25rem;
+    flex-wrap: wrap;
+    gap: 8px;
     max-height: 300px;
     overflow-y: auto;
-    width: 100%;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    display: none;
-}
-.channel-item {
-    padding: 10px;
-    border-bottom: 1px solid #eee;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-}
-.channel-item:hover {
+    padding: 5px;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    margin-bottom: 15px;
     background-color: #f8f9fa;
 }
-.channel-item:last-child {
-    border-bottom: none;
+
+/* 선택된 채널 항목 스타일 */
+.selected-channel-item {
+    display: flex;
+    align-items: center;
+    background-color: #e9ecef;
+    border: 1px solid #ced4da;
+    border-radius: 20px;
+    padding: 5px 10px;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+    max-width: 100%;
 }
-.channel-thumbnail {
-    width: 40px;
-    height: 40px;
+
+.selected-channel-item img {
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
-    margin-right: 10px;
+    margin-right: 8px;
 }
-.channel-info {
-    flex: 1;
-}
-.channel-title {
-    font-weight: bold;
-    margin-bottom: 3px;
-}
-.channel-description {
-    font-size: 0.8rem;
-    color: #6c757d;
+
+.selected-channel-item .channel-name {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-.channel-badge {
-    display: inline-block;
-    font-size: 0.75rem;
-    font-weight: bold;
-    padding: 3px 6px;
-    border-radius: 3px;
-    margin-right: 5px;
-    vertical-align: middle;
+    max-width: 150px;
 }
 
-/* 더 보기 버튼 컨테이너 */
-#loadMoreContainer {
+.selected-channel-item .remove-channel {
+    background: none;
+    border: none;
+    color: #dc3545;
+    font-size: 0.8rem;
+    margin-left: 5px;
+    padding: 0 5px;
+    cursor: pointer;
+}
+
+/* 추가: 채널 검색 영역에 대한 높이 제한 */
+#channelSearchResults {
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1001;
+}
+
+/* 채널 검색 결과 항목에 대한 호버 효과 개선 */
+.channel-item:hover {
+    background-color: #e9ecef;
+}
+
+/* 선택된 채널이 없을 때 스타일 */
+.empty-channels-message {
+    width: 100%;
     text-align: center;
-    margin: 20px 0;
-    display: none;
+    padding: 20px;
+    color: #6c757d;
+    font-style: italic;
 }
 
-/* 설정 바 */
-.settings-bar {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 10px;
+/* 스크롤바 스타일링 */
+.selected-channels-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.selected-channels-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.selected-channels-container::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+}
+
+.selected-channels-container::-webkit-scrollbar-thumb:hover {
+    background: #555;
 }

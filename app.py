@@ -43,12 +43,13 @@ def save_to_cache(cache_key, data):
         oldest_key = min(cache.keys(), key=lambda k: cache[k][1])
         del cache[oldest_key]
 
+
 def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago=5, max_results=50,
                              category_id=None, region_code="KR", language=None,
-                             duration_max=60, keyword=None, title_contains=None, channel_id=None):
+                             duration_max=60, keyword=None, title_contains=None, channel_ids=None):
     """
     인기 YouTube Shorts 검색 함수
-    channel_id 파라미터 추가: 특정 채널의 쇼츠만 검색
+    channel_ids 파라미터 수정: 여러 채널의 쇼츠 검색 가능
     """
     # 캐시 키 생성
     cache_params = {
@@ -62,7 +63,7 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
         'duration_max': duration_max,
         'keyword': keyword,
         'title_contains': title_contains,
-        'channel_id': channel_id
+        'channel_ids': channel_ids
     }
     cache_key = get_cache_key(cache_params)
     
@@ -75,10 +76,61 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
     print(f"API 검색 시작: 조회수 {min_views}~{max_views if max_views else '무제한'}, {days_ago}일 이내, "
           f"카테고리: {category_id if category_id else '없음(any)'}, 키워드: {keyword if keyword else '없음'}, "
           f"지역: {region_code}, 언어: {language if language and language != 'any' else '모두'}, "
-          f"채널ID: {channel_id if channel_id else '모든 채널'}")
+          f"채널IDs: {channel_ids if channel_ids else '모든 채널'}")
 
     youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=api_key)
 
+    # 여러 채널 ID가 있는 경우 각 채널별로 검색하고 결과 합치기
+    all_results = []
+    
+    # 채널 ID가 없거나 단일 채널인 경우를 처리
+    if not channel_ids:
+        search_results = perform_search(youtube, min_views, max_views, days_ago, max_results, 
+                                       category_id, region_code, language, duration_max, 
+                                       keyword, title_contains, None)
+        all_results.extend(search_results)
+    else:
+        # 문자열로 전달된 경우 리스트로 변환
+        if isinstance(channel_ids, str):
+            if ',' in channel_ids:
+                channel_id_list = [ch_id.strip() for ch_id in channel_ids.split(',')]
+            else:
+                channel_id_list = [channel_ids]
+        else:
+            channel_id_list = channel_ids
+            
+        # 각 채널별로 검색 실행
+        for channel_id in channel_id_list:
+            channel_results = perform_search(youtube, min_views, max_views, days_ago, 
+                                            max_results // len(channel_id_list) + 1, 
+                                            category_id, region_code, language, duration_max, 
+                                            keyword, title_contains, channel_id)
+            all_results.extend(channel_results)
+    
+    # 중복 제거 (비디오 ID 기준)
+    seen_video_ids = set()
+    unique_results = []
+    for video in all_results:
+        if video['id'] not in seen_video_ids:
+            seen_video_ids.add(video['id'])
+            unique_results.append(video)
+    
+    # 조회수 기준 내림차순 정렬
+    unique_results.sort(key=lambda x: x['viewCount'], reverse=True)
+    
+    # 최대 결과 수 제한
+    if len(unique_results) > max_results:
+        unique_results = unique_results[:max_results]
+    
+    # 결과 캐싱
+    save_to_cache(cache_key, unique_results)
+    
+    return unique_results
+
+def perform_search(youtube, min_views, max_views, days_ago, max_results, 
+                 category_id, region_code, language, duration_max, 
+                 keyword, title_contains, channel_id):
+    """단일 검색 수행 함수"""
     # 현재 시간 기준으로 n일 전 날짜 계산
     now = datetime.now(pytz.UTC)
     published_after = (now - timedelta(days=days_ago)).isoformat()
@@ -111,7 +163,6 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
     # 검색 실행
     try:
         search_response = youtube.search().list(**search_params).execute()
-        print(f"YouTube 검색 응답: {len(search_response.get('items', []))}개 비디오 ID 찾음")
     except Exception as e:
         print(f"YouTube API 검색 오류: {str(e)}")
         return []
@@ -159,7 +210,7 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
                 'id': item['id'],
                 'title': item['snippet']['title'],
                 'channelTitle': item['snippet']['channelTitle'],
-                'channelId': item['snippet']['channelId'],  # 채널 ID 추가
+                'channelId': item['snippet']['channelId'],
                 'publishedAt': item['snippet']['publishedAt'],
                 'viewCount': view_count,
                 'likeCount': int(item['statistics'].get('likeCount', 0)),
@@ -169,13 +220,7 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
                 'thumbnail': item['snippet']['thumbnails']['high']['url'] if 'high' in item['snippet']['thumbnails'] else '',
                 'isVertical': is_vertical
             })
-
-    # 조회수 기준 내림차순 정렬
-    filtered_videos.sort(key=lambda x: x['viewCount'], reverse=True)
-    
-    # 결과 캐싱
-    save_to_cache(cache_key, filtered_videos)
-    
+            
     return filtered_videos
 
 @app.route('/')
@@ -244,7 +289,9 @@ def search():
         duration_max = int(data.get('duration_max', 60))
         keyword = data.get('keyword', '')
         title_contains = data.get('title_contains', '')
-        channel_id = data.get('channel_id', '')  # 채널 ID 파라미터 추가
+        
+        # 여러 채널 ID 처리
+        channel_ids = data.get('channel_ids', '')
 
         if not API_KEY:
             print("경고: API 키가 설정되지 않았습니다.")
@@ -262,7 +309,7 @@ def search():
             duration_max=duration_max,
             keyword=keyword,
             title_contains=title_contains,
-            channel_id=channel_id if channel_id else None
+            channel_ids=channel_ids if channel_ids else None
         )
 
         print(f"검색 결과: {len(results)}개 항목 찾음")
