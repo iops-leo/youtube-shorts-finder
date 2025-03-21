@@ -282,7 +282,51 @@ def channel_search():
             
         if not API_KEY:
             return jsonify({"status": "error", "message": "API 키가 설정되지 않았습니다."})
+        
+        # URL이나 핸들(@) 형식인지 확인
+        if '@' in query or 'youtube.com/' in query:
+            # URL에서 채널 ID 또는 핸들 추출
+            if 'youtube.com/' in query:
+                parts = query.split('/')
+                for part in parts:
+                    if part.startswith('@'):
+                        query = part
+                        break
             
+            # @ 기호가 있으면 그대로 사용하고, 없으면 추가
+            if not query.startswith('@') and '@' not in query:
+                query = '@' + query
+            
+            # 핸들 검색 (채널 이름으로 검색 + 필터링)
+            youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=API_KEY)
+            response = youtube.search().list(
+                part="snippet",
+                type="channel",
+                q=query.replace('@', ''),  # @ 기호 제거하고 검색
+                maxResults=10  # 더 많은 결과를 가져와서 필터링
+            ).execute()
+            
+            # 결과에서 정확히 일치하거나 유사한 핸들을 가진 채널 필터링
+            filtered_channels = []
+            channel_handle = query.lower().replace('@', '')
+            
+            for item in response.get('items', []):
+                channel_title = item['snippet']['title'].lower()
+                channel_desc = item['snippet']['description'].lower()
+                
+                if (channel_handle in channel_title.replace(' ', '') or 
+                    channel_handle in channel_desc):
+                    filtered_channels.append({
+                        'id': item['id']['channelId'],
+                        'title': item['snippet']['title'],
+                        'thumbnail': item['snippet']['thumbnails']['default']['url'] if 'default' in item['snippet']['thumbnails'] else '',
+                        'description': item['snippet']['description']
+                    })
+            
+            if filtered_channels:
+                return jsonify({"status": "success", "channels": filtered_channels})
+        
+        # 일반 검색으로 진행
         youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=API_KEY)
         response = youtube.search().list(
             part="snippet",
