@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from datetime import datetime, timedelta
 import googleapiclient.discovery
 import pytz
@@ -10,6 +10,9 @@ import time
 import hashlib
 
 app = Flask(__name__)
+
+# 정적 파일 경로 설정
+app.static_folder = 'static'
 
 # 환경 변수에서 API 키 가져오기
 API_KEY = os.environ.get('YOUTUBE_API_KEY')
@@ -312,6 +315,11 @@ def api_test():
         return jsonify({"status": "success", "message": "API 키가 정상적으로 작동합니다.", "response": "API 연결 성공"})
     except Exception as e:
         return jsonify({"status": "error", "message": f"API 키 오류: {str(e)}"})
+
+# 정적 파일 제공 라우트
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory(app.static_folder, filename)
 
 if __name__ == '__main__':
     if not API_KEY:
