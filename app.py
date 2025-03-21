@@ -1,3 +1,4 @@
+# app.py (변경 없음)
 from flask import Flask, render_template, request, jsonify
 from datetime import datetime, timedelta
 import googleapiclient.discovery
@@ -173,8 +174,9 @@ def get_recent_popular_shorts(api_key, min_views=1000000, days_ago=3, max_result
 def index():
     selected_region = 'US'
     selected_language = 'any'
+    # render_template 사용 (Jinja2 템플릿 변수 전달)
     return render_template('index.html', categories=CATEGORIES, regions=REGIONS, languages=LANGUAGES,
-                           selected_region=selected_region, selected_language=selected_language)
+                           selected_region=selected_region, selected_language=selected_language, results=[])
 
 
 @app.route('/search', methods=['POST'])
@@ -224,11 +226,15 @@ def search():
             channel_ids=channel_ids  # 채널 ID 목록 전달
         )
         logging.info(f"검색 결과: {len(results)}개 항목 찾음")
+
+        # AJAX 방식: JSON 데이터 반환
         return jsonify({"status": "success", "results": results, "count": len(results)})
+
 
     except Exception as e:
         logging.exception(f"검색 중 오류 발생: {str(e)}")  # 더 자세한 로깅
         return jsonify({"status": "error", "message": f"서버 오류: {str(e)}"})
+
 
 
 @app.route('/api-test', methods=['GET'])
@@ -237,10 +243,32 @@ def api_test():
         if not API_KEY:
             return jsonify({"status": "error", "message": "API 키가 설정되지 않았습니다."})
 
-        # 간단한 API 호출로 키 테스트
         youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=API_KEY)
-        response = youtube.channels().list(part="snippet", mine=False, maxResults=1).execute()
+        response = youtube.channels().list(part="snippet", mine=True).execute()  # mine=True로 변경
 
-        return jsonify({"status": "success", "message": "API 키가 정상적으로 작동합니다.", "response": "API 연결 성공"})
+        return jsonify({"status": "success", "message": "API 키가 정상적으로 작동합니다.", "response": response}) # 응답 전체를 반환하여 디버깅
     except Exception as e:
         return jsonify({"status": "error", "message": f"API 키 오류: {str(e)}"})
+
+
+# Jinja2 필터 등록
+@app.template_filter('format_number')
+def format_number(num):
+    if num >= 1000000:
+        return f"{(num / 1000000):.1f}M"
+    elif num >= 1000:
+        return f"{(num / 1000):.1f}K"
+    return str(num)
+
+@app.template_filter('format_date')
+def format_date(date_str):
+    return datetime.fromisoformat(date_str.replace('Z', '+00:00')).strftime('%Y-%m-%d')
+
+
+if __name__ == '__main__':
+    if not API_KEY:
+        print("경고: YOUTUBE_API_KEY 환경 변수가 설정되지 않았습니다.")
+        print("다음 명령으로 설정하세요: export YOUTUBE_API_KEY='YOUR_API_KEY'")
+
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)  # 프로덕션에서는 debug=False
