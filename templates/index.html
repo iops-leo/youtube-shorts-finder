@@ -116,7 +116,17 @@
                                     <label for="title_contains" class="form-label">제목 포함 (선택 사항)</label>
                                     <input type="text" class="form-control" id="title_contains" name="title_contains" placeholder="제목에 포함될 단어">
                                 </div>
-                                <div class="col-12">
+                                <div class="col-md-6">
+                                    <label for="channel_filter" class="form-label">채널 필터 (선택 사항)</label>
+                                    <input type="text" class="form-control" id="channel_filter" name="channel_filter" placeholder="채널명 콤마(,)로 구분">
+                                </div>
+                                <div class="col-12 mt-3">
+                                    <div class="d-flex justify-content-between">
+                                        <button type="button" id="saveSearchBtn" class="btn btn-success" style="width: 48%;">검색 설정 저장</button>
+                                        <button type="button" id="loadSearchBtn" class="btn btn-info" style="width: 48%;">저장된 설정 불러오기</button>
+                                    </div>
+                                </div>
+                                <div class="col-12 mt-3">
                                     <button type="submit" class="btn btn-primary w-100">검색</button>
                                 </div>
                             </div>
@@ -146,6 +156,164 @@
     </footer>
 
     <script>
+       // 로컬 스토리지에 검색 설정 저장 및 불러오기 기능
+       document.addEventListener('DOMContentLoaded', function() {
+            // 저장 버튼 클릭 이벤트
+            document.getElementById('saveSearchBtn').addEventListener('click', function() {
+                const formData = {
+                    min_views: document.getElementById('min_views').value,
+                    days_ago: document.getElementById('days_ago').value,
+                    category_id: document.getElementById('category_id').value,
+                    region_code: document.getElementById('region_code').value,
+                    language: document.getElementById('language').value,
+                    duration_max: document.getElementById('duration_max').value,
+                    max_results: document.getElementById('max_results').value,
+                    keyword: document.getElementById('keyword').value,
+                    title_contains: document.getElementById('title_contains').value,
+                    channel_filter: document.getElementById('channel_filter').value
+                };
+                
+                // 현재 날짜와 시간으로 저장 이름 생성
+                const now = new Date();
+                const saveKey = `shorts_search_${now.toISOString().replace(/[:.]/g, '_')}`;
+                
+                // 저장된 검색 목록 가져오기
+                let savedSearches = JSON.parse(localStorage.getItem('savedSearches') || '[]');
+                savedSearches.push({
+                    key: saveKey,
+                    name: `검색 ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
+                    data: formData
+                });
+                
+                // 최대 10개만 저장
+                if (savedSearches.length > 10) {
+                    savedSearches = savedSearches.slice(-10);
+                }
+                
+                // 저장
+                localStorage.setItem('savedSearches', JSON.stringify(savedSearches));
+                localStorage.setItem(saveKey, JSON.stringify(formData));
+                
+                alert('검색 설정이 저장되었습니다.');
+            });
+            
+            // 불러오기 버튼 클릭 이벤트
+            document.getElementById('loadSearchBtn').addEventListener('click', function() {
+                const savedSearches = JSON.parse(localStorage.getItem('savedSearches') || '[]');
+                
+                if (savedSearches.length === 0) {
+                    alert('저장된 검색 설정이 없습니다.');
+                    return;
+                }
+                
+                // 모달 생성
+                const modalHTML = `
+                    <div class="modal fade" id="loadSearchModal" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">저장된 검색 설정 불러오기</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="list-group">
+                                        ${savedSearches.map((search, index) => `
+                                            <button type="button" class="list-group-item list-group-item-action load-search-item" 
+                                                    data-key="${search.key}" data-index="${index}">
+                                                ${search.name}
+                                                <button class="btn btn-sm btn-danger float-end delete-search-btn" 
+                                                        data-index="${index}">삭제</button>
+                                            </button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // 기존 모달 제거 후 새로 추가
+                const existingModal = document.getElementById('loadSearchModal');
+                if (existingModal) {
+                    existingModal.remove();
+                }
+                
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+                
+                // 모달 열기
+                const loadSearchModal = new bootstrap.Modal(document.getElementById('loadSearchModal'));
+                loadSearchModal.show();
+                
+                // 저장된 검색 설정 클릭 이벤트
+                document.querySelectorAll('.load-search-item').forEach(item => {
+                    item.addEventListener('click', function(e) {
+                        if (e.target.classList.contains('delete-search-btn')) {
+                            return; // 삭제 버튼 클릭 시 무시
+                        }
+                        
+                        const key = this.getAttribute('data-key');
+                        const formData = JSON.parse(localStorage.getItem(key) || '{}');
+                        
+                        // 폼에 데이터 설정
+                        document.getElementById('min_views').value = formData.min_views || '';
+                        document.getElementById('days_ago').value = formData.days_ago || '';
+                        document.getElementById('category_id').value = formData.category_id || 'any';
+                        document.getElementById('region_code').value = formData.region_code || 'US';
+                        document.getElementById('language').value = formData.language || 'any';
+                        document.getElementById('duration_max').value = formData.duration_max || '';
+                        document.getElementById('max_results').value = formData.max_results || '';
+                        document.getElementById('keyword').value = formData.keyword || '';
+                        document.getElementById('title_contains').value = formData.title_contains || '';
+                        document.getElementById('channel_filter').value = formData.channel_filter || '';
+                        
+                        loadSearchModal.hide();
+                    });
+                });
+                
+                // 삭제 버튼 클릭 이벤트
+                document.querySelectorAll('.delete-search-btn').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        
+                        const index = parseInt(this.getAttribute('data-index'));
+                        const savedSearches = JSON.parse(localStorage.getItem('savedSearches') || '[]');
+                        
+                        if (index >= 0 && index < savedSearches.length) {
+                            const key = savedSearches[index].key;
+                            localStorage.removeItem(key);
+                            
+                            savedSearches.splice(index, 1);
+                            localStorage.setItem('savedSearches', JSON.stringify(savedSearches));
+                            
+                            this.closest('.list-group-item').remove();
+                            
+                            if (savedSearches.length === 0) {
+                                loadSearchModal.hide();
+                                alert('모든 저장된 검색 설정이 삭제되었습니다.');
+                            }
+                        }
+                    });
+                });
+            });
+            
+            // 마지막 검색 설정 자동 로드
+            const lastSearch = localStorage.getItem('lastSearch');
+            if (lastSearch) {
+                const formData = JSON.parse(lastSearch);
+                
+                document.getElementById('min_views').value = formData.min_views || '';
+                document.getElementById('days_ago').value = formData.days_ago || '';
+                document.getElementById('category_id').value = formData.category_id || 'any';
+                document.getElementById('region_code').value = formData.region_code || 'US';
+                document.getElementById('language').value = formData.language || 'any';
+                document.getElementById('duration_max').value = formData.duration_max || '';
+                document.getElementById('max_results').value = formData.max_results || '';
+                document.getElementById('keyword').value = formData.keyword || '';
+                document.getElementById('title_contains').value = formData.title_contains || '';
+                document.getElementById('channel_filter').value = formData.channel_filter || '';
+            }
+       });
+       
        document.getElementById('searchForm').addEventListener('submit', function(e) {
             e.preventDefault();
 
@@ -259,6 +427,22 @@
                     </div>
                 `;
             });
+            
+            // 마지막 검색 설정 저장
+            const lastSearchData = {
+                min_views: document.getElementById('min_views').value,
+                days_ago: document.getElementById('days_ago').value,
+                category_id: document.getElementById('category_id').value,
+                region_code: document.getElementById('region_code').value,
+                language: document.getElementById('language').value,
+                duration_max: document.getElementById('duration_max').value,
+                max_results: document.getElementById('max_results').value,
+                keyword: document.getElementById('keyword').value,
+                title_contains: document.getElementById('title_contains').value,
+                channel_filter: document.getElementById('channel_filter').value
+            };
+            
+            localStorage.setItem('lastSearch', JSON.stringify(lastSearchData));
         });
 
         // 숫자 포맷팅 함수 (예: 1000 -> 1K, 1000000 -> 1M)

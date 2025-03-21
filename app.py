@@ -12,7 +12,7 @@ API_KEY = os.environ.get('YOUTUBE_API_KEY')
 
 def get_recent_popular_shorts(api_key, min_views=1000000, days_ago=3, max_results=50,
                              category_id=None, region_code="US", language=None,
-                             duration_max=60, keyword=None, title_contains=None):
+                             duration_max=60, keyword=None, title_contains=None, channel_filter=None):
     print(f"API 검색 시작: 조회수 {min_views} 이상, {days_ago}일 이내, 카테고리: {category_id if category_id else '없음(any)'}, 키워드: {keyword if keyword else '없음'}, 지역: {region_code}, 언어: {language if language and language != 'any' else '모두'}")
 
     youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=api_key)
@@ -74,8 +74,15 @@ def get_recent_popular_shorts(api_key, min_views=1000000, days_ago=3, max_result
 
         # 비디오가 조건을 충족하는지 확인
         if (view_count >= min_views and duration_seconds <= duration_max):
+            # 제목 필터
             if title_contains:
                 if title_contains.lower() not in item['snippet']['title'].lower():
+                    continue
+            
+            # 채널 필터
+            if channel_filter:
+                channel_list = [channel.strip() for channel in channel_filter.split(',')]
+                if item['snippet']['channelTitle'] not in channel_list:
                     continue
 
             filtered_videos.append({
@@ -160,6 +167,7 @@ def search():
         duration_max = int(data.get('duration_max', 60))
         keyword = data.get('keyword', '')
         title_contains = data.get('title_contains', '')
+        channel_filter = data.get('channel_filter', '')
 
         if not API_KEY:
             print("경고: API 키가 설정되지 않았습니다.")
@@ -175,7 +183,8 @@ def search():
             language=language if language != 'any' else None,
             duration_max=duration_max,
             keyword=keyword,
-            title_contains=title_contains
+            title_contains=title_contains,
+            channel_filter=channel_filter
         )
 
         print(f"검색 결과: {len(results)}개 항목 찾음")
