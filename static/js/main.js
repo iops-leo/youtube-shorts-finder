@@ -1,10 +1,10 @@
-// 전역 변수 수정
+// 전역 변수 설정
 let allResults = []; // 전체 결과 저장
 let currentPage = 1; // 현재 페이지
 let itemsPerPage = 12; // 페이지당 아이템 수
 let selectedChannels = []; // 선택된 채널 목록 저장
 
-// DOM 요소 참조 업데이트
+// DOM 요소 참조
 const loadMoreButton = document.getElementById('loadMoreButton');
 const loadMoreContainer = document.getElementById('loadMoreContainer');
 const channelSearchInput = document.getElementById('channel_search');
@@ -94,6 +94,11 @@ function addChannel(channel) {
         return;
     }
     
+    // 기본 이미지 URL 설정 (썸네일이 없을 경우)
+    if (!channel.thumbnail || channel.thumbnail.trim() === '') {
+        channel.thumbnail = 'https://via.placeholder.com/40';
+    }
+    
     // 채널 추가
     selectedChannels.push(channel);
     
@@ -146,12 +151,15 @@ function updateSelectedChannelsUI() {
     
     // 각 채널 항목 생성 및 추가
     selectedChannels.forEach(channel => {
+        // 기본 이미지 URL 설정 (썸네일이 없을 경우)
+        const thumbnailUrl = channel.thumbnail || 'https://via.placeholder.com/24';
+        
         const channelItem = document.createElement('div');
         channelItem.className = 'selected-channel-item';
         channelItem.innerHTML = `
-            <img src="${channel.thumbnail}" alt="${channel.title}" onerror="this.src='/static/img/default-channel.png'">
+            <img src="${thumbnailUrl}" alt="${channel.title}" onerror="this.src='https://via.placeholder.com/24'">
             <span class="channel-name" title="${channel.title}">${channel.title}</span>
-            <button class="remove-channel" data-channel-id="${channel.id}">
+            <button type="button" class="remove-channel" data-channel-id="${channel.id}">
                 <i class="fas fa-times"></i>
             </button>
         `;
@@ -236,24 +244,40 @@ const searchChannel = debounce(function(query) {
         return;
     }
     
+    // 로딩 표시 (선택적)
+    channelSearchResults.innerHTML = '<div class="p-3 text-center"><i class="fas fa-spinner fa-spin me-2"></i>검색 중...</div>';
+    channelSearchResults.style.display = 'block';
+    
     fetch(`/channel-search?q=${encodeURIComponent(query)}`)
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success' && data.channels.length > 0) {
                 channelSearchResults.innerHTML = '';
                 data.channels.forEach(channel => {
+                    // 기본 이미지 URL 설정 (채널 썸네일이 없을 경우)
+                    const thumbnailUrl = channel.thumbnail || 'https://via.placeholder.com/40';
+                    
                     const channelItem = document.createElement('div');
                     channelItem.className = 'channel-item';
                     channelItem.innerHTML = `
-                        <img src="${channel.thumbnail}" class="channel-thumbnail" alt="${channel.title}" onerror="this.src='/static/img/default-channel.png'">
+                        <img src="${thumbnailUrl}" class="channel-thumbnail" alt="${channel.title}" onerror="this.src='https://via.placeholder.com/40'">
                         <div class="channel-info">
                             <div class="channel-title">${channel.title}</div>
                             <div class="channel-description">${channel.description || '설명 없음'}</div>
                         </div>
                     `;
-                    channelItem.addEventListener('click', () => {
-                        addChannel(channel);
-                    });
+                    
+                    // 이미 추가된 채널인지 확인
+                    const isAlreadyAdded = selectedChannels.some(ch => ch.id === channel.id);
+                    if (isAlreadyAdded) {
+                        channelItem.style.opacity = '0.7';
+                        channelItem.title = '이미 추가된 채널입니다';
+                    } else {
+                        channelItem.addEventListener('click', () => {
+                            addChannel(channel);
+                        });
+                    }
+                    
                     channelSearchResults.appendChild(channelItem);
                 });
                 channelSearchResults.style.display = 'block';
@@ -345,4 +369,91 @@ function performSearch(form) {
             </div>
         `;
     });
+}
+
+// 결과 렌더링 함수
+function renderResults(page = 1) {
+    const resultsContainer = document.getElementById('results');
+    const start = (page - 1) * itemsPerPage;
+    const end = page * itemsPerPage;
+    const pageItems = allResults.slice(start, end);
+    
+    if (page === 1) {
+        resultsContainer.innerHTML = '';
+    }
+    
+    pageItems.forEach(video => {
+        const videoCard = createVideoCard(video);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = videoCard;
+        resultsContainer.appendChild(tempDiv.firstElementChild);
+    });
+    
+    // 더 보기 버튼 표시 여부
+    if (allResults.length > end) {
+        loadMoreContainer.style.display = 'block';
+    } else {
+        loadMoreContainer.style.display = 'none';
+    }
+}
+
+// 비디오 카드 생성 함수
+function createVideoCard(video) {
+    const publishDate = new Date(video.publishedAt).toLocaleDateString('ko-KR');
+    
+    // 조회수, 좋아요, 댓글 포맷팅
+    const viewCount = formatNumber(video.viewCount);
+    const likeCount = formatNumber(video.likeCount);
+    const commentCount = formatNumber(video.commentCount);
+    
+    return `
+        <div class="card h-100">
+            <a href="${video.url}" target="_blank">
+                <img src="${video.thumbnail}" class="card-img-top" alt="${video.title}">
+            </a>
+            <div class="card-body">
+                <h6 class="card-title">${video.title}</h6>
+                <p class="card-text small text-muted">
+                    <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="text-decoration-none">
+                        <i class="fas fa-user-circle me-1"></i>${video.channelTitle}
+                    </a>
+                </p>
+                <div class="stats">
+                    <span>
+                        <i class="fas fa-eye me-1"></i>
+                        ${viewCount}
+                    </span>
+                    <span>
+                        <i class="fas fa-thumbs-up me-1"></i>
+                        ${likeCount}
+                    </span>
+                    <span>
+                        <i class="fas fa-comment me-1"></i>
+                        ${commentCount}
+                    </span>
+                </div>
+                <div class="mt-2 small text-muted">
+                    <i class="far fa-calendar-alt me-1"></i><span>${publishDate}</span> • 
+                    <i class="far fa-clock me-1"></i><span>${video.duration}초</span>
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="${video.url}" target="_blank" class="btn btn-sm btn-primary w-100">
+                    <i class="fab fa-youtube me-1"></i>쇼츠 보기
+                </a>
+            </div>
+        </div>
+    `;
+}
+
+// 유틸리티 함수
+// 숫자 포맷팅 함수 (예: 1000 -> 1K, 1000000 -> 1M)
+function formatNumber(num) {
+    if (num >= 1000000) {
+        return (num / 1000000).toFixed(1) + 'M';
+    }
+    if (num >= 1000) {
+        return (num / 1000).toFixed(1) + 'K';
+    }
+    return num.toString();
 }
