@@ -11,7 +11,7 @@ app = Flask(__name__)
 API_KEY = os.environ.get('YOUTUBE_API_KEY')
 
 def get_recent_popular_shorts(api_key, min_views=1000000, days_ago=3, max_results=50,
-                             category_id=None, region_code="US", language="en",
+                             category_id=None, region_code="US", language=None,
                              duration_max=60, keyword=None, title_contains=None):
     print(f"API 검색 시작: 조회수 {min_views} 이상, {days_ago}일 이내, 카테고리: {category_id if category_id else '없음(any)'}, 키워드: {keyword if keyword else '없음'}, 지역: {region_code}, 언어: {language if language and language != 'any' else '모두'}")
 
@@ -126,8 +126,8 @@ def index():
         {"code": "CN", "name": "중국"}
     ]
     languages = [
-        {"code": "en", "name": "영어"},
         {"code": "any", "name": "모든 언어"},
+        {"code": "en", "name": "영어"},
         {"code": "ko", "name": "한국어"},
         {"code": "ja", "name": "일본어"},
         {"code": "zh", "name": "중국어"},
@@ -138,7 +138,7 @@ def index():
 
     # 기본값 설정
     selected_region = 'US'
-    selected_language = 'en'
+    selected_language = 'any'
 
     return render_template('index.html', categories=categories, regions=regions, languages=languages,
                            selected_region=selected_region, selected_language=selected_language)
@@ -156,7 +156,7 @@ def search():
         max_results = int(data.get('max_results', 50))
         category_id = data.get('category_id', 'any')
         region_code = data.get('region_code', 'US')
-        language = data.get('language', 'en')
+        language = data.get('language', 'any')
         duration_max = int(data.get('duration_max', 60))
         keyword = data.get('keyword', '')
         title_contains = data.get('title_contains', '')
