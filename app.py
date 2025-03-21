@@ -10,10 +10,10 @@ app = Flask(__name__)
 # 환경 변수에서 API 키 가져오기
 API_KEY = os.environ.get('YOUTUBE_API_KEY')
 
-def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago=5, max_results=50,  # max_views 추가
-                             category_id=None, region_code="KR", language=None,
+def get_recent_popular_shorts(api_key, min_views=1000000, days_ago=3, max_results=50,
+                             category_id=None, region_code="US", language="en",
                              duration_max=60, keyword=None, title_contains=None):
-    print(f"API 검색 시작: 조회수 {min_views}~{max_views if max_views else '무제한'}, {days_ago}일 이내, 카테고리: {category_id if category_id else '없음(any)'}, 키워드: {keyword if keyword else '없음'}, 지역: {region_code}, 언어: {language if language and language != 'any' else '모두'}")
+    print(f"API 검색 시작: 조회수 {min_views} 이상, {days_ago}일 이내, 카테고리: {category_id if category_id else '없음(any)'}, 키워드: {keyword if keyword else '없음'}, 지역: {region_code}, 언어: {language if language and language != 'any' else '모두'}")
 
     youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=api_key)
 
@@ -72,13 +72,8 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
         else:
             is_vertical = True
 
-
         # 비디오가 조건을 충족하는지 확인
-        if (view_count >= min_views and
-            (max_views is None or view_count <= max_views) and  # max_views 조건 추가
-            duration_seconds <= duration_max): # and is_vertical):  # is_vertical 조건 주석 처리
-
-
+        if (view_count >= min_views and duration_seconds <= duration_max):
             if title_contains:
                 if title_contains.lower() not in item['snippet']['title'].lower():
                     continue
@@ -98,7 +93,6 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
 
     filtered_videos.sort(key=lambda x: x['viewCount'], reverse=True)
     return filtered_videos
-
 
 
 @app.route('/')
@@ -121,8 +115,8 @@ def index():
         {"id": "28", "name": "과학 & 기술"}
     ]
     regions = [
-        {"code": "KR", "name": "대한민국"},
         {"code": "US", "name": "미국"},
+        {"code": "KR", "name": "대한민국"},
         {"code": "JP", "name": "일본"},
         {"code": "GB", "name": "영국"},
         {"code": "FR", "name": "프랑스"},
@@ -132,9 +126,9 @@ def index():
         {"code": "CN", "name": "중국"}
     ]
     languages = [
+        {"code": "en", "name": "영어"},
         {"code": "any", "name": "모든 언어"},
         {"code": "ko", "name": "한국어"},
-        {"code": "en", "name": "영어"},
         {"code": "ja", "name": "일본어"},
         {"code": "zh", "name": "중국어"},
         {"code": "es", "name": "스페인어"},
@@ -142,13 +136,12 @@ def index():
         {"code": "de", "name": "독일어"}
     ]
 
-    # 기본값 설정 (또는 세션에서 가져오기)
-    selected_region = 'KR'  # 기본값
-    selected_language = 'ko'  # 기본값
+    # 기본값 설정
+    selected_region = 'US'
+    selected_language = 'en'
 
     return render_template('index.html', categories=categories, regions=regions, languages=languages,
                            selected_region=selected_region, selected_language=selected_language)
-
 
 
 @app.route('/search', methods=['POST'])
@@ -158,19 +151,19 @@ def search():
 
         print("검색 요청 파라미터:", data)
 
-        min_views = int(data.get('min_views', 10000))
-        days_ago = int(data.get('days_ago', 5))
+        min_views = int(data.get('min_views', 1000000))
+        days_ago = int(data.get('days_ago', 3))
         max_results = int(data.get('max_results', 50))
         category_id = data.get('category_id', 'any')
-        region_code = data.get('region_code', 'KR')  # 사용자가 선택한 값 사용
-        language = data.get('language', 'any')      # 사용자가 선택한 값 사용
+        region_code = data.get('region_code', 'US')
+        language = data.get('language', 'en')
         duration_max = int(data.get('duration_max', 60))
         keyword = data.get('keyword', '')
+        title_contains = data.get('title_contains', '')
 
         if not API_KEY:
             print("경고: API 키가 설정되지 않았습니다.")
             return jsonify({"status": "error", "message": "API 키가 설정되지 않았습니다."})
-
 
         results = get_recent_popular_shorts(
             api_key=API_KEY,
@@ -178,10 +171,11 @@ def search():
             days_ago=days_ago,
             max_results=max_results,
             category_id=category_id if category_id != 'any' else None,
-            region_code=region_code,  # 전달받은 region_code 사용
-            language=language if language != 'any' else None,  # 전달받은 language 사용
+            region_code=region_code,
+            language=language if language != 'any' else None,
             duration_max=duration_max,
-            keyword=keyword
+            keyword=keyword,
+            title_contains=title_contains
         )
 
         print(f"검색 결과: {len(results)}개 항목 찾음")
