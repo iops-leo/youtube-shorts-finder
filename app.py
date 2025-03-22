@@ -427,9 +427,16 @@ def search():
         data = request.form
         print("검색 요청 파라미터:", data)
 
-        min_views = int(data.get('min_views', 10000))
-        max_views = data.get('max_views', '')
-        max_views = int(max_views) if max_views.strip() else None
+        # 콤마가 포함된 문자열을 처리하여 정수로 변환
+        try:
+            min_views_str = data.get('min_views', '10000')
+            min_views = int(min_views_str.replace(',', '')) if min_views_str else 10000
+            
+            max_views_str = data.get('max_views', '')
+            max_views = int(max_views_str.replace(',', '')) if max_views_str.strip() else None
+        except ValueError as e:
+            return jsonify({"status": "error", "message": f"조회수 값이 유효하지 않습니다: {str(e)}"})
+        
         
         days_ago = int(data.get('days_ago', 5))
         max_results = int(data.get('max_results', 50))
