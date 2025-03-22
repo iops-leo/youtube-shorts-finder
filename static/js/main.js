@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
     enhanceKeywordField();
     enhanceVideoCards();
     addSortingFeature();
-    
+
     // 숫자 포맷팅 설정 추가
     setupNumberFormatting();
 });
@@ -943,67 +943,78 @@ function enhanceVideoCards() {
 }
 
 function setupNumberFormatting() {
-    // 대상 요소들
-    const minViewsInput = document.getElementById('min_views');
-    const maxViewsInput = document.getElementById('max_views');
+  // 대상 요소들
+  const minViewsInput = document.getElementById('min_views');
+  const maxViewsInput = document.getElementById('max_views');
+  
+  // 포맷팅할 요소들
+  const inputsToFormat = [minViewsInput, maxViewsInput];
+  
+  // 초기값 설정 - 최소 조회수에 기본값 설정
+  if (minViewsInput && !minViewsInput.value) {
+    minViewsInput.value = "10000"; // 기본값 설정
+  }
+  
+  inputsToFormat.forEach(input => {
+    if (!input) return;
     
-    // 포맷팅할 요소들
-    const inputsToFormat = [minViewsInput, maxViewsInput];
+    // 초기값에 콤마 적용 (값이 있고 유효한 숫자인 경우에만)
+    if (input.value && !isNaN(parseFloat(input.value))) {
+      input.value = parseInt(input.value).toLocaleString();
+    }
     
-    inputsToFormat.forEach(input => {
-      if (!input) return;
-      
-      // 초기값에 콤마 적용
-      if (input.value) {
-        input.value = Number(input.value).toLocaleString();
-      }
-      
-      // 입력란에 포커스가 오면 콤마 제거
-      input.addEventListener('focus', function() {
-        this.value = this.value.replace(/,/g, '');
-      });
-      
-      // 입력란에서 포커스가 나가면 콤마 추가
-      input.addEventListener('blur', function() {
-        if (this.value) {
-          // 숫자가 아닌 문자 제거하고 숫자만 유지
-          const numericValue = this.value.replace(/[^\d]/g, '');
-          if (numericValue) {
-            this.value = Number(numericValue).toLocaleString();
-          }
-        }
-      });
+    // 입력란에 포커스가 오면 콤마 제거
+    input.addEventListener('focus', function() {
+      this.value = this.value.replace(/,/g, '');
     });
     
-    // 폼 제출 시 콤마 제거
-    const searchForm = document.getElementById('searchForm');
-    if (searchForm) {
-      const originalSubmit = searchForm.onsubmit;
+    // 입력 시 숫자만 입력 가능하도록
+    input.addEventListener('input', function() {
+      this.value = this.value.replace(/[^\d]/g, '');
+    });
+    
+    // 입력란에서 포커스가 나가면 콤마 추가
+    input.addEventListener('blur', function() {
+      if (this.value) {
+        // 숫자가 아닌 문자 제거하고 숫자만 유지
+        const numericValue = this.value.replace(/[^\d]/g, '');
+        if (numericValue) {
+          this.value = parseInt(numericValue).toLocaleString();
+        }
+      }
+    });
+  });
+  
+  // 폼 제출 시 콤마 제거
+  const searchForm = document.getElementById('searchForm');
+  if (searchForm) {
+    // 기존 onsubmit 동작을 저장
+    const originalOnSubmit = searchForm.onsubmit;
+    
+    searchForm.onsubmit = function(e) {
+      e.preventDefault();
       
-      searchForm.onsubmit = function(e) {
-        e.preventDefault();
-        
-        // 제출 전에 콤마 제거
+      // 제출 전에 콤마 제거
+      inputsToFormat.forEach(input => {
+        if (input && input.value) {
+          input.value = input.value.replace(/,/g, '');
+        }
+      });
+      
+      // 검색 수행 (기존 로직 호출)
+      performSearch(this);
+      
+      // 화면 표시를 위해 다시 콤마 추가
+      setTimeout(() => {
         inputsToFormat.forEach(input => {
-          if (input && input.value) {
-            input.value = input.value.replace(/,/g, '');
+          if (input && input.value && !isNaN(parseInt(input.value))) {
+            input.value = parseInt(input.value).toLocaleString();
           }
         });
-        
-        // 검색 수행 (기존 로직 호출)
-        performSearch(this);
-        
-        // 화면 표시를 위해 다시 콤마 추가
-        setTimeout(() => {
-          inputsToFormat.forEach(input => {
-            if (input && input.value) {
-              input.value = Number(input.value).toLocaleString();
-            }
-          });
-        }, 100);
-      };
-    }
+      }, 100);
+    };
   }
+}
 
 // 정렬 및 필터링 기능 추가
 function addSortingFeature() {
