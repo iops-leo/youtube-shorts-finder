@@ -589,3 +589,10 @@ def check_video_language(video_data, target_language):
     
     # 기본적으로 통과시키지 않음
     return False
+
+
+@app.route('/favicon.ico')
+def favicon():
+    """Favicon 반환 라우트"""
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
