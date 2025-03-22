@@ -237,14 +237,14 @@ def process_video_results(video_response, min_views, max_views, duration_max, ti
         duration_seconds = isodate.parse_duration(duration).total_seconds()
 
         # 썸네일 확인 (세로형 확인용)
-        if 'high' in item['snippet']['thumbnails']:
-            thumbnail = item['snippet']['thumbnails']['high']
-            is_vertical = thumbnail['height'] > thumbnail['width']
-        elif 'medium' in item['snippet']['thumbnails']:
-            thumbnail = item['snippet']['thumbnails']['medium']
-            is_vertical = thumbnail['height'] > thumbnail['width']
-        else:
-            is_vertical = True
+        # if 'high' in item['snippet']['thumbnails']:
+        #     thumbnail = item['snippet']['thumbnails']['high']
+        #     is_vertical = thumbnail['height'] > thumbnail['width']
+        # elif 'medium' in item['snippet']['thumbnails']:
+        #     thumbnail = item['snippet']['thumbnails']['medium']
+        #     is_vertical = thumbnail['height'] > thumbnail['width']
+        # else:
+        is_vertical = True
 
         # 비디오가 조건을 충족하는지 확인
         if (view_count >= min_views and
