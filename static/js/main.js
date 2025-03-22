@@ -952,7 +952,7 @@ function setupNumberFormatting() {
   
   // 초기값 설정 - 최소 조회수에 기본값 설정
   if (minViewsInput && !minViewsInput.value) {
-    minViewsInput.value = "10000"; // 기본값 설정
+    minViewsInput.value = "100000"; // 기본값 설정
   }
   
   inputsToFormat.forEach(input => {
