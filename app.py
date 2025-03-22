@@ -8,6 +8,7 @@ import json
 from functools import lru_cache
 import time
 import hashlib
+import re
 
 app = Flask(__name__)
 
@@ -115,6 +116,14 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
             seen_video_ids.add(video['id'])
             unique_results.append(video)
     
+    # 언어 필터 추가 강화
+    if language and language != "any":
+        filtered_results = []
+        for video in unique_results:
+            if check_video_language(video, language):
+                filtered_results.append(video)
+        unique_results = filtered_results
+    
     # 조회수 기준 내림차순 정렬
     unique_results.sort(key=lambda x: x['viewCount'], reverse=True)
     
@@ -146,38 +155,79 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
         'order': 'viewCount'
     }
 
-    # 키워드가 있는 경우 추가
+    # 키워드 처리 - 콤마로 구분된 키워드 지원
+    all_results = []
+    
     if keyword:
-        search_params['q'] = keyword
-        if language and language != "any":
-            search_params['relevanceLanguage'] = language
+        # 콤마로 구분된 키워드를 분리
+        keywords = [k.strip() for k in keyword.split(',') if k.strip()]
+        
+        # 각 키워드별로 검색 수행
+        for single_keyword in keywords:
+            keyword_params = search_params.copy()
+            keyword_params['q'] = single_keyword
+            
+            if language and language != "any":
+                keyword_params['relevanceLanguage'] = language
+            
+            # 카테고리 ID가 있는 경우 추가
+            if category_id and category_id != "any":
+                keyword_params['videoCategoryId'] = category_id
+            
+            # 채널 ID가 있는 경우 추가
+            if channel_id:
+                keyword_params['channelId'] = channel_id
+                
+            # 검색 실행
+            try:
+                search_response = youtube.search().list(**keyword_params).execute()
+                
+                video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
+                if video_ids:
+                    # 비디오 상세 정보 가져오기
+                    video_response = youtube.videos().list(
+                        part='snippet,statistics,contentDetails',
+                        id=','.join(video_ids)
+                    ).execute()
+                    
+                    # 결과 필터링 및 처리
+                    keyword_results = process_video_results(video_response, min_views, max_views, duration_max, title_contains)
+                    all_results.extend(keyword_results)
+            except Exception as e:
+                print(f"YouTube API 키워드 검색 오류 ({single_keyword}): {str(e)}")
+    else:
+        # 키워드 없는 기본 검색
+        # 카테고리 ID가 있는 경우 추가
+        if category_id and category_id != "any":
+            search_params['videoCategoryId'] = category_id
+        
+        # 채널 ID가 있는 경우 추가
+        if channel_id:
+            search_params['channelId'] = channel_id
+            
+        # 검색 실행
+        try:
+            search_response = youtube.search().list(**search_params).execute()
+            
+            video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
+            if video_ids:
+                # 비디오 상세 정보 가져오기
+                video_response = youtube.videos().list(
+                    part='snippet,statistics,contentDetails',
+                    id=','.join(video_ids)
+                ).execute()
+                
+                # 결과 필터링 및 처리
+                all_results = process_video_results(video_response, min_views, max_views, duration_max, title_contains)
+        except Exception as e:
+            print(f"YouTube API 기본 검색 오류: {str(e)}")
     
-    # 카테고리 ID가 있는 경우 추가
-    if category_id and category_id != "any":
-        search_params['videoCategoryId'] = category_id
-    
-    # 채널 ID가 있는 경우 추가
-    if channel_id:
-        search_params['channelId'] = channel_id
+    return all_results
 
-    # 검색 실행
-    try:
-        search_response = youtube.search().list(**search_params).execute()
-    except Exception as e:
-        print(f"YouTube API 검색 오류: {str(e)}")
-        return []
-
-    video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
-    if not video_ids:
-        return []
-
-    # 비디오 상세 정보 가져오기
-    video_response = youtube.videos().list(
-        part='snippet,statistics,contentDetails',
-        id=','.join(video_ids)
-    ).execute()
-
+def process_video_results(video_response, min_views, max_views, duration_max, title_contains):
+    """비디오 응답 데이터 처리 함수"""
     filtered_videos = []
+    
     for item in video_response.get('items', []):
         # 조회수 추출
         view_count = int(item['statistics'].get('viewCount', 0))
@@ -419,3 +469,57 @@ if __name__ == '__main__':
 
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
+
+def check_video_language(video_data, target_language):
+    """
+    비디오가 특정 언어인지 확인하는 함수
+    video_data: API에서 반환된 비디오 정보
+    target_language: 확인할 언어 코드 ('ko', 'en', 'ja', 등)
+    """
+    # 언어별 문자 패턴 정의
+    language_patterns = {
+        'ko': r'[가-힣]',          # 한국어
+        'en': r'[a-zA-Z]',         # 영어
+        'ja': r'[\u3040-\u309F\u30A0-\u30FF]',  # 일본어 (히라가나, 가타카나)
+        'zh': r'[\u4e00-\u9FFF]',  # 중국어
+    }
+    
+    # 제목과 채널명 가져오기
+    title = video_data.get('title', '')
+    channel_title = video_data.get('channelTitle', '')
+    
+    # 대상 언어의 패턴이 정의되어 있는지 확인
+    if target_language not in language_patterns:
+        return True  # 패턴이 없으면 기본적으로 통과
+    
+    pattern = language_patterns[target_language]
+    
+    # 제목에서 해당 언어 문자 비율 계산
+    if title:
+        title_matches = len(re.findall(pattern, title))
+        title_ratio = title_matches / len(title) if len(title) > 0 else 0
+        
+        # 영어의 경우 더 관대한 기준 적용 (영어는 많은 언어에서 차용됨)
+        if target_language == 'en':
+            if title_ratio > 0.4:  # 40% 이상이 영어 문자면 영어로 간주
+                return True
+        else:
+            # 비영어 언어는 더 엄격한 기준 적용
+            if title_ratio > 0.15:  # 15% 이상이 해당 언어 문자면 해당 언어로 간주
+                return True
+    
+    # 채널명에서 해당 언어 문자 비율 계산
+    if channel_title:
+        channel_matches = len(re.findall(pattern, channel_title))
+        channel_ratio = channel_matches / len(channel_title) if len(channel_title) > 0 else 0
+        
+        if target_language == 'en':
+            if channel_ratio > 0.5:  # 50% 이상이 영어 문자면 영어로 간주
+                return True
+        else:
+            if channel_ratio > 0.3:  # 30% 이상이 해당 언어 문자면 해당 언어로 간주
+                return True
+    
+    # 기본적으로 통과시키지 않음
+    return False
