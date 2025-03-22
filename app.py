@@ -51,6 +51,7 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
     """
     인기 YouTube Shorts 검색 함수
     channel_ids 파라미터 수정: 여러 채널의 쇼츠 검색 가능
+    국가 필터링 강화: videos.list 호출에도 regionCode 포함 및 고급 필터링 추가
     """
     # 캐시 키 생성
     cache_params = {
@@ -93,15 +94,38 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
     all_results = []
     
     try:
+        # 국가별 필터링 강화: 키워드에 국가명 추가 (선택적)
+        enhanced_keyword = keyword
+        if keyword and region_code:
+            region_names = {
+                "KR": ["한국", "korea", "korean"],
+                "US": ["미국", "america", "american", "usa"],
+                "JP": ["일본", "japan", "japanese"],
+                "GB": ["영국", "uk", "britain", "british"],
+                "FR": ["프랑스", "france", "french"],
+                "DE": ["독일", "germany", "german"],
+                "CA": ["캐나다", "canada", "canadian"],
+                "AU": ["호주", "australia", "australian"],
+                "CN": ["중국", "china", "chinese"]
+            }
+            
+            # 이미 국가명이 키워드에 포함되어 있는지 확인
+            country_terms = region_names.get(region_code, [])
+            already_has_country = any(term.lower() in keyword.lower() for term in country_terms)
+            
+            # 국가명이 없는 경우에만 키워드에 국가명 추가 (첫 번째 국가명 사용)
+            if not already_has_country and country_terms:
+                enhanced_keyword = f"{keyword} {country_terms[0]}"
+        
         # 채널 ID가 없거나 단일 채널인 경우를 처리
         if not channel_ids:
             # 키워드에 콤마가 있으면 공백으로 변환 (OR 검색)
-            if keyword and ',' in keyword:
-                keyword = keyword.replace(',', ' ')
+            if enhanced_keyword and ',' in enhanced_keyword:
+                enhanced_keyword = enhanced_keyword.replace(',', ' ')
                 
             search_results = perform_search(youtube, min_views, max_views, days_ago, max_results, 
                                            category_id, region_code, language, duration_max, 
-                                           keyword, title_contains, None)
+                                           enhanced_keyword, title_contains, None)
             all_results.extend(search_results)
         else:
             # 문자열로 전달된 경우 리스트로 변환
@@ -116,13 +140,13 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
             # 각 채널별로 검색 실행
             for channel_id in channel_id_list:
                 # 키워드에 콤마가 있으면 공백으로 변환 (OR 검색)
-                if keyword and ',' in keyword:
-                    keyword = keyword.replace(',', ' ')
+                if enhanced_keyword and ',' in enhanced_keyword:
+                    enhanced_keyword = enhanced_keyword.replace(',', ' ')
                     
                 channel_results = perform_search(youtube, min_views, max_views, days_ago, 
                                                max_results // len(channel_id_list) + 1, 
                                                category_id, region_code, language, duration_max, 
-                                               keyword, title_contains, channel_id)
+                                               enhanced_keyword, title_contains, channel_id)
                 all_results.extend(channel_results)
     except Exception as e:
         print(f"검색 실행 중 오류: {str(e)}")
@@ -139,17 +163,7 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
         if video['id'] not in seen_video_ids:
             seen_video_ids.add(video['id'])
             unique_results.append(video)
-    
-    # 언어 필터는 임시로 비활성화 (문제 없이 작동하면 나중에 다시 활성화)
-    """
-    if language and language != "any":
-        filtered_results = []
-        for video in unique_results:
-            if check_video_language(video, language):
-                filtered_results.append(video)
-        unique_results = filtered_results
-    """
-    
+   
     # 조회수 기준 내림차순 정렬
     unique_results.sort(key=lambda x: x['viewCount'], reverse=True)
     
@@ -160,7 +174,12 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
     # 결과 캐싱
     save_to_cache(cache_key, unique_results)
     
+    # 결과 통계 출력
+    if unique_results:
+        print(f"검색 결과: {len(unique_results)}개 비디오 찾음, 국가: {region_code}")
+    
     return unique_results
+
 
 def perform_search(youtube, min_views, max_views, days_ago, max_results, 
                   category_id, region_code, language, duration_max, 
@@ -213,7 +232,8 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
     try:
         video_response = youtube.videos().list(
             part='snippet,statistics,contentDetails',
-            id=','.join(video_ids)
+            id=','.join(video_ids),
+            regionCode=region_code  # 국가 코드 추가
         ).execute()
     except Exception as e:
         print(f"YouTube API 비디오 상세 정보 오류: {str(e)}")
@@ -251,6 +271,9 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
                     if title_contains.lower() not in item['snippet']['title'].lower():
                         continue
 
+                # 지역 정보와 함께 로그 추가
+                print(f"Video found: {item['snippet']['title']} - Region: {region_code}, Language: {item['snippet'].get('defaultLanguage', 'unknown')}")
+
                 filtered_videos.append({
                     'id': item['id'],
                     'title': item['snippet']['title'],
@@ -263,6 +286,7 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
                     'duration': round(duration_seconds),
                     'url': f"https://www.youtube.com/shorts/{item['id']}",
                     'thumbnail': thumbnail_url,
+                    'regionCode': region_code,  # 국가 코드 정보 추가
                     'isVertical': True  # 세로 체크 단순화
                 })
         except Exception as e:
@@ -532,64 +556,6 @@ if __name__ == '__main__':
 
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
-
-
-def check_video_language(video_data, target_language):
-    """
-    비디오가 특정 언어인지 확인하는 함수
-    video_data: API에서 반환된 비디오 정보
-    target_language: 확인할 언어 코드 ('ko', 'en', 'ja', 등)
-    """
-    # 임시로 모든 비디오가 통과하도록 설정
-    return True
-
-    # 언어별 문자 패턴 정의
-    language_patterns = {
-        'ko': r'[가-힣]',          # 한국어
-        'en': r'[a-zA-Z]',         # 영어
-        'ja': r'[\u3040-\u309F\u30A0-\u30FF]',  # 일본어 (히라가나, 가타카나)
-        'zh': r'[\u4e00-\u9FFF]',  # 중국어
-    }
-    
-    # 제목과 채널명 가져오기
-    title = video_data.get('title', '')
-    channel_title = video_data.get('channelTitle', '')
-    
-    # 대상 언어의 패턴이 정의되어 있는지 확인
-    if target_language not in language_patterns:
-        return True  # 패턴이 없으면 기본적으로 통과
-    
-    pattern = language_patterns[target_language]
-    
-    # 제목에서 해당 언어 문자 비율 계산
-    if title:
-        title_matches = len(re.findall(pattern, title))
-        title_ratio = title_matches / len(title) if len(title) > 0 else 0
-        
-        # 영어의 경우 더 관대한 기준 적용 (영어는 많은 언어에서 차용됨)
-        if target_language == 'en':
-            if title_ratio > 0.4:  # 40% 이상이 영어 문자면 영어로 간주
-                return True
-        else:
-            # 비영어 언어는 더 엄격한 기준 적용
-            if title_ratio > 0.15:  # 15% 이상이 해당 언어 문자면 해당 언어로 간주
-                return True
-    
-    # 채널명에서 해당 언어 문자 비율 계산
-    if channel_title:
-        channel_matches = len(re.findall(pattern, channel_title))
-        channel_ratio = channel_matches / len(channel_title) if len(channel_title) > 0 else 0
-        
-        if target_language == 'en':
-            if channel_ratio > 0.5:  # 50% 이상이 영어 문자면 영어로 간주
-                return True
-        else:
-            if channel_ratio > 0.3:  # 30% 이상이 해당 언어 문자면 해당 언어로 간주
-                return True
-    
-    # 기본적으로 통과시키지 않음
-    return False
-
 
 @app.route('/favicon.ico')
 def favicon():

@@ -465,6 +465,10 @@ function createVideoCard(video) {
     const likeCount = formatNumber(video.likeCount);
     const commentCount = formatNumber(video.commentCount);
     
+    // 국가 정보 배지 추가 (비디오 객체에 regionCode가 있을 경우)
+    const regionBadge = video.regionCode ? 
+        `<span class="badge bg-info" title="검색 국가 코드">${video.regionCode}</span>` : '';
+    
     return `
         <div class="card h-100">
             <a href="${video.url}" target="_blank">
@@ -476,6 +480,7 @@ function createVideoCard(video) {
                     <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="text-decoration-none">
                         <i class="fas fa-user-circle me-1"></i>${video.channelTitle}
                     </a>
+                    ${regionBadge}
                 </p>
                 <div class="stats">
                     <span title="조회수">
@@ -896,22 +901,39 @@ function enhanceVideoCards() {
     window.createVideoCard = window.createVideoCardWithHover;
 }
 
-// 검색 결과 정렬 기능 추가
+// 정렬 및 필터링 기능 추가
 function addSortingFeature() {
     // 정렬 컨트롤 추가
     const sortingControlHTML = `
-        <div class="mb-3">
-            <label for="sortOption" class="form-label"><i class="fas fa-sort me-1"></i>정렬 기준:</label>
-            <select id="sortOption" class="form-select">
-                <option value="viewCount">조회수 (높은순)</option>
-                <option value="viewCountAsc">조회수 (낮은순)</option>
-                <option value="likeCount">좋아요 (높은순)</option>
-                <option value="commentCount">댓글 (높은순)</option>
-                <option value="publishDate">최신순</option>
-                <option value="publishDateAsc">오래된순</option>
-                <option value="duration">길이 (긴순)</option>
-                <option value="durationAsc">길이 (짧은순)</option>
-            </select>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="sortOption" class="form-label"><i class="fas fa-sort me-1"></i>정렬 기준:</label>
+                <select id="sortOption" class="form-select">
+                    <option value="viewCount">조회수 (높은순)</option>
+                    <option value="viewCountAsc">조회수 (낮은순)</option>
+                    <option value="likeCount">좋아요 (높은순)</option>
+                    <option value="commentCount">댓글 (높은순)</option>
+                    <option value="publishDate">최신순</option>
+                    <option value="publishDateAsc">오래된순</option>
+                    <option value="duration">길이 (긴순)</option>
+                    <option value="durationAsc">길이 (짧은순)</option>
+                </select>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="filterRegion" class="form-label"><i class="fas fa-globe me-1"></i>국가별 필터:</label>
+                <select id="filterRegion" class="form-select">
+                    <option value="all">모든 국가 표시</option>
+                    <option value="KR">한국 (KR)</option>
+                    <option value="US">미국 (US)</option>
+                    <option value="JP">일본 (JP)</option>
+                    <option value="GB">영국 (GB)</option>
+                    <option value="FR">프랑스 (FR)</option>
+                    <option value="DE">독일 (DE)</option>
+                    <option value="CA">캐나다 (CA)</option>
+                    <option value="AU">호주 (AU)</option>
+                    <option value="CN">중국 (CN)</option>
+                </select>
+            </div>
         </div>
     `;
     
@@ -958,17 +980,106 @@ function addSortingFeature() {
         // 결과 다시 렌더링
         currentPage = 1;
         document.getElementById('results').innerHTML = '';
-        renderResults();
+        
+        // 국가별 필터가 선택되었는지 확인하고 필터링 적용
+        const filterRegion = document.getElementById('filterRegion').value;
+        renderFilteredResults(filterRegion);
     };
     
-    // 정렬 변경 이벤트 리스너
+    // 국가별 필터링 함수 추가
+    window.filterByRegion = function(regionCode) {
+        if (!regionCode || regionCode === 'all') {
+            // 모든 결과 표시
+            currentPage = 1;
+            document.getElementById('results').innerHTML = '';
+            renderResults();
+            return;
+        }
+        
+        // 선택된 국가로 필터링
+        currentPage = 1;
+        document.getElementById('results').innerHTML = '';
+        renderFilteredResults(regionCode);
+    };
+    
+    // 필터링된 결과 렌더링 함수
+    function renderFilteredResults(regionCode) {
+        if (!regionCode || regionCode === 'all') {
+            renderResults();
+            return;
+        }
+        
+        // 국가 코드로 필터링된 결과
+        const filteredResults = allResults.filter(video => 
+            video.regionCode === regionCode || 
+            !video.regionCode // regionCode 속성이 없는 기존 비디오도 포함
+        );
+        
+        // 필터링 결과 표시
+        const resultsContainer = document.getElementById('results');
+        
+        if (filteredResults.length === 0) {
+            resultsContainer.innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>선택한 국가(${regionCode})에 해당하는 결과가 없습니다.
+                    </div>
+                </div>
+            `;
+            loadMoreContainer.style.display = 'none';
+            return;
+        }
+        
+        const start = 0;
+        const end = Math.min(itemsPerPage, filteredResults.length);
+        const pageItems = filteredResults.slice(start, end);
+        
+        pageItems.forEach(video => {
+            const videoCard = createVideoCard(video);
+            resultsContainer.innerHTML += videoCard;
+        });
+        
+        // 더 보기 버튼 표시 여부
+        if (filteredResults.length > end) {
+            loadMoreContainer.style.display = 'block';
+            
+            // 더 보기 버튼 이벤트 수정 - 필터링된 결과에 대해 작동하도록
+            loadMoreButton.onclick = function() {
+                currentPage++;
+                const newStart = (currentPage - 1) * itemsPerPage;
+                const newEnd = currentPage * itemsPerPage;
+                const nextPageItems = filteredResults.slice(newStart, newEnd);
+                
+                nextPageItems.forEach(video => {
+                    const videoCard = createVideoCard(video);
+                    resultsContainer.innerHTML += videoCard;
+                });
+                
+                // 더 보기 버튼 표시 여부 업데이트
+                if (filteredResults.length <= newEnd) {
+                    loadMoreContainer.style.display = 'none';
+                }
+            };
+        } else {
+            loadMoreContainer.style.display = 'none';
+        }
+        
+        // 결과 수 업데이트
+        document.getElementById('resultCount').textContent = filteredResults.length;
+    }
+    
+    // 정렬 및 필터 변경 이벤트 리스너
     document.addEventListener('change', function(e) {
         if (e.target && e.target.id === 'sortOption') {
             window.sortResults(e.target.value);
         }
+        
+        if (e.target && e.target.id === 'filterRegion') {
+            window.filterByRegion(e.target.value);
+        }
     });
     
-    // 기존 performSearch 함수 수정 (정렬 컨트롤 표시)
+    // 기존 performSearch 함수 수정 (정렬/필터 컨트롤 표시)
     const originalPerformSearch = window.performSearch;
     window.performSearch = function(form) {
         // 원래 함수 호출
@@ -981,6 +1092,22 @@ function addSortingFeature() {
         setTimeout(function() {
             if (allResults.length > 0) {
                 document.getElementById('sortingControl').style.display = 'block';
+                
+                // 검색 시 사용한 region_code 값으로 기본 필터 설정
+                const regionCodeSelect = document.getElementById('region_code');
+                const filterRegionSelect = document.getElementById('filterRegion');
+                if (regionCodeSelect && filterRegionSelect) {
+                    // 검색에 사용된 region_code 값
+                    const searchedRegion = regionCodeSelect.value;
+                    // filterRegion 선택 옵션 갱신
+                    filterRegionSelect.value = searchedRegion;
+                }
+                
+                // 더 보기 버튼 이벤트 초기화 - 전체 결과에 대해 작동하도록
+                loadMoreButton.onclick = function() {
+                    currentPage++;
+                    renderResults(currentPage);
+                };
             }
         }, 500);
     };

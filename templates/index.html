@@ -78,6 +78,9 @@
                                         <option value="{{ region.code }}" {% if region.code == selected_region %}selected{% endif %}>{{ region.name }}</option>
                                         {% endfor %}
                                     </select>
+                                    <div class="form-text text-muted">
+                                        <small><i class="fas fa-info-circle me-1"></i>국가 설정은 검색 결과에 우선적으로 적용되나, YouTube의 정책에 따라 100% 정확하지 않을 수 있습니다.</small>
+                                    </div>
                                 </div>
                                 <div class="col-md-6">
                                     <label for="language" class="form-label">
@@ -88,6 +91,9 @@
                                         <option value="{{ lang.code }}" {% if lang.code == selected_language %}selected{% endif %}>{{ lang.name }}</option>
                                         {% endfor %}
                                     </select>
+                                    <div class="form-text text-muted">
+                                        <small><i class="fas fa-info-circle me-1"></i>언어 설정은 키워드 검색 시 주로 영향을 미칩니다.</small>
+                                    </div>
                                 </div>
                                 <div class="col-md-6">
                                     <label for="duration_max" class="form-label">
