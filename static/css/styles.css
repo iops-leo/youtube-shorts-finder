@@ -26,11 +26,18 @@
 /* 비디오 그리드 레이아웃 */
 .video-container {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 15px; /* 간격 줄임 */
 }
+/* 쇼츠 비디오 카드 전체 스타일 */
+.video-container .card {
+    margin-bottom: 0; /* 마진 제거 */
+    height: 100%;
+}
+
+/* 카드 이미지 비율 조정 */
 .card-img-top {
-    height: 180px;
+    height: 240px; /* 세로로 긴 쇼츠 형태에 맞게 조정 */
     object-fit: cover;
 }
 

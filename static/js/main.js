@@ -428,9 +428,7 @@ function renderResults(page = 1) {
     
     pageItems.forEach(video => {
         const videoCard = createVideoCard(video);
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = videoCard;
-        resultsContainer.appendChild(tempDiv.firstElementChild);
+        resultsContainer.innerHTML += videoCard; // 직접 HTML 추가
     });
     
     // 더 보기 버튼 표시 여부
@@ -816,8 +814,7 @@ function enhanceVideoCards() {
         const publishDateTime = new Date(video.publishedAt).toLocaleString('ko-KR');
         
         return `
-            <div class="col-md-4 col-lg-3 col-sm-6 mb-4">
-                <div class="card h-100 position-relative">
+                <div class="card">
                     <a href="${video.url}" target="_blank">
                         <img src="${video.thumbnail}" class="card-img-top" alt="${video.title}">
                     </a>
@@ -874,7 +871,6 @@ function enhanceVideoCards() {
                         </div>
                     </div>
                 </div>
-            </div>
         `;
     };
     
