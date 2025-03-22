@@ -49,11 +49,10 @@ def save_to_cache(cache_key, data):
 
 def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago=5, max_results=50,
                              category_id=None, region_code="KR", language=None,
-                             duration_max=60, keyword=None, title_contains=None, channel_ids=None):
+                             duration_max=60, keyword=None, title_contains=None, 
+                             description_contains=None, channel_ids=None):
     """
-    인기 YouTube Shorts 검색 함수
-    channel_ids 파라미터 수정: 여러 채널의 쇼츠 검색 가능
-    국가 필터링 강화: videos.list 호출에도 regionCode 포함 및 고급 필터링 추가
+    인기 YouTube Shorts 검색 함수 - 설명란 필터 추가
     """
     # 캐시 키 생성
     cache_params = {
@@ -67,6 +66,7 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
         'duration_max': duration_max,
         'keyword': keyword,
         'title_contains': title_contains,
+        'description_contains': description_contains,  # 설명 필터 추가
         'channel_ids': channel_ids
     }
     cache_key = get_cache_key(cache_params)
@@ -79,6 +79,8 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
     
     print(f"API 검색 시작: 조회수 {min_views}~{max_views if max_views else '무제한'}, {days_ago}일 이내, "
           f"카테고리: {category_id if category_id else '없음(any)'}, 키워드: {keyword if keyword else '없음'}, "
+          f"제목 포함: {title_contains if title_contains else '없음'}, "
+          f"설명 포함: {description_contains if description_contains else '없음'}, "
           f"지역: {region_code}, 언어: {language if language and language != 'any' else '모두'}, "
           f"채널IDs: {channel_ids if channel_ids else '모든 채널'}")
 
@@ -96,38 +98,13 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
     all_results = []
     
     try:
-        # 키워드 처리 - 향상된 키워드 로직 문제 해결
+        # 키워드 처리
         original_keyword = keyword
         enhanced_keyword = None
         
         # 키워드가 있는 경우에만 처리
         if keyword and keyword.strip():
             enhanced_keyword = keyword.strip()
-            
-            # 국가별 필터링 강화: 키워드에 국가명 추가 (선택적) - 일단 비활성화
-            # 이 기능은 너무 제한적인 결과를 만들 수 있음
-            """
-            if region_code:
-                region_names = {
-                    "KR": ["한국", "korea", "korean"],
-                    "US": ["미국", "america", "american", "usa"],
-                    "JP": ["일본", "japan", "japanese"],
-                    "GB": ["영국", "uk", "britain", "british"],
-                    "FR": ["프랑스", "france", "french"],
-                    "DE": ["독일", "germany", "german"],
-                    "CA": ["캐나다", "canada", "canadian"],
-                    "AU": ["호주", "australia", "australian"],
-                    "CN": ["중국", "china", "chinese"]
-                }
-                
-                # 이미 국가명이 키워드에 포함되어 있는지 확인
-                country_terms = region_names.get(region_code, [])
-                already_has_country = any(term.lower() in keyword.lower() for term in country_terms)
-                
-                # 국가명이 없는 경우에만 키워드에 국가명 추가 (첫 번째 국가명 사용)
-                if not already_has_country and country_terms:
-                    enhanced_keyword = f"{keyword} {country_terms[0]}"
-            """
             
             # 키워드에 콤마가 있으면 공백으로 변환 (OR 검색)
             if enhanced_keyword and ',' in enhanced_keyword:
@@ -141,7 +118,7 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
         if not channel_ids:
             search_results = perform_search(youtube, min_views, max_views, days_ago, max_results, 
                                            category_id, region_code, language, duration_max, 
-                                           enhanced_keyword, title_contains, None)
+                                           enhanced_keyword, title_contains, description_contains, None)  # 설명 필터 추가
             all_results.extend(search_results)
         else:
             # 문자열로 전달된 경우 리스트로 변환
@@ -158,7 +135,7 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
                 channel_results = perform_search(youtube, min_views, max_views, days_ago, 
                                                max_results // len(channel_id_list) + 1, 
                                                category_id, region_code, language, duration_max, 
-                                               enhanced_keyword, title_contains, channel_id)
+                                               enhanced_keyword, title_contains, description_contains, channel_id)  # 설명 필터 추가
                 all_results.extend(channel_results)
     except Exception as e:
         print(f"검색 실행 중 오류: {str(e)}")
@@ -197,8 +174,8 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
 
 def perform_search(youtube, min_views, max_views, days_ago, max_results, 
                   category_id, region_code, language, duration_max, 
-                  keyword, title_contains, channel_id):
-    """단일 검색 수행 함수"""
+                  keyword, title_contains, description_contains, channel_id):
+    """단일 검색 수행 함수 - 설명란 필터링 기능 추가"""
     # 현재 시간 기준으로 n일 전 날짜 계산
     now = datetime.now(pytz.UTC)
     published_after = (now - timedelta(days=days_ago)).isoformat()
@@ -214,8 +191,7 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
         'order': 'viewCount'
     }
 
-    # 키워드 처리 - 문제가 있는 부분
-    # 수정: keyword가 있고 실제로 내용이 있을 때만 search_params에 추가
+    # 키워드 처리
     if keyword and keyword.strip():
         # 디버깅을 위한 로그
         print(f"키워드 검색 사용: '{keyword}'")
@@ -294,8 +270,14 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
                 duration_seconds <= duration_max):
 
                 # 제목 필터 적용
-                if title_contains:
-                    if title_contains.lower() not in item['snippet']['title'].lower():
+                if title_contains and title_contains.lower() not in item['snippet']['title'].lower():
+                    continue
+                
+                # 설명 필터 적용 (새로 추가)
+                if description_contains:
+                    # 설명이 없거나 필터 조건을 충족하지 않으면 건너뜀
+                    description = item['snippet'].get('description', '')
+                    if description_contains.lower() not in description.lower():
                         continue
 
                 # 지역 정보와 함께 로그 추가
@@ -307,6 +289,7 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
                     'channelTitle': item['snippet']['channelTitle'],
                     'channelId': item['snippet']['channelId'],
                     'publishedAt': item['snippet']['publishedAt'],
+                    'description': item['snippet'].get('description', ''), # 설명 필드 추가
                     'viewCount': view_count,
                     'likeCount': int(item['statistics'].get('likeCount', 0)),
                     'commentCount': int(item['statistics'].get('commentCount', 0)),
@@ -435,8 +418,8 @@ def search():
             max_views_str = data.get('max_views', '')
             max_views = int(max_views_str.replace(',', '')) if max_views_str.strip() else None
         except ValueError as e:
+            print(f"조회수 값 변환 중 오류: {str(e)}")
             return jsonify({"status": "error", "message": f"조회수 값이 유효하지 않습니다: {str(e)}"})
-        
         
         days_ago = int(data.get('days_ago', 5))
         max_results = int(data.get('max_results', 50))
@@ -446,6 +429,7 @@ def search():
         duration_max = int(data.get('duration_max', 60))
         keyword = data.get('keyword', '')
         title_contains = data.get('title_contains', '')
+        description_contains = data.get('description_contains', '')  # 설명 필터 추가
         
         # 여러 채널 ID 처리
         channel_ids = data.get('channel_ids', '')
@@ -467,6 +451,7 @@ def search():
                 duration_max=duration_max,
                 keyword=keyword,
                 title_contains=title_contains,
+                description_contains=description_contains,  # 설명 필터 추가
                 channel_ids=channel_ids if channel_ids else None
             )
 

@@ -40,6 +40,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 숫자 포맷팅 설정 추가
     setupNumberFormatting();
+    addDescriptionFilter();
+
+    updateVideoCardFunction();
 });
 
 // 이벤트 리스너 설정 함수
@@ -1226,4 +1229,438 @@ function addSortingFeature() {
             }
         }, 500);
     };
+}
+
+
+function addDescriptionFilter() {
+    // 폼에 설명란 필터 필드 추가
+    const titleContainsField = document.querySelector('label[for="title_contains"]').closest('.col-md-6');
+    
+    if (titleContainsField) {
+        // 설명란 필터 요소 생성
+        const descFilterElement = document.createElement('div');
+        descFilterElement.className = 'col-md-6';
+        descFilterElement.innerHTML = `
+            <label for="description_contains" class="form-label">
+                <i class="fas fa-align-left me-1"></i>설명 포함 (선택 사항)
+            </label>
+            <input type="text" class="form-control" id="description_contains" name="description_contains" placeholder="설명에 포함될 단어">
+            <div class="form-text text-muted">
+                <small>영상 설명에 포함된 단어를 기준으로 필터링합니다.</small>
+            </div>
+        `;
+        
+        // 타이틀 필드 다음에 설명란 필드 삽입
+        titleContainsField.parentNode.insertBefore(descFilterElement, titleContainsField.nextSibling);
+    }
+    
+    // 결과 필터링을 강화하기 위한 추가 기능
+    enhanceResultsFiltering();
+}
+
+// 검색 결과에서 설명란 필터링 기능 추가
+function enhanceResultsFiltering() {
+    // 기존 sortingControl에 설명란 필터 필드 추가
+    const sortingControl = document.getElementById('sortingControl');
+    if (!sortingControl) return;
+    
+    // 상세 필터 섹션이 이미 있는지 확인
+    let detailFilterContainer = sortingControl.querySelector('.detail-filter-container');
+    
+    if (!detailFilterContainer) {
+        // 상세 필터 섹션 추가
+        const filterRow = document.createElement('div');
+        filterRow.className = 'row mt-3 detail-filter-container';
+        filterRow.innerHTML = `
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0"><i class="fas fa-filter me-1"></i>상세 필터</h6>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="toggleDetailFilter">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body" id="detailFilterBody" style="display: none;">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="results-title-filter" class="form-label">제목 필터</label>
+                                <input type="text" class="form-control" id="results-title-filter" placeholder="제목에 포함된 단어">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="results-description-filter" class="form-label">설명 필터</label>
+                                <input type="text" class="form-control" id="results-description-filter" placeholder="설명에 포함된 단어">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="results-min-views" class="form-label">최소 조회수</label>
+                                <input type="text" class="form-control" id="results-min-views">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="results-max-views" class="form-label">최대 조회수</label>
+                                <input type="text" class="form-control" id="results-max-views">
+                            </div>
+                            <div class="col-12">
+                                <button type="button" class="btn btn-primary" id="applyDetailFilter">
+                                    <i class="fas fa-check me-1"></i>필터 적용
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary ms-2" id="resetDetailFilter">
+                                    <i class="fas fa-undo me-1"></i>초기화
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        sortingControl.appendChild(filterRow);
+        
+        // 상세 필터 토글 기능
+        const toggleDetailFilterBtn = document.getElementById('toggleDetailFilter');
+        const detailFilterBody = document.getElementById('detailFilterBody');
+        
+        if (toggleDetailFilterBtn && detailFilterBody) {
+            toggleDetailFilterBtn.addEventListener('click', function() {
+                const isVisible = detailFilterBody.style.display !== 'none';
+                detailFilterBody.style.display = isVisible ? 'none' : 'block';
+                
+                // 아이콘 변경
+                const icon = this.querySelector('i');
+                if (icon) {
+                    icon.className = isVisible ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
+                }
+            });
+        }
+        
+        // 상세 필터 적용 버튼 이벤트
+        const applyDetailFilterBtn = document.getElementById('applyDetailFilter');
+        if (applyDetailFilterBtn) {
+            applyDetailFilterBtn.addEventListener('click', function() {
+                applyDetailFilters();
+            });
+        }
+        
+        // 상세 필터 초기화 버튼 이벤트
+        const resetDetailFilterBtn = document.getElementById('resetDetailFilter');
+        if (resetDetailFilterBtn) {
+            resetDetailFilterBtn.addEventListener('click', function() {
+                resetDetailFilters();
+            });
+        }
+    }
+}
+
+function applyDetailFilters() {
+    const titleFilter = document.getElementById('results-title-filter').value.toLowerCase();
+    const descriptionFilter = document.getElementById('results-description-filter').value.toLowerCase();
+    const minViewsFilter = document.getElementById('results-min-views').value.replace(/,/g, '');
+    const maxViewsFilter = document.getElementById('results-max-views').value.replace(/,/g, '');
+    
+    // 검색 결과에 필터 적용
+    const filteredResults = allResults.filter(video => {
+        // 제목 필터
+        if (titleFilter && !video.title.toLowerCase().includes(titleFilter)) {
+            return false;
+        }
+        
+        // 설명 필터 - 설명이 있는 경우에만 적용
+        if (descriptionFilter && video.description) {
+            if (!video.description.toLowerCase().includes(descriptionFilter)) {
+                return false;
+            }
+        } else if (descriptionFilter) {
+            // 설명이 없는데 필터가 있으면 제외
+            return false;
+        }
+        
+        // 최소 조회수 필터
+        if (minViewsFilter && !isNaN(parseInt(minViewsFilter))) {
+            if (video.viewCount < parseInt(minViewsFilter)) {
+                return false;
+            }
+        }
+        
+        // 최대 조회수 필터
+        if (maxViewsFilter && !isNaN(parseInt(maxViewsFilter))) {
+            if (video.viewCount > parseInt(maxViewsFilter)) {
+                return false;
+            }
+        }
+        
+        return true;
+    });
+    
+    // 필터링된 결과 표시
+    displayFilteredResults(filteredResults);
+}
+
+
+// 필터링된 결과 표시 함수
+function displayFilteredResults(filteredResults) {
+    const resultsContainer = document.getElementById('results');
+    resultsContainer.innerHTML = '';
+    
+    // 결과 카운트 업데이트
+    document.getElementById('resultCount').textContent = filteredResults.length;
+    
+    if (filteredResults.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>적용된 필터 조건에 맞는 결과가 없습니다.
+                </div>
+            </div>
+        `;
+        loadMoreContainer.style.display = 'none';
+        return;
+    }
+    
+    // 첫 페이지 결과만 표시
+    const pageItems = filteredResults.slice(0, itemsPerPage);
+    
+    pageItems.forEach(video => {
+        const videoCard = createVideoCard(video);
+        resultsContainer.innerHTML += videoCard;
+    });
+    
+    // 더 보기 버튼 표시 여부
+    if (filteredResults.length > itemsPerPage) {
+        loadMoreContainer.style.display = 'block';
+        
+        // 더 보기 버튼 이벤트 수정
+        loadMoreButton.onclick = function() {
+            const nextPage = Math.floor(resultsContainer.children.length / itemsPerPage) + 1;
+            const start = nextPage * itemsPerPage;
+            const end = start + itemsPerPage;
+            const nextPageItems = filteredResults.slice(start, end);
+            
+            nextPageItems.forEach(video => {
+                const videoCard = createVideoCard(video);
+                resultsContainer.innerHTML += videoCard;
+            });
+            
+            // 더 보기 버튼 표시 여부 업데이트
+            if (resultsContainer.children.length >= filteredResults.length) {
+                loadMoreContainer.style.display = 'none';
+            }
+        };
+    } else {
+        loadMoreContainer.style.display = 'none';
+    }
+}
+
+// 상세 필터 초기화 함수
+function resetDetailFilters() {
+    // 필터 입력 필드 초기화
+    document.getElementById('results-title-filter').value = '';
+    document.getElementById('results-description-filter').value = '';
+    document.getElementById('results-min-views').value = '';
+    document.getElementById('results-max-views').value = '';
+    
+    // 전체 결과 다시 표시
+    currentPage = 1;
+    document.getElementById('results').innerHTML = '';
+    renderResults();
+}
+
+// 설명 일부를 보여주는 비디오 카드 생성 함수
+function createEnhancedVideoCard(video) {
+    const publishDate = new Date(video.publishedAt).toLocaleDateString('ko-KR');
+    
+    // 조회수, 좋아요, 댓글 포맷팅
+    const viewCount = formatNumber(video.viewCount);
+    const likeCount = formatNumber(video.likeCount);
+    const commentCount = formatNumber(video.commentCount);
+    
+    // 국가 정보 배지 추가 (비디오 객체에 regionCode가 있을 경우)
+    const regionBadge = video.regionCode ? 
+        `<span class="badge bg-info" title="검색 국가 코드">${video.regionCode}</span>` : '';
+    
+    // 설명 내용 처리 (새로 추가)
+    const description = video.description || '';
+    const shortDescription = description.length > 100 ? 
+        description.substring(0, 100) + '...' : description;
+    
+    return `
+        <div class="card h-100">
+            <a href="${video.url}" target="_blank">
+                <img src="${video.thumbnail}" class="card-img-top" alt="${video.title}">
+            </a>
+            <div class="card-body">
+                <h6 class="card-title">${video.title}</h6>
+                <p class="card-text small text-muted">
+                    <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="text-decoration-none">
+                        <i class="fas fa-user-circle me-1"></i>${video.channelTitle}
+                    </a>
+                    ${regionBadge}
+                </p>
+                
+                <!-- 설명 내용 표시 (새로 추가) -->
+                <div class="description-content small text-muted mt-2 mb-2" style="font-size: 0.8rem; max-height: 4.5rem; overflow: hidden;">
+                    ${shortDescription || '<i>설명 없음</i>'}
+                </div>
+                
+                <div class="stats">
+                    <span title="조회수">
+                        <i class="fas fa-eye me-1"></i>
+                        ${viewCount}
+                    </span>
+                    <span title="좋아요">
+                        <i class="fas fa-thumbs-up me-1"></i>
+                        ${likeCount}
+                    </span>
+                    <span title="댓글">
+                        <i class="fas fa-comment me-1"></i>
+                        ${commentCount}
+                    </span>
+                </div>
+                <div class="mt-2 small text-muted">
+                    <i class="far fa-calendar-alt me-1"></i><span>${publishDate}</span> • 
+                    <i class="far fa-clock me-1"></i><span>${video.duration}초</span>
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="${video.url}" target="_blank" class="btn btn-sm btn-primary w-100">
+                    <i class="fab fa-youtube me-1"></i>쇼츠 보기
+                </a>
+            </div>
+        </div>
+    `;
+}
+
+function createEnhancedHoverVideoCard(video) {
+    const publishDate = new Date(video.publishedAt).toLocaleDateString('ko-KR');
+    
+    // 조회수, 좋아요, 댓글 포맷팅
+    const viewCount = formatNumber(video.viewCount);
+    const likeCount = formatNumber(video.likeCount);
+    const commentCount = formatNumber(video.commentCount);
+    
+    // 게시일 포맷팅 (날짜 + 시간)
+    const publishDateTime = new Date(video.publishedAt).toLocaleString('ko-KR');
+    
+    // 설명 내용 처리 (새로 추가)
+    const description = video.description || '';
+    const shortDescription = description.length > 100 ? 
+        description.substring(0, 100) + '...' : description;
+    
+    // 국가 정보 배지 추가
+    const regionBadge = video.regionCode ? 
+        `<span class="badge bg-info" title="검색 국가 코드">${video.regionCode}</span>` : '';
+    
+    return `
+        <div class="card">
+            <a href="${video.url}" target="_blank">
+                <img src="${video.thumbnail}" class="card-img-top" alt="${video.title}">
+            </a>
+            <div class="card-body">
+                <h6 class="card-title">${video.title}</h6>
+                <p class="card-text small text-muted">
+                    <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="text-decoration-none">
+                        <i class="fas fa-user-circle me-1"></i>${video.channelTitle}
+                    </a>
+                    ${regionBadge}
+                </p>
+                
+                <!-- 설명 내용 표시 (새로 추가) -->
+                <div class="description-content small text-muted mt-2 mb-2" style="font-size: 0.8rem; max-height: 4.5rem; overflow: hidden;">
+                    ${shortDescription || '<i>설명 없음</i>'}
+                </div>
+                
+                <div class="stats">
+                    <span title="조회수">
+                        <i class="fas fa-eye me-1"></i>
+                        ${viewCount}
+                    </span>
+                    <span title="좋아요">
+                        <i class="fas fa-thumbs-up me-1"></i>
+                        ${likeCount}
+                    </span>
+                    <span title="댓글">
+                        <i class="fas fa-comment me-1"></i>
+                        ${commentCount}
+                    </span>
+                </div>
+                <div class="mt-2 small text-muted">
+                    <i class="far fa-calendar-alt me-1"></i><span>${publishDate}</span> • 
+                    <i class="far fa-clock me-1"></i><span>${video.duration}초</span>
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="${video.url}" target="_blank" class="btn btn-sm btn-primary w-100">
+                    <i class="fab fa-youtube me-1"></i>쇼츠 보기
+                </a>
+            </div>
+            
+            <!-- 호버 시 추가 정보 -->
+            <div class="video-hover-info">
+                <h6>${video.title}</h6>
+                <p><strong>채널:</strong> ${video.channelTitle}</p>
+                <p><strong>조회수:</strong> ${viewCount}</p>
+                <p><strong>좋아요:</strong> ${likeCount}</p>
+                <p><strong>댓글:</strong> ${commentCount}</p>
+                <p><strong>게시일:</strong> ${publishDateTime}</p>
+                <p><strong>영상길이:</strong> ${video.duration}초</p>
+                
+                <!-- 설명 내용 전체 표시 (새로 추가) -->
+                <div class="mt-2" style="max-height: 100px; overflow-y: auto; font-size: 0.8rem;">
+                    <strong>설명:</strong><br>
+                    ${description || '<i>설명 없음</i>'}
+                </div>
+                
+                <div class="mt-3">
+                    <a href="${video.url}" target="_blank" class="btn btn-sm btn-light w-100">
+                        쇼츠 보기
+                    </a>
+                </div>
+                <div class="mt-2">
+                    <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="btn btn-sm btn-outline-light w-100">
+                        채널 방문
+                    </a>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function updateVideoCardFunction() {
+    // 원래 함수 백업
+    window.originalCreateVideoCard = window.createVideoCard;
+    
+    // 설명란이 포함된 새 함수로 교체
+    window.createVideoCard = createEnhancedHoverVideoCard;
+    
+    // CSS 스타일 업데이트 (설명란 스타일 추가)
+    const style = document.createElement('style');
+    style.textContent = `
+        .description-content {
+            color: #6c757d;
+            position: relative;
+            overflow: hidden;
+            line-height: 1.5;
+        }
+        
+        .video-hover-info {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            overflow-y: auto;
+            z-index: 10;
+            transition: opacity 0.3s;
+            border-radius: calc(0.375rem - 1px);
+        }
+        
+        .card:hover .video-hover-info {
+            display: block;
+            opacity: 1;
+        }
+    `;
+    document.head.appendChild(style);
 }
