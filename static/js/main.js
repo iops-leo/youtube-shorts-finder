@@ -37,6 +37,9 @@ document.addEventListener('DOMContentLoaded', function() {
     enhanceKeywordField();
     enhanceVideoCards();
     addSortingFeature();
+    
+    // 숫자 포맷팅 설정 추가
+    setupNumberFormatting();
 });
 
 // 이벤트 리스너 설정 함수
@@ -938,6 +941,69 @@ function enhanceVideoCards() {
     window.originalCreateVideoCard = window.createVideoCard;
     window.createVideoCard = window.createVideoCardWithHover;
 }
+
+function setupNumberFormatting() {
+    // 대상 요소들
+    const minViewsInput = document.getElementById('min_views');
+    const maxViewsInput = document.getElementById('max_views');
+    
+    // 포맷팅할 요소들
+    const inputsToFormat = [minViewsInput, maxViewsInput];
+    
+    inputsToFormat.forEach(input => {
+      if (!input) return;
+      
+      // 초기값에 콤마 적용
+      if (input.value) {
+        input.value = Number(input.value).toLocaleString();
+      }
+      
+      // 입력란에 포커스가 오면 콤마 제거
+      input.addEventListener('focus', function() {
+        this.value = this.value.replace(/,/g, '');
+      });
+      
+      // 입력란에서 포커스가 나가면 콤마 추가
+      input.addEventListener('blur', function() {
+        if (this.value) {
+          // 숫자가 아닌 문자 제거하고 숫자만 유지
+          const numericValue = this.value.replace(/[^\d]/g, '');
+          if (numericValue) {
+            this.value = Number(numericValue).toLocaleString();
+          }
+        }
+      });
+    });
+    
+    // 폼 제출 시 콤마 제거
+    const searchForm = document.getElementById('searchForm');
+    if (searchForm) {
+      const originalSubmit = searchForm.onsubmit;
+      
+      searchForm.onsubmit = function(e) {
+        e.preventDefault();
+        
+        // 제출 전에 콤마 제거
+        inputsToFormat.forEach(input => {
+          if (input && input.value) {
+            input.value = input.value.replace(/,/g, '');
+          }
+        });
+        
+        // 검색 수행 (기존 로직 호출)
+        performSearch(this);
+        
+        // 화면 표시를 위해 다시 콤마 추가
+        setTimeout(() => {
+          inputsToFormat.forEach(input => {
+            if (input && input.value) {
+              input.value = Number(input.value).toLocaleString();
+            }
+          });
+        }, 100);
+      };
+    }
+  }
 
 // 정렬 및 필터링 기능 추가
 function addSortingFeature() {
