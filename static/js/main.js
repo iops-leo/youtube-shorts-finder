@@ -338,6 +338,8 @@ const searchChannel = debounce(function(query) {
 }, 300);
 
 // 검색 및 결과 처리 함수
+// main.js의 performSearch 함수 개선
+
 function performSearch(form) {
     // 로딩 표시
     document.getElementById('loader').style.display = 'block';
@@ -355,6 +357,25 @@ function performSearch(form) {
     // 채널 ID가 비어있으면 제거
     if (formData.get('channel_ids') === '') {
         formData.delete('channel_ids');
+    }
+    
+    // 키워드가 비어있으면 제거 (새로 추가)
+    if (formData.get('keyword') && formData.get('keyword').trim() === '') {
+        formData.delete('keyword');
+        console.log('빈 키워드 필드 제거됨');
+    } else if (formData.get('keyword')) {
+        console.log('검색 키워드:', formData.get('keyword'));
+    }
+    
+    // 제목 포함 필드가 비어있으면 제거 (새로 추가)
+    if (formData.get('title_contains') && formData.get('title_contains').trim() === '') {
+        formData.delete('title_contains');
+    }
+
+    // API 요청 전 폼 데이터 로깅 (디버깅용)
+    console.log('검색 파라미터:');
+    for (let [key, value] of formData.entries()) {
+        console.log(`${key}: ${value}`);
     }
 
     // API 요청
@@ -376,7 +397,24 @@ function performSearch(form) {
             document.getElementById('resultCount').textContent = data.count;
 
             if (data.results.length === 0) {
-                document.getElementById('results').innerHTML = '<div class="col-12"><div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-2"></i>검색 조건에 맞는 결과가 없습니다.</div></div>';
+                document.getElementById('results').innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>검색 조건에 맞는 결과가 없습니다.
+                            <p class="mt-2 mb-0">
+                                <small>
+                                    <i class="fas fa-info-circle me-1"></i>다음을 시도해 보세요:
+                                    <ul class="mb-0">
+                                        <li>다른 키워드를 사용해보세요</li>
+                                        <li>국가 설정을 변경해보세요</li>
+                                        <li>더 오랜 기간을 검색해보세요 (최근 기간 값 증가)</li>
+                                        <li>낮은 최소 조회수를 설정해보세요</li>
+                                    </ul>
+                                </small>
+                            </p>
+                        </div>
+                    </div>
+                `;
                 return;
             }
             

@@ -45,6 +45,8 @@ def save_to_cache(cache_key, data):
         del cache[oldest_key]
 
 
+# app.py의 get_recent_popular_shorts 함수 수정
+
 def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago=5, max_results=50,
                              category_id=None, region_code="KR", language=None,
                              duration_max=60, keyword=None, title_contains=None, channel_ids=None):
@@ -94,35 +96,49 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
     all_results = []
     
     try:
-        # 국가별 필터링 강화: 키워드에 국가명 추가 (선택적)
-        enhanced_keyword = keyword
-        if keyword and region_code:
-            region_names = {
-                "KR": ["한국", "korea", "korean"],
-                "US": ["미국", "america", "american", "usa"],
-                "JP": ["일본", "japan", "japanese"],
-                "GB": ["영국", "uk", "britain", "british"],
-                "FR": ["프랑스", "france", "french"],
-                "DE": ["독일", "germany", "german"],
-                "CA": ["캐나다", "canada", "canadian"],
-                "AU": ["호주", "australia", "australian"],
-                "CN": ["중국", "china", "chinese"]
-            }
-            
-            # 이미 국가명이 키워드에 포함되어 있는지 확인
-            country_terms = region_names.get(region_code, [])
-            already_has_country = any(term.lower() in keyword.lower() for term in country_terms)
-            
-            # 국가명이 없는 경우에만 키워드에 국가명 추가 (첫 번째 국가명 사용)
-            if not already_has_country and country_terms:
-                enhanced_keyword = f"{keyword} {country_terms[0]}"
+        # 키워드 처리 - 향상된 키워드 로직 문제 해결
+        original_keyword = keyword
+        enhanced_keyword = None
         
-        # 채널 ID가 없거나 단일 채널인 경우를 처리
-        if not channel_ids:
+        # 키워드가 있는 경우에만 처리
+        if keyword and keyword.strip():
+            enhanced_keyword = keyword.strip()
+            
+            # 국가별 필터링 강화: 키워드에 국가명 추가 (선택적) - 일단 비활성화
+            # 이 기능은 너무 제한적인 결과를 만들 수 있음
+            """
+            if region_code:
+                region_names = {
+                    "KR": ["한국", "korea", "korean"],
+                    "US": ["미국", "america", "american", "usa"],
+                    "JP": ["일본", "japan", "japanese"],
+                    "GB": ["영국", "uk", "britain", "british"],
+                    "FR": ["프랑스", "france", "french"],
+                    "DE": ["독일", "germany", "german"],
+                    "CA": ["캐나다", "canada", "canadian"],
+                    "AU": ["호주", "australia", "australian"],
+                    "CN": ["중국", "china", "chinese"]
+                }
+                
+                # 이미 국가명이 키워드에 포함되어 있는지 확인
+                country_terms = region_names.get(region_code, [])
+                already_has_country = any(term.lower() in keyword.lower() for term in country_terms)
+                
+                # 국가명이 없는 경우에만 키워드에 국가명 추가 (첫 번째 국가명 사용)
+                if not already_has_country and country_terms:
+                    enhanced_keyword = f"{keyword} {country_terms[0]}"
+            """
+            
             # 키워드에 콤마가 있으면 공백으로 변환 (OR 검색)
             if enhanced_keyword and ',' in enhanced_keyword:
                 enhanced_keyword = enhanced_keyword.replace(',', ' ')
                 
+            print(f"키워드 처리: 원본 '{original_keyword}' -> 처리 후 '{enhanced_keyword}'")
+        else:
+            print("키워드 없음")
+        
+        # 채널 ID가 없거나 단일 채널인 경우를 처리
+        if not channel_ids:
             search_results = perform_search(youtube, min_views, max_views, days_ago, max_results, 
                                            category_id, region_code, language, duration_max, 
                                            enhanced_keyword, title_contains, None)
@@ -139,10 +155,6 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
                 
             # 각 채널별로 검색 실행
             for channel_id in channel_id_list:
-                # 키워드에 콤마가 있으면 공백으로 변환 (OR 검색)
-                if enhanced_keyword and ',' in enhanced_keyword:
-                    enhanced_keyword = enhanced_keyword.replace(',', ' ')
-                    
                 channel_results = perform_search(youtube, min_views, max_views, days_ago, 
                                                max_results // len(channel_id_list) + 1, 
                                                category_id, region_code, language, duration_max, 
@@ -177,6 +189,8 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
     # 결과 통계 출력
     if unique_results:
         print(f"검색 결과: {len(unique_results)}개 비디오 찾음, 국가: {region_code}")
+    else:
+        print(f"검색 결과 없음! 국가: {region_code}, 키워드: {keyword}")
     
     return unique_results
 
@@ -200,11 +214,16 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
         'order': 'viewCount'
     }
 
-    # 키워드가 있는 경우 추가
-    if keyword:
+    # 키워드 처리 - 문제가 있는 부분
+    # 수정: keyword가 있고 실제로 내용이 있을 때만 search_params에 추가
+    if keyword and keyword.strip():
+        # 디버깅을 위한 로그
+        print(f"키워드 검색 사용: '{keyword}'")
         search_params['q'] = keyword
         if language and language != "any":
             search_params['relevanceLanguage'] = language
+    else:
+        print("키워드 없음 - 일반 검색 수행")
     
     # 카테고리 ID가 있는 경우 추가
     if category_id and category_id != "any":
@@ -214,9 +233,14 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
     if channel_id:
         search_params['channelId'] = channel_id
 
+    # 디버깅을 위한 로그 추가
+    print(f"검색 파라미터: {search_params}")
+
     # 검색 실행
     try:
+        print("YouTube 검색 API 호출 시작...")
         search_response = youtube.search().list(**search_params).execute()
+        print(f"검색 결과: {len(search_response.get('items', []))}개 항목 발견")
     except Exception as e:
         print(f"YouTube API 검색 오류: {str(e)}")
         # 쿼터 제한 오류인 경우 상위 함수로 예외를 전파
@@ -226,15 +250,18 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
 
     video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
     if not video_ids:
+        print("검색 결과 없음 - 빈 리스트 반환")
         return []
 
     # 비디오 상세 정보 가져오기
     try:
+        print(f"비디오 상세 정보 요청: {len(video_ids)}개 ID")
         video_response = youtube.videos().list(
             part='snippet,statistics,contentDetails',
             id=','.join(video_ids),
             regionCode=region_code  # 국가 코드 추가
         ).execute()
+        print(f"비디오 상세 정보 결과: {len(video_response.get('items', []))}개 항목")
     except Exception as e:
         print(f"YouTube API 비디오 상세 정보 오류: {str(e)}")
         # 쿼터 제한 오류인 경우 상위 함수로 예외를 전파
@@ -272,7 +299,7 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
                         continue
 
                 # 지역 정보와 함께 로그 추가
-                print(f"Video found: {item['snippet']['title']} - Region: {region_code}, Language: {item['snippet'].get('defaultLanguage', 'unknown')}")
+                print(f"비디오 발견: {item['snippet']['title']} - 조회수: {view_count}, 지역: {region_code}")
 
                 filtered_videos.append({
                     'id': item['id'],
@@ -292,7 +319,8 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
         except Exception as e:
             print(f"비디오 처리 중 오류: {str(e)}")
             continue
-            
+    
+    print(f"필터링 후 최종 결과: {len(filtered_videos)}개 항목")
     return filtered_videos
 
 def process_video_results(video_response, min_views, max_views, duration_max, title_contains):
