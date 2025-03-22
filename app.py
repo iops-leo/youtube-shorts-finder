@@ -79,34 +79,58 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
           f"지역: {region_code}, 언어: {language if language and language != 'any' else '모두'}, "
           f"채널IDs: {channel_ids if channel_ids else '모든 채널'}")
 
-    youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=api_key)
+    # API 빌드
+    try:
+        youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=api_key)
+    except Exception as e:
+        print(f"YouTube API 빌드 오류: {str(e)}")
+        # 쿼터 제한 오류인 경우 상위로 전파
+        if 'quota' in str(e).lower() or 'exceeded' in str(e).lower():
+            raise Exception(f"YouTube API 할당량 초과: {str(e)}")
+        raise
 
     # 여러 채널 ID가 있는 경우 각 채널별로 검색하고 결과 합치기
     all_results = []
     
-    # 채널 ID가 없거나 단일 채널인 경우를 처리
-    if not channel_ids:
-        search_results = perform_search(youtube, min_views, max_views, days_ago, max_results, 
-                                       category_id, region_code, language, duration_max, 
-                                       keyword, title_contains, None)
-        all_results.extend(search_results)
-    else:
-        # 문자열로 전달된 경우 리스트로 변환
-        if isinstance(channel_ids, str):
-            if ',' in channel_ids:
-                channel_id_list = [ch_id.strip() for ch_id in channel_ids.split(',')]
-            else:
-                channel_id_list = [channel_ids]
+    try:
+        # 채널 ID가 없거나 단일 채널인 경우를 처리
+        if not channel_ids:
+            # 키워드에 콤마가 있으면 공백으로 변환 (OR 검색)
+            if keyword and ',' in keyword:
+                keyword = keyword.replace(',', ' ')
+                
+            search_results = perform_search(youtube, min_views, max_views, days_ago, max_results, 
+                                           category_id, region_code, language, duration_max, 
+                                           keyword, title_contains, None)
+            all_results.extend(search_results)
         else:
-            channel_id_list = channel_ids
-            
-        # 각 채널별로 검색 실행
-        for channel_id in channel_id_list:
-            channel_results = perform_search(youtube, min_views, max_views, days_ago, 
-                                            max_results // len(channel_id_list) + 1, 
-                                            category_id, region_code, language, duration_max, 
-                                            keyword, title_contains, channel_id)
-            all_results.extend(channel_results)
+            # 문자열로 전달된 경우 리스트로 변환
+            if isinstance(channel_ids, str):
+                if ',' in channel_ids:
+                    channel_id_list = [ch_id.strip() for ch_id in channel_ids.split(',')]
+                else:
+                    channel_id_list = [channel_ids]
+            else:
+                channel_id_list = channel_ids
+                
+            # 각 채널별로 검색 실행
+            for channel_id in channel_id_list:
+                # 키워드에 콤마가 있으면 공백으로 변환 (OR 검색)
+                if keyword and ',' in keyword:
+                    keyword = keyword.replace(',', ' ')
+                    
+                channel_results = perform_search(youtube, min_views, max_views, days_ago, 
+                                               max_results // len(channel_id_list) + 1, 
+                                               category_id, region_code, language, duration_max, 
+                                               keyword, title_contains, channel_id)
+                all_results.extend(channel_results)
+    except Exception as e:
+        print(f"검색 실행 중 오류: {str(e)}")
+        # 쿼터 제한 오류인 경우 상위로 전파
+        if 'quota' in str(e).lower() or 'exceeded' in str(e).lower():
+            raise Exception(f"YouTube API 할당량 초과: {str(e)}")
+        # 다른 오류는 빈 결과 반환
+        all_results = []
     
     # 중복 제거 (비디오 ID 기준)
     seen_video_ids = set()
@@ -116,13 +140,15 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
             seen_video_ids.add(video['id'])
             unique_results.append(video)
     
-    # 언어 필터 추가 강화
+    # 언어 필터는 임시로 비활성화 (문제 없이 작동하면 나중에 다시 활성화)
+    """
     if language and language != "any":
         filtered_results = []
         for video in unique_results:
             if check_video_language(video, language):
                 filtered_results.append(video)
         unique_results = filtered_results
+    """
     
     # 조회수 기준 내림차순 정렬
     unique_results.sort(key=lambda x: x['viewCount'], reverse=True)
@@ -137,8 +163,8 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
     return unique_results
 
 def perform_search(youtube, min_views, max_views, days_ago, max_results, 
-                 category_id, region_code, language, duration_max, 
-                 keyword, title_contains, channel_id):
+                  category_id, region_code, language, duration_max, 
+                  keyword, title_contains, channel_id):
     """단일 검색 수행 함수"""
     # 현재 시간 기준으로 n일 전 날짜 계산
     now = datetime.now(pytz.UTC)
@@ -155,70 +181,95 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
         'order': 'viewCount'
     }
 
-    # 키워드 처리 - 콤마로 구분된 키워드 지원
-    all_results = []
-    
+    # 키워드가 있는 경우 추가
     if keyword:
-        # 콤마로 구분된 키워드를 공백으로 변환 (YouTube API에서 공백은 OR 연산자 역할)
-        processed_keyword = keyword.replace(',', ' ')
-        search_params['q'] = processed_keyword
-        
+        search_params['q'] = keyword
         if language and language != "any":
             search_params['relevanceLanguage'] = language
-        
-        # 카테고리 ID가 있는 경우 추가
-        if category_id and category_id != "any":
-            search_params['videoCategoryId'] = category_id
-        
-        # 채널 ID가 있는 경우 추가
-        if channel_id:
-            search_params['channelId'] = channel_id
-            
-        # 검색 실행
-        try:
-            search_response = youtube.search().list(**search_params).execute()
-            
-            video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
-            if video_ids:
-                # 비디오 상세 정보 가져오기
-                video_response = youtube.videos().list(
-                    part='snippet,statistics,contentDetails',
-                    id=','.join(video_ids)
-                ).execute()
-                
-                # 결과 필터링 및 처리
-                keyword_results = process_video_results(video_response, min_views, max_views, duration_max, title_contains)
-                all_results.extend(keyword_results)
-        except Exception as e:
-            print(f"YouTube API 키워드 검색 오류: {str(e)}")
-    else:
-        # 키워드 없는 기본 검색
-        # 카테고리 ID가 있는 경우 추가
-        if category_id and category_id != "any":
-            search_params['videoCategoryId'] = category_id
-        
-        # 채널 ID가 있는 경우 추가
-        if channel_id:
-            search_params['channelId'] = channel_id
-            
-        # 검색 실행
-        try:
-            search_response = youtube.search().list(**search_params).execute()
-            
-            video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
-            if video_ids:
-                # 비디오 상세 정보 가져오기
-                video_response = youtube.videos().list(
-                    part='snippet,statistics,contentDetails',
-                    id=','.join(video_ids)
-                ).execute()
-                
-                # 결과 필터링 및 처리
-                all_results = process_video_results(video_response, min_views, max_views, duration_max, title_contains)
-        except Exception as e:
-            print(f"YouTube API 기본 검색 오류: {str(e)}")
     
-    return all_results
+    # 카테고리 ID가 있는 경우 추가
+    if category_id and category_id != "any":
+        search_params['videoCategoryId'] = category_id
+    
+    # 채널 ID가 있는 경우 추가
+    if channel_id:
+        search_params['channelId'] = channel_id
+
+    # 검색 실행
+    try:
+        search_response = youtube.search().list(**search_params).execute()
+    except Exception as e:
+        print(f"YouTube API 검색 오류: {str(e)}")
+        # 쿼터 제한 오류인 경우 상위 함수로 예외를 전파
+        if 'quota' in str(e).lower() or 'exceeded' in str(e).lower():
+            raise Exception(f"YouTube API 할당량 초과: {str(e)}")
+        return []
+
+    video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
+    if not video_ids:
+        return []
+
+    # 비디오 상세 정보 가져오기
+    try:
+        video_response = youtube.videos().list(
+            part='snippet,statistics,contentDetails',
+            id=','.join(video_ids)
+        ).execute()
+    except Exception as e:
+        print(f"YouTube API 비디오 상세 정보 오류: {str(e)}")
+        # 쿼터 제한 오류인 경우 상위 함수로 예외를 전파
+        if 'quota' in str(e).lower() or 'exceeded' in str(e).lower():
+            raise Exception(f"YouTube API 할당량 초과: {str(e)}")
+        return []
+
+    filtered_videos = []
+    for item in video_response.get('items', []):
+        try:
+            # 조회수 추출
+            view_count = int(item['statistics'].get('viewCount', 0))
+            
+            # 동영상 길이 추출
+            duration = item['contentDetails']['duration']
+            duration_seconds = isodate.parse_duration(duration).total_seconds()
+
+            # 썸네일 URL 가져오기 (오류 방지를 위해 단순화)
+            thumbnail_url = ''
+            if 'high' in item['snippet']['thumbnails']:
+                thumbnail_url = item['snippet']['thumbnails']['high']['url']
+            elif 'medium' in item['snippet']['thumbnails']:
+                thumbnail_url = item['snippet']['thumbnails']['medium']['url']
+            elif 'default' in item['snippet']['thumbnails']:
+                thumbnail_url = item['snippet']['thumbnails']['default']['url']
+
+            # 비디오가 조건을 충족하는지 확인
+            if (view_count >= min_views and
+                (max_views is None or view_count <= max_views) and
+                duration_seconds <= duration_max):
+
+                # 제목 필터 적용
+                if title_contains:
+                    if title_contains.lower() not in item['snippet']['title'].lower():
+                        continue
+
+                filtered_videos.append({
+                    'id': item['id'],
+                    'title': item['snippet']['title'],
+                    'channelTitle': item['snippet']['channelTitle'],
+                    'channelId': item['snippet']['channelId'],
+                    'publishedAt': item['snippet']['publishedAt'],
+                    'viewCount': view_count,
+                    'likeCount': int(item['statistics'].get('likeCount', 0)),
+                    'commentCount': int(item['statistics'].get('commentCount', 0)),
+                    'duration': round(duration_seconds),
+                    'url': f"https://www.youtube.com/shorts/{item['id']}",
+                    'thumbnail': thumbnail_url,
+                    'isVertical': True  # 세로 체크 단순화
+                })
+        except Exception as e:
+            print(f"비디오 처리 중 오류: {str(e)}")
+            continue
+            
+    return filtered_videos
 
 def process_video_results(video_response, min_views, max_views, duration_max, title_contains):
     """비디오 응답 데이터 처리 함수"""
