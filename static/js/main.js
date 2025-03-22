@@ -338,7 +338,6 @@ const searchChannel = debounce(function(query) {
 }, 300);
 
 // 검색 및 결과 처리 함수
-// 검색 실행 함수
 function performSearch(form) {
     // 로딩 표시
     document.getElementById('loader').style.display = 'block';
@@ -383,8 +382,26 @@ function performSearch(form) {
             
             // 첫 페이지 렌더링
             renderResults();
-        } else {
-            // 오류 표시
+        } 
+        else if (data.status === 'quota_exceeded') {
+            // API 쿼터 제한 오류 표시
+            document.getElementById('resultsHeader').style.display = 'block';
+            document.getElementById('resultCount').textContent = '0';
+            document.getElementById('results').innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-danger">
+                        <h5 class="mb-2"><i class="fas fa-exclamation-circle me-2"></i>YouTube API 할당량 초과</h5>
+                        <p class="mb-2">YouTube API 일일 할당량이 초과되었습니다. 내일 다시 시도해주세요.</p>
+                        <p class="mb-0 small text-muted">
+                            <i class="fas fa-info-circle me-1"></i>YouTube Data API는 프로젝트당 하루 일정량의 사용만 허용합니다. 
+                            일일 할당량은 미국 태평양 시간(PST) 자정에 리셋됩니다.
+                        </p>
+                    </div>
+                </div>
+            `;
+        }
+        else {
+            // 기타 오류 표시
             document.getElementById('resultsHeader').style.display = 'block';
             document.getElementById('resultCount').textContent = '0';
             document.getElementById('results').innerHTML = `

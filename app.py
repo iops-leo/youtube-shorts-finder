@@ -159,42 +159,38 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
     all_results = []
     
     if keyword:
-        # 콤마로 구분된 키워드를 분리
-        keywords = [k.strip() for k in keyword.split(',') if k.strip()]
+        # 콤마로 구분된 키워드를 공백으로 변환 (YouTube API에서 공백은 OR 연산자 역할)
+        processed_keyword = keyword.replace(',', ' ')
+        search_params['q'] = processed_keyword
         
-        # 각 키워드별로 검색 수행
-        for single_keyword in keywords:
-            keyword_params = search_params.copy()
-            keyword_params['q'] = single_keyword
+        if language and language != "any":
+            search_params['relevanceLanguage'] = language
+        
+        # 카테고리 ID가 있는 경우 추가
+        if category_id and category_id != "any":
+            search_params['videoCategoryId'] = category_id
+        
+        # 채널 ID가 있는 경우 추가
+        if channel_id:
+            search_params['channelId'] = channel_id
             
-            if language and language != "any":
-                keyword_params['relevanceLanguage'] = language
+        # 검색 실행
+        try:
+            search_response = youtube.search().list(**search_params).execute()
             
-            # 카테고리 ID가 있는 경우 추가
-            if category_id and category_id != "any":
-                keyword_params['videoCategoryId'] = category_id
-            
-            # 채널 ID가 있는 경우 추가
-            if channel_id:
-                keyword_params['channelId'] = channel_id
+            video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
+            if video_ids:
+                # 비디오 상세 정보 가져오기
+                video_response = youtube.videos().list(
+                    part='snippet,statistics,contentDetails',
+                    id=','.join(video_ids)
+                ).execute()
                 
-            # 검색 실행
-            try:
-                search_response = youtube.search().list(**keyword_params).execute()
-                
-                video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
-                if video_ids:
-                    # 비디오 상세 정보 가져오기
-                    video_response = youtube.videos().list(
-                        part='snippet,statistics,contentDetails',
-                        id=','.join(video_ids)
-                    ).execute()
-                    
-                    # 결과 필터링 및 처리
-                    keyword_results = process_video_results(video_response, min_views, max_views, duration_max, title_contains)
-                    all_results.extend(keyword_results)
-            except Exception as e:
-                print(f"YouTube API 키워드 검색 오류 ({single_keyword}): {str(e)}")
+                # 결과 필터링 및 처리
+                keyword_results = process_video_results(video_response, min_views, max_views, duration_max, title_contains)
+                all_results.extend(keyword_results)
+        except Exception as e:
+            print(f"YouTube API 키워드 검색 오류: {str(e)}")
     else:
         # 키워드 없는 기본 검색
         # 카테고리 ID가 있는 경우 추가
@@ -321,6 +317,7 @@ def index():
     return render_template('index.html', categories=categories, regions=regions, languages=languages,
                            selected_region=selected_region, selected_language=selected_language)
 
+
 @app.route('/search', methods=['POST'])
 def search():
     try:
@@ -347,23 +344,38 @@ def search():
             print("경고: API 키가 설정되지 않았습니다.")
             return jsonify({"status": "error", "message": "API 키가 설정되지 않았습니다."})
 
-        results = get_recent_popular_shorts(
-            api_key=API_KEY,
-            min_views=min_views,
-            max_views=max_views,
-            days_ago=days_ago,
-            max_results=max_results,
-            category_id=category_id if category_id != 'any' else None,
-            region_code=region_code,
-            language=language if language != 'any' else None,
-            duration_max=duration_max,
-            keyword=keyword,
-            title_contains=title_contains,
-            channel_ids=channel_ids if channel_ids else None
-        )
+        try:
+            results = get_recent_popular_shorts(
+                api_key=API_KEY,
+                min_views=min_views,
+                max_views=max_views,
+                days_ago=days_ago,
+                max_results=max_results,
+                category_id=category_id if category_id != 'any' else None,
+                region_code=region_code,
+                language=language if language != 'any' else None,
+                duration_max=duration_max,
+                keyword=keyword,
+                title_contains=title_contains,
+                channel_ids=channel_ids if channel_ids else None
+            )
 
-        print(f"검색 결과: {len(results)}개 항목 찾음")
-        return jsonify({"status": "success", "results": results, "count": len(results)})
+            print(f"검색 결과: {len(results)}개 항목 찾음")
+            return jsonify({"status": "success", "results": results, "count": len(results)})
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"검색 중 오류 발생: {error_msg}")
+            
+            # 쿼터 초과 오류 확인
+            if 'quota' in error_msg.lower() or 'exceeded' in error_msg.lower():
+                return jsonify({
+                    "status": "quota_exceeded", 
+                    "message": "YouTube API 일일 할당량이 초과되었습니다. 내일 다시 시도해주세요.",
+                    "details": error_msg
+                })
+            else:
+                return jsonify({"status": "error", "message": error_msg})
 
     except Exception as e:
         print(f"검색 중 오류 발생: {str(e)}")
