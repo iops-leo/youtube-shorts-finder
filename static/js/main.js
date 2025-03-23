@@ -42,6 +42,15 @@ document.addEventListener('DOMContentLoaded', function() {
     setupNumberFormatting();
 
     updateVideoCardFunction();
+    
+    // 모바일 친화적인 UI 초기화
+    initializeMobileFriendlyUI();
+    
+    // 고급 필터링 컨트롤 추가
+    addAdvancedFilterControls();
+    
+    // 향상된 정렬 기능 추가
+    enhanceSorting();
 });
 
 // 이벤트 리스너 설정 함수
@@ -343,13 +352,17 @@ const searchChannel = debounce(function(query) {
 }, 300);
 
 // 검색 및 결과 처리 함수
-// main.js의 performSearch 함수 개선
-
+// 검색 함수 변경 - 증가된 결과 처리
 function performSearch(form) {
     // 로딩 표시
     document.getElementById('loader').style.display = 'block';
     document.getElementById('results').innerHTML = '';
     document.getElementById('resultsHeader').style.display = 'none';
+    document.getElementById('sortingControl').style.display = 'none';
+    
+    if (document.getElementById('advancedFilterControl')) {
+        document.getElementById('advancedFilterControl').style.display = 'none';
+    }
 
     // 폼 데이터 가져오기
     const formData = new FormData(form);
@@ -364,23 +377,14 @@ function performSearch(form) {
         formData.delete('channel_ids');
     }
     
-    // 키워드가 비어있으면 제거 (새로 추가)
+    // 키워드가 비어있으면 제거
     if (formData.get('keyword') && formData.get('keyword').trim() === '') {
         formData.delete('keyword');
-        console.log('빈 키워드 필드 제거됨');
-    } else if (formData.get('keyword')) {
-        console.log('검색 키워드:', formData.get('keyword'));
     }
     
-    // 제목 포함 필드가 비어있으면 제거 (새로 추가)
+    // 제목 포함 필드가 비어있으면 제거
     if (formData.get('title_contains') && formData.get('title_contains').trim() === '') {
         formData.delete('title_contains');
-    }
-
-    // API 요청 전 폼 데이터 로깅 (디버깅용)
-    console.log('검색 파라미터:');
-    for (let [key, value] of formData.entries()) {
-        console.log(`${key}: ${value}`);
     }
 
     // API 요청
@@ -421,6 +425,11 @@ function performSearch(form) {
                     </div>
                 `;
                 return;
+            }
+            
+            // 정렬 컨트롤 표시
+            if (document.getElementById('sortingControl')) {
+                document.getElementById('sortingControl').style.display = 'block';
             }
             
             // 첫 페이지 렌더링
@@ -487,8 +496,8 @@ function renderResults(page = 1) {
     }
     
     pageItems.forEach(video => {
-        const videoCard = createVideoCard(video);
-        resultsContainer.innerHTML += videoCard; // 직접 HTML 추가
+        const videoCard = createMobileFriendlyVideoCard(video);
+        resultsContainer.innerHTML += videoCard;
     });
     
     // 더 보기 버튼 표시 여부
@@ -497,6 +506,9 @@ function renderResults(page = 1) {
     } else {
         loadMoreContainer.style.display = 'none';
     }
+    
+    // 결과 통계 업데이트 - 전체 결과 및 표시 개수
+    document.getElementById('resultCount').textContent = allResults.length;
 }
 
 // 비디오 카드 생성 함수
@@ -544,6 +556,116 @@ function createVideoCard(video) {
                     <i class="far fa-clock me-1"></i><span>${video.duration}초</span>
                 </div>
             </div>
+            <div class="card-footer">
+                <a href="${video.url}" target="_blank" class="btn btn-sm btn-primary w-100">
+                    <i class="fab fa-youtube me-1"></i>쇼츠 보기
+                </a>
+            </div>
+        </div>
+    `;
+}
+
+// 모바일 친화적인 비디오 카드 생성 함수
+function createMobileFriendlyVideoCard(video) {
+    const publishDate = new Date(video.publishedAt).toLocaleDateString('ko-KR');
+    
+    // 조회수, 좋아요, 댓글 포맷팅
+    const viewCount = formatNumber(video.viewCount);
+    const likeCount = formatNumber(video.likeCount);
+    const commentCount = formatNumber(video.commentCount);
+    
+    // 게시일 포맷팅 (날짜 + 시간)
+    const publishDateTime = new Date(video.publishedAt).toLocaleString('ko-KR');
+    
+    // 설명 내용 처리
+    const description = video.description || '';
+    const shortDescription = description.length > 100 ? 
+        description.substring(0, 100) + '...' : description;
+    
+    // 국가 정보 배지 추가
+    const regionBadge = video.regionCode ? 
+        `<span class="badge bg-info" title="검색 국가 코드">${video.regionCode}</span>` : '';
+    
+    // Generate a unique ID for this card's details panel
+    const detailsId = `details-${video.id}`;
+    
+    return `
+        <div class="card mb-4">
+            <a href="${video.url}" target="_blank">
+                <img src="${video.thumbnail}" class="card-img-top" alt="${video.title}">
+            </a>
+            <div class="card-body">
+                <h6 class="card-title">${video.title}</h6>
+                <p class="card-text small text-muted">
+                    <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="text-decoration-none">
+                        <i class="fas fa-user-circle me-1"></i>${video.channelTitle}
+                    </a>
+                    ${regionBadge}
+                </p>
+                
+                <!-- 설명 내용 표시 -->
+                <div class="description-content small text-muted mt-2 mb-2" style="font-size: 0.8rem; max-height: 4.5rem; overflow: hidden;">
+                    ${shortDescription || '<i>설명 없음</i>'}
+                </div>
+                
+                <div class="stats">
+                    <span title="조회수">
+                        <i class="fas fa-eye me-1"></i>
+                        ${viewCount}
+                    </span>
+                    <span title="좋아요">
+                        <i class="fas fa-thumbs-up me-1"></i>
+                        ${likeCount}
+                    </span>
+                    <span title="댓글">
+                        <i class="fas fa-comment me-1"></i>
+                        ${commentCount}
+                    </span>
+                </div>
+                <div class="mt-2 small text-muted">
+                    <i class="far fa-calendar-alt me-1"></i><span>${publishDate}</span> • 
+                    <i class="far fa-clock me-1"></i><span>${video.duration}초</span>
+                </div>
+                
+                <!-- 추가 정보 버튼 -->
+                <button class="btn btn-sm btn-outline-secondary w-100 mt-2" type="button" 
+                        data-bs-toggle="collapse" data-bs-target="#${detailsId}" 
+                        aria-expanded="false" aria-controls="${detailsId}">
+                    <i class="fas fa-info-circle me-1"></i>상세 정보
+                </button>
+                
+                <!-- 추가 정보 패널 (접히는 영역) -->
+                <div class="collapse mt-2" id="${detailsId}">
+                    <div class="card card-body bg-light">
+                        <h6 class="card-title">상세 정보</h6>
+                        <p class="mb-1"><strong>채널:</strong> ${video.channelTitle}</p>
+                        <p class="mb-1"><strong>조회수:</strong> ${viewCount}</p>
+                        <p class="mb-1"><strong>좋아요:</strong> ${likeCount}</p>
+                        <p class="mb-1"><strong>댓글:</strong> ${commentCount}</p>
+                        <p class="mb-1"><strong>게시일:</strong> ${publishDateTime}</p>
+                        <p class="mb-1"><strong>영상길이:</strong> ${video.duration}초</p>
+                        
+                        <!-- 설명 전체 표시 -->
+                        <div class="mt-2 mb-1">
+                            <strong>설명:</strong><br>
+                            <div style="max-height: 120px; overflow-y: auto; font-size: 0.8rem;">
+                                ${description || '<i>설명 없음</i>'}
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <a href="${video.url}" target="_blank" class="btn btn-sm btn-primary w-100">
+                                <i class="fab fa-youtube me-1"></i>쇼츠 보기
+                            </a>
+                        </div>
+                        <div class="mt-2">
+                            <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="btn btn-sm btn-outline-dark w-100">
+                                <i class="fas fa-user-circle me-1"></i>채널 방문
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                </div>
             <div class="card-footer">
                 <a href="${video.url}" target="_blank" class="btn btn-sm btn-primary w-100">
                     <i class="fab fa-youtube me-1"></i>쇼츠 보기
@@ -1223,13 +1345,12 @@ function addSortingFeature() {
                 // 더 보기 버튼 이벤트 초기화 - 전체 결과에 대해 작동하도록
                 loadMoreButton.onclick = function() {
                     currentPage++;
-                    renderResults(currentPage);
+                    renderResults(currentPage);₩
                 };
             }
         }, 500);
     };
 }
-
 
 // 설명 일부를 보여주는 비디오 카드 생성 함수
 function createEnhancedVideoCard(video) {
@@ -1396,7 +1517,7 @@ function updateVideoCardFunction() {
     window.originalCreateVideoCard = window.createVideoCard;
     
     // 설명란이 포함된 새 함수로 교체
-    window.createVideoCard = createEnhancedHoverVideoCard;
+    window.createVideoCard = createMobileFriendlyVideoCard;
     
     // CSS 스타일 업데이트 (설명란 스타일 추가)
     const style = document.createElement('style');
@@ -1430,4 +1551,410 @@ function updateVideoCardFunction() {
         }
     `;
     document.head.appendChild(style);
+}
+
+// 모바일 친화적인 UI 초기화 함수
+function initializeMobileFriendlyUI() {
+    // 비디오 카드 생성 함수 변경
+    window.createVideoCard = createMobileFriendlyVideoCard;
+    
+    // 모바일 스타일 추가
+    addMobileFriendlyStyles();
+    
+    // 이벤트 리스너 관리 개선
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("모바일 친화적인 UI로 초기화되었습니다.");
+    });
+}
+
+// 모바일 친화적인 스타일 추가 함수
+function addMobileFriendlyStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        /* 모바일 친화적인 카드 스타일 */
+        .card {
+            position: relative;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .card:active {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        /* 상세 정보 패널 스타일 */
+        .card .collapse {
+            border-radius: 6px;
+        }
+        
+        /* 작은 화면에서 카드 간격 조정 */
+        @media (max-width: 768px) {
+            .video-container {
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                gap: 15px;
+            }
+            
+            .card {
+                margin-bottom: 15px;
+            }
+        }
+        
+        /* 매우 작은 화면에서 카드 간격 조정 */
+        @media (max-width: 480px) {
+            .video-container {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+        }
+        
+        /* 상세 정보 토글 버튼 스타일 */
+        .btn-outline-secondary {
+            border-color: #ced4da;
+            color: #6c757d;
+        }
+        
+        .btn-outline-secondary:hover, 
+        .btn-outline-secondary:active {
+            background-color: #f8f9fa;
+            color: #495057;
+        }
+    `;
+    document.head.appendChild(style);
+    console.log("모바일 친화적인 스타일이 추가되었습니다.");
+}
+
+// 향상된 정렬 기능
+function enhanceSorting() {
+    // 기존 정렬 옵션에 몇 가지 추가
+    const sortOption = document.getElementById('sortOption');
+    if (sortOption) {
+        // 좋아요/조회수 비율 정렬 옵션 추가
+        const engagementOption = document.createElement('option');
+        engagementOption.value = 'engagement';
+        engagementOption.textContent = '참여율 (높은순)';
+        sortOption.appendChild(engagementOption);
+        
+        // 정렬 이벤트 업데이트
+        sortOption.addEventListener('change', function() {
+            const selectedValue = this.value;
+            
+            // 참여율 정렬 처리
+            if (selectedValue === 'engagement') {
+                allResults.sort((a, b) => {
+                    const engagementA = (a.likeCount / a.viewCount) || 0;
+                    const engagementB = (b.likeCount / b.viewCount) || 0;
+                    return engagementB - engagementA;
+                });
+            } else {
+                // 기존 정렬 함수 사용
+                window.sortResults(selectedValue);
+                return; // 여기서 리턴하여 아래 코드가 중복 실행되지 않도록 함
+            }
+            
+            // 결과 다시 렌더링
+            currentPage = 1;
+            document.getElementById('results').innerHTML = '';
+            renderResults();
+        });
+    }
+}
+
+// 고급 필터링 컨트롤 추가
+function addAdvancedFilterControls() {
+    const advancedFilterHTML = `
+        <div class="card mb-3">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="fas fa-filter me-2"></i>고급 필터링</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <label for="viewRangeFilter" class="form-label small">조회수 범위:</label>
+                        <select id="viewRangeFilter" class="form-select form-select-sm">
+                            <option value="all">모든 조회수</option>
+                            <option value="under100k">10만 미만</option>
+                            <option value="100k-500k">10만-50만</option>
+                            <option value="500k-1m">50만-100만</option>
+                            <option value="over1m">100만 이상</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <label for="dateRangeFilter" class="form-label small">게시일:</label>
+                        <select id="dateRangeFilter" class="form-select form-select-sm">
+                            <option value="all">모든 날짜</option>
+                            <option value="today">오늘</option>
+                            <option value="yesterday">어제</option>
+                            <option value="last3days">최근 3일</option>
+                            <option value="lastWeek">최근 1주일</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-6 mb-2">
+                        <label for="durationFilter" class="form-label small">영상 길이:</label>
+                        <select id="durationFilter" class="form-select form-select-sm">
+                            <option value="all">모든 길이</option>
+                            <option value="under15">15초 미만</option>
+                            <option value="15-30">15-30초</option>
+                            <option value="30-45">30-45초</option>
+                            <option value="over45">45초 이상</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <label for="keywordFilter" class="form-label small">키워드 필터:</label>
+                        <input type="text" id="keywordFilter" class="form-control form-control-sm" placeholder="제목에서 찾기">
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between mt-2">
+                    <button id="applyFiltersBtn" class="btn btn-sm btn-primary">
+                        <i class="fas fa-check me-1"></i>필터 적용
+                    </button>
+                    <button id="resetFiltersBtn" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-undo me-1"></i>필터 초기화
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 결과 헤더 아래에 고급 필터 컨트롤 삽입
+    const resultsHeader = document.getElementById('resultsHeader');
+    if (resultsHeader) {
+        const advancedFilterContainer = document.createElement('div');
+        advancedFilterContainer.className = 'col-12 mt-2 mb-3';
+        advancedFilterContainer.innerHTML = advancedFilterHTML;
+        advancedFilterContainer.style.display = 'none';
+        advancedFilterContainer.id = 'advancedFilterControl';
+        
+        // 정렬 컨트롤 다음에 삽입
+        const sortingControl = document.getElementById('sortingControl');
+        if (sortingControl && sortingControl.nextSibling) {
+            resultsHeader.insertBefore(advancedFilterContainer, sortingControl.nextSibling);
+        } else {
+            resultsHeader.appendChild(advancedFilterContainer);
+        }
+        
+        // 고급 필터 토글 버튼 추가
+        const toggleFilterBtn = document.createElement('button');
+        toggleFilterBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
+        toggleFilterBtn.innerHTML = '<i class="fas fa-sliders-h me-1"></i>고급 필터';
+        toggleFilterBtn.id = 'toggleAdvancedFilterBtn';
+        
+        // 결과 헤더의 알림 요소에 버튼 추가
+        const alertElement = resultsHeader.querySelector('.alert');
+        if (alertElement) {
+            // 요소의 끝에 버튼 추가
+            alertElement.style.position = 'relative';
+            toggleFilterBtn.style.position = 'absolute';
+            toggleFilterBtn.style.right = '10px';
+            toggleFilterBtn.style.top = '50%';
+            toggleFilterBtn.style.transform = 'translateY(-50%)';
+            alertElement.appendChild(toggleFilterBtn);
+            
+            // 모바일에서는 더 작은 아이콘만 표시
+            const mediaQuery = window.matchMedia('(max-width: 767.98px)');
+            if (mediaQuery.matches) {
+                toggleFilterBtn.innerHTML = '<i class="fas fa-sliders-h"></i>';
+                toggleFilterBtn.title = '고급 필터';
+            }
+            
+            // 미디어 쿼리 변경 감지
+            mediaQuery.addEventListener('change', (e) => {
+                if (e.matches) {
+                    toggleFilterBtn.innerHTML = '<i class="fas fa-sliders-h"></i>';
+                    toggleFilterBtn.title = '고급 필터';
+                } else {
+                    toggleFilterBtn.innerHTML = '<i class="fas fa-sliders-h me-1"></i>고급 필터';
+                }
+            });
+        }
+        
+        // 토글 버튼 클릭 이벤트
+        toggleFilterBtn.addEventListener('click', function() {
+            const advancedFilterControl = document.getElementById('advancedFilterControl');
+            if (advancedFilterControl) {
+                if (advancedFilterControl.style.display === 'none') {
+                    advancedFilterControl.style.display = 'block';
+                    this.classList.remove('btn-outline-secondary');
+                    this.classList.add('btn-secondary');
+                } else {
+                    advancedFilterControl.style.display = 'none';
+                    this.classList.remove('btn-secondary');
+                    this.classList.add('btn-outline-secondary');
+                }
+            }
+        });
+    }
+    
+    // 필터 이벤트 설정
+    setupFilterEvents();
+}
+
+// 필터 이벤트 설정
+function setupFilterEvents() {
+    // 필터 적용 버튼 이벤트
+    const applyFiltersBtn = document.getElementById('applyFiltersBtn');
+    if (applyFiltersBtn) {
+        applyFiltersBtn.addEventListener('click', function() {
+            applyAdvancedFilters();
+        });
+    }
+    
+    // 필터 초기화 버튼 이벤트
+    const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+    if (resetFiltersBtn) {
+        resetFiltersBtn.addEventListener('click', function() {
+            resetAdvancedFilters();
+        });
+    }
+    
+    // 키워드 필터에 Enter 키 이벤트 추가
+    const keywordFilter = document.getElementById('keywordFilter');
+    if (keywordFilter) {
+        keywordFilter.addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                applyAdvancedFilters();
+            }
+        });
+    }
+}
+
+// 고급 필터 적용 함수
+function applyAdvancedFilters() {
+    // 필터 값 가져오기
+    const viewRangeFilter = document.getElementById('viewRangeFilter').value;
+    const dateRangeFilter = document.getElementById('dateRangeFilter').value;
+    const durationFilter = document.getElementById('durationFilter').value;
+    const keywordFilter = document.getElementById('keywordFilter').value.toLowerCase();
+    
+    // 전체 결과에서 필터링
+    const filteredResults = allResults.filter(video => {
+        // 조회수 범위 필터
+        if (viewRangeFilter !== 'all') {
+            const viewCount = video.viewCount;
+            if (viewRangeFilter === 'under100k' && viewCount >= 100000) return false;
+            if (viewRangeFilter === '100k-500k' && (viewCount < 100000 || viewCount >= 500000)) return false;
+            if (viewRangeFilter === '500k-1m' && (viewCount < 500000 || viewCount >= 1000000)) return false;
+            if (viewRangeFilter === 'over1m' && viewCount < 1000000) return false;
+        }
+        
+        // 게시일 필터
+        if (dateRangeFilter !== 'all') {
+            const publishDate = new Date(video.publishedAt);
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const threeDaysAgo = new Date(today);
+            threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+            const oneWeekAgo = new Date(today);
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+            
+            // 날짜 비교 (시간 제외)
+            const publishDateOnly = new Date(publishDate.getFullYear(), publishDate.getMonth(), publishDate.getDate());
+            const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+            
+            if (dateRangeFilter === 'today' && publishDateOnly.getTime() !== todayOnly.getTime()) return false;
+            if (dateRangeFilter === 'yesterday' && publishDateOnly.getTime() !== yesterdayOnly.getTime()) return false;
+            if (dateRangeFilter === 'last3days' && publishDate < threeDaysAgo) return false;
+            if (dateRangeFilter === 'lastWeek' && publishDate < oneWeekAgo) return false;
+        }
+        
+        // 영상 길이 필터
+        if (durationFilter !== 'all') {
+            const duration = video.duration;
+            if (durationFilter === 'under15' && duration >= 15) return false;
+            if (durationFilter === '15-30' && (duration < 15 || duration >= 30)) return false;
+            if (durationFilter === '30-45' && (duration < 30 || duration >= 45)) return false;
+            if (durationFilter === 'over45' && duration < 45) return false;
+        }
+        
+        // 키워드 필터 (제목 검색)
+        if (keywordFilter) {
+            return video.title.toLowerCase().includes(keywordFilter);
+        }
+        
+        return true;
+    });
+    
+    // 필터링 결과 표시
+    displayFilteredResults(filteredResults);
+}
+
+// 필터 초기화 함수
+function resetAdvancedFilters() {
+    // 필터 초기화
+    document.getElementById('viewRangeFilter').value = 'all';
+    document.getElementById('dateRangeFilter').value = 'all';
+    document.getElementById('durationFilter').value = 'all';
+    document.getElementById('keywordFilter').value = '';
+    
+    // 전체 결과 다시 표시
+    currentPage = 1;
+    document.getElementById('results').innerHTML = '';
+    renderResults();
+}
+
+// 필터링된 결과 표시 함수
+function displayFilteredResults(filteredResults) {
+    const resultsContainer = document.getElementById('results');
+    resultsContainer.innerHTML = '';
+    
+    if (filteredResults.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>선택한 필터 조건에 맞는 결과가 없습니다.
+                </div>
+            </div>
+        `;
+        loadMoreContainer.style.display = 'none';
+        
+        // 결과 수 업데이트
+        document.getElementById('resultCount').textContent = '0';
+        return;
+    }
+    
+    // 첫 페이지만 표시 (페이지당 itemsPerPage 항목)
+    currentPage = 1;
+    const start = 0;
+    const end = Math.min(itemsPerPage, filteredResults.length);
+    const pageItems = filteredResults.slice(start, end);
+    
+    pageItems.forEach(video => {
+        const videoCard = createMobileFriendlyVideoCard(video);
+        resultsContainer.innerHTML += videoCard;
+    });
+    
+    // 더 보기 버튼 표시 여부
+    if (filteredResults.length > end) {
+        loadMoreContainer.style.display = 'block';
+        
+        // 더 보기 버튼 이벤트 수정 - 필터링된 결과에 대해 작동하도록
+        loadMoreButton.onclick = function() {
+            currentPage++;
+            const newStart = (currentPage - 1) * itemsPerPage;
+            const newEnd = Math.min(currentPage * itemsPerPage, filteredResults.length);
+            const nextPageItems = filteredResults.slice(newStart, newEnd);
+            
+            nextPageItems.forEach(video => {
+                const videoCard = createMobileFriendlyVideoCard(video);
+                resultsContainer.innerHTML += videoCard;
+            });
+            
+            // 더 보기 버튼 표시 여부 업데이트
+            if (filteredResults.length <= newEnd) {
+                loadMoreContainer.style.display = 'none';
+            }
+        };
+    } else {
+        loadMoreContainer.style.display = 'none';
+    }
+    
+    // 결과 수 업데이트
+    document.getElementById('resultCount').textContent = filteredResults.length;
 }
