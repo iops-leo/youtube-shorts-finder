@@ -190,7 +190,7 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
 def perform_search(youtube, min_views, max_views, days_ago, max_results, 
                   category_id, region_code, language, duration_max, 
                   keyword, title_contains, description_contains, channel_id):
-    """단일 검색 수행 함수 - 설명란 필터링 기능 추가"""
+    """단일 검색 수행 함수 - 페이지네이션 추가 및 설명란 필터링 기능 유지"""
     # 현재 시간 기준으로 n일 전 날짜 계산
     now = datetime.now(pytz.UTC)
     published_after = (now - timedelta(days=days_ago)).isoformat()
@@ -199,7 +199,7 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
     search_params = {
         'part': 'snippet',
         'type': 'video',
-        'maxResults': max_results,
+        'maxResults': 50,  # API 한계로 한 번에 50개씩 요청 (페이지네이션으로 보완)
         'publishedAfter': published_after,
         'videoDuration': 'short',
         'regionCode': region_code,
@@ -208,7 +208,6 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
 
     # 키워드 처리
     if keyword and keyword.strip():
-        # 디버깅을 위한 로그
         print(f"키워드 검색 사용: '{keyword}'")
         search_params['q'] = keyword
         if language and language != "any":
@@ -224,98 +223,106 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
     if channel_id:
         search_params['channelId'] = channel_id
 
-    # 디버깅을 위한 로그 추가
-    print(f"검색 파라미터: {search_params}")
+    # 디버깅을 위한 검색 조건 로그 추가
+    print(f"실제 검색 조건: keyword={keyword}, min_views={min_views}, max_views={max_views}, "
+          f"days_ago={days_ago}, region_code={region_code}, max_results={max_results}")
 
-    # 검색 실행
+    # 페이지네이션으로 모든 결과 수집
+    all_video_ids = []
+    next_page_token = None
+
     try:
-        print("YouTube 검색 API 호출 시작...")
-        search_response = youtube.search().list(**search_params).execute()
-        print(f"검색 결과: {len(search_response.get('items', []))}개 항목 발견")
+        print("YouTube 검색 API 호출 시작 (페이지네이션 사용)...")
+        while len(all_video_ids) < max_results:
+            if next_page_token:
+                search_params['pageToken'] = next_page_token
+            
+            search_response = youtube.search().list(**search_params).execute()
+            items = search_response.get('items', [])
+            print(f"페이지 결과: {len(items)}개 항목 발견 (총 {len(all_video_ids) + len(items)}개)")
+            
+            all_video_ids.extend([item['id']['videoId'] for item in items])
+            
+            next_page_token = search_response.get('nextPageToken')
+            if not next_page_token or len(items) == 0:
+                break  # 더 이상 페이지가 없거나 결과가 없으면 종료
+
+        # max_results 초과 시 자르기
+        if len(all_video_ids) > max_results:
+            all_video_ids = all_video_ids[:max_results]
+            
     except Exception as e:
         print(f"YouTube API 검색 오류: {str(e)}")
-        # 쿼터 제한 오류인 경우 상위 함수로 예외를 전파
         if 'quota' in str(e).lower() or 'exceeded' in str(e).lower():
             raise Exception(f"YouTube API 할당량 초과: {str(e)}")
         return []
 
-    video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
-    if not video_ids:
+    if not all_video_ids:
         print("검색 결과 없음 - 빈 리스트 반환")
         return []
 
-    # 비디오 상세 정보 가져오기
-    try:
-        print(f"비디오 상세 정보 요청: {len(video_ids)}개 ID")
-        video_response = youtube.videos().list(
-            part='snippet,statistics,contentDetails',
-            id=','.join(video_ids),
-            regionCode=region_code  # 국가 코드 추가
-        ).execute()
-        print(f"비디오 상세 정보 결과: {len(video_response.get('items', []))}개 항목")
-    except Exception as e:
-        print(f"YouTube API 비디오 상세 정보 오류: {str(e)}")
-        # 쿼터 제한 오류인 경우 상위 함수로 예외를 전파
-        if 'quota' in str(e).lower() or 'exceeded' in str(e).lower():
-            raise Exception(f"YouTube API 할당량 초과: {str(e)}")
-        return []
-
+    # 비디오 상세 정보 가져오기 (50개씩 배치 처리)
     filtered_videos = []
-    for item in video_response.get('items', []):
+    for i in range(0, len(all_video_ids), 50):
+        batch_ids = all_video_ids[i:i + 50]
         try:
-            # 조회수 추출
-            view_count = int(item['statistics'].get('viewCount', 0))
-            
-            # 동영상 길이 추출
-            duration = item['contentDetails']['duration']
-            duration_seconds = isodate.parse_duration(duration).total_seconds()
+            print(f"비디오 상세 정보 요청: {len(batch_ids)}개 ID (총 {len(all_video_ids)}개 중)")
+            video_response = youtube.videos().list(
+                part='snippet,statistics,contentDetails',
+                id=','.join(batch_ids),
+                regionCode=region_code
+            ).execute()
+            print(f"비디오 상세 정보 결과: {len(video_response.get('items', []))}개 항목")
 
-            # 썸네일 URL 가져오기 (오류 방지를 위해 단순화)
-            thumbnail_url = ''
-            if 'high' in item['snippet']['thumbnails']:
-                thumbnail_url = item['snippet']['thumbnails']['high']['url']
-            elif 'medium' in item['snippet']['thumbnails']:
-                thumbnail_url = item['snippet']['thumbnails']['medium']['url']
-            elif 'default' in item['snippet']['thumbnails']:
-                thumbnail_url = item['snippet']['thumbnails']['default']['url']
+            for item in video_response.get('items', []):
+                try:
+                    view_count = int(item['statistics'].get('viewCount', 0))
+                    duration = item['contentDetails']['duration']
+                    duration_seconds = isodate.parse_duration(duration).total_seconds()
+                    thumbnail_url = ''
+                    if 'high' in item['snippet']['thumbnails']:
+                        thumbnail_url = item['snippet']['thumbnails']['high']['url']
+                    elif 'medium' in item['snippet']['thumbnails']:
+                        thumbnail_url = item['snippet']['thumbnails']['medium']['url']
+                    elif 'default' in item['snippet']['thumbnails']:
+                        thumbnail_url = item['snippet']['thumbnails']['default']['url']
 
-            # 비디오가 조건을 충족하는지 확인
-            if (view_count >= min_views and
-                (max_views is None or view_count <= max_views) and
-                duration_seconds <= duration_max):
+                    if (view_count >= min_views and
+                        (max_views is None or view_count <= max_views) and
+                        duration_seconds <= duration_max):
 
-                # 제목 필터 적용
-                if title_contains and title_contains.lower() not in item['snippet']['title'].lower():
+                        if title_contains and title_contains.lower() not in item['snippet']['title'].lower():
+                            continue
+                        if description_contains:
+                            description = item['snippet'].get('description', '')
+                            if description_contains.lower() not in description.lower():
+                                continue
+
+                        print(f"비디오 발견: {item['snippet']['title']} - 조회수: {view_count}, 지역: {region_code}")
+                        filtered_videos.append({
+                            'id': item['id'],
+                            'title': item['snippet']['title'],
+                            'channelTitle': item['snippet']['channelTitle'],
+                            'channelId': item['snippet']['channelId'],
+                            'publishedAt': item['snippet']['publishedAt'],
+                            'description': item['snippet'].get('description', ''),
+                            'viewCount': view_count,
+                            'likeCount': int(item['statistics'].get('likeCount', 0)),
+                            'commentCount': int(item['statistics'].get('commentCount', 0)),
+                            'duration': round(duration_seconds),
+                            'url': f"https://www.youtube.com/shorts/{item['id']}",
+                            'thumbnail': thumbnail_url,
+                            'regionCode': region_code,
+                            'isVertical': True
+                        })
+                except Exception as e:
+                    print(f"비디오 처리 중 오류: {str(e)}")
                     continue
-                
-                # 설명 필터 적용 (새로 추가)
-                if description_contains:
-                    # 설명이 없거나 필터 조건을 충족하지 않으면 건너뜀
-                    description = item['snippet'].get('description', '')
-                    if description_contains.lower() not in description.lower():
-                        continue
 
-                # 지역 정보와 함께 로그 추가
-                print(f"비디오 발견: {item['snippet']['title']} - 조회수: {view_count}, 지역: {region_code}")
-
-                filtered_videos.append({
-                    'id': item['id'],
-                    'title': item['snippet']['title'],
-                    'channelTitle': item['snippet']['channelTitle'],
-                    'channelId': item['snippet']['channelId'],
-                    'publishedAt': item['snippet']['publishedAt'],
-                    'description': item['snippet'].get('description', ''), # 설명 필드 추가
-                    'viewCount': view_count,
-                    'likeCount': int(item['statistics'].get('likeCount', 0)),
-                    'commentCount': int(item['statistics'].get('commentCount', 0)),
-                    'duration': round(duration_seconds),
-                    'url': f"https://www.youtube.com/shorts/{item['id']}",
-                    'thumbnail': thumbnail_url,
-                    'regionCode': region_code,  # 국가 코드 정보 추가
-                    'isVertical': True  # 세로 체크 단순화
-                })
         except Exception as e:
-            print(f"비디오 처리 중 오류: {str(e)}")
+            print(f"YouTube API 비디오 상세 정보 오류: {str(e)}")
+            if 'quota' in str(e).lower() or 'exceeded' in str(e).lower():
+                raise Exception(f"YouTube API 할당량 초과: {str(e)}")
             continue
     
     print(f"필터링 후 최종 결과: {len(filtered_videos)}개 항목")
