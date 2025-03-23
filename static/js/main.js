@@ -914,27 +914,6 @@ function enhanceVideoCards() {
                             <i class="fab fa-youtube me-1"></i>쇼츠 보기
                         </a>
                     </div>
-                    
-                    <!-- 호버 시 추가 정보 -->
-                    <div class="video-hover-info">
-                        <h6>${video.title}</h6>
-                        <p><strong>채널:</strong> ${video.channelTitle}</p>
-                        <p><strong>조회수:</strong> ${viewCount}</p>
-                        <p><strong>좋아요:</strong> ${likeCount}</p>
-                        <p><strong>댓글:</strong> ${commentCount}</p>
-                        <p><strong>게시일:</strong> ${publishDateTime}</p>
-                        <p><strong>영상길이:</strong> ${video.duration}초</p>
-                        <div class="mt-3">
-                            <a href="${video.url}" target="_blank" class="btn btn-sm btn-light w-100">
-                                쇼츠 보기
-                            </a>
-                        </div>
-                        <div class="mt-2">
-                            <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="btn btn-sm btn-outline-light w-100">
-                                채널 방문
-                            </a>
-                        </div>
-                    </div>
                 </div>
         `;
     };
@@ -1358,31 +1337,8 @@ function createEnhancedHoverVideoCard(video) {
                 <a href="${video.url}" target="_blank" class="btn btn-sm btn-primary w-100">
                     <i class="fab fa-youtube me-1"></i>쇼츠 보기
                 </a>
-            </div>
-            
-            <!-- 호버 시 추가 정보 -->
-            <div class="video-hover-info">
-                <h6>${video.title}</h6>
-                <p><strong>채널:</strong> ${video.channelTitle}</p>
-                <p><strong>조회수:</strong> ${viewCount}</p>
-                <p><strong>좋아요:</strong> ${likeCount}</p>
-                <p><strong>댓글:</strong> ${commentCount}</p>
-                <p><strong>게시일:</strong> ${publishDateTime}</p>
-                <p><strong>영상길이:</strong> ${video.duration}초</p>
-                
-                <!-- 설명 내용 전체 표시 (새로 추가) -->
-                <div class="mt-2" style="max-height: 100px; overflow-y: auto; font-size: 0.8rem;">
-                    <strong>설명:</strong><br>
-                    ${description || '<i>설명 없음</i>'}
-                </div>
-                
-                <div class="mt-3">
-                    <a href="${video.url}" target="_blank" class="btn btn-sm btn-light w-100">
-                        쇼츠 보기
-                    </a>
-                </div>
                 <div class="mt-2">
-                    <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="btn btn-sm btn-outline-light w-100">
+                    <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="btn btn-sm btn-outline-secondary w-100">
                         채널 방문
                     </a>
                 </div>
@@ -1406,27 +1362,6 @@ function updateVideoCardFunction() {
             position: relative;
             overflow: hidden;
             line-height: 1.5;
-        }
-        
-        .video-hover-info {
-            display: none;
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 15px;
-            overflow-y: auto;
-            z-index: 10;
-            transition: opacity 0.3s;
-            border-radius: calc(0.375rem - 1px);
-        }
-        
-        .card:hover .video-hover-info {
-            display: block;
-            opacity: 1;
         }
     `;
     document.head.appendChild(style);
