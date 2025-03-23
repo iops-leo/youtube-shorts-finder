@@ -696,37 +696,49 @@ function getSearchHistoryCount() {
 }
 
 // 검색 기록 모달 표시
-history.forEach((item, index) => {
-    // 기본 정보 추출
-    const dateFormatted = item.dateFormatted || '날짜 정보 없음';
-    const keyword = item.keyword || '키워드 없음';
-    const minViews = item.min_views || '제한 없음';
-    const categoryName = getCategoryNameById(item.category_id);
-    const regionName = getRegionNameByCode(item.region_code);
+function showSearchHistoryModal() {
+    const history = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY)) || [];
+    const modalBody = document.getElementById('historyModalBody');
     
-    // 채널 정보
-    const channelCount = item.selectedChannels ? item.selectedChannels.length : 0;
-    const channelInfo = channelCount > 0 
-        ? `${channelCount}개 채널 선택됨` 
-        : '모든 채널';
+    if (history.length === 0) {
+        modalBody.innerHTML = '<div class="text-center p-4 text-muted">저장된 검색 기록이 없습니다.</div>';
+        return;
+    }
     
-    html += `
-        <a href="#" class="list-group-item list-group-item-action search-history-item" data-index="${index}">
-            <div class="d-flex w-100 justify-content-between">
-                <h6 class="mb-1">${keyword}</h6>
-                <small class="text-muted">${dateFormatted}</small>
-            </div>
-            <p class="mb-1">
-                <small>
-                    <span class="badge bg-primary me-1">최소 ${formatNumber(Number(minViews))}회</span>
-                    <span class="badge bg-secondary me-1">${categoryName}</span>
-                    <span class="badge bg-info me-1">${regionName}</span>
-                    <span class="badge bg-dark">${channelInfo}</span>
-                </small>
-            </p>
-        </a>
-    `;
-});
+    // 기록 목록 생성
+    let html = '<div class="list-group">';
+    
+    history.forEach((item, index) => {
+        // 기본 정보 추출
+        const dateFormatted = item.dateFormatted || '날짜 정보 없음';
+        const keyword = item.keyword || '키워드 없음';
+        const minViews = item.min_views || '제한 없음';
+        const categoryName = getCategoryNameById(item.category_id);
+        const regionName = getRegionNameByCode(item.region_code);
+        
+        // 채널 정보
+        const channelCount = item.selectedChannels ? item.selectedChannels.length : 0;
+        const channelInfo = channelCount > 0 
+            ? `${channelCount}개 채널 선택됨` 
+            : '모든 채널';
+        
+            html += `
+            <a href="#" class="list-group-item list-group-item-action search-history-item" data-index="${index}">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">${keyword}</h6>
+                    <small class="text-muted">${dateFormatted}</small>
+                </div>
+                <p class="mb-1">
+                    <small>
+                        <span class="badge bg-primary me-1">최소 ${formatNumber(parseInt(minViews))}회</span>
+                        <span class="badge bg-secondary me-1">${categoryName}</span>
+                        <span class="badge bg-info me-1">${regionName}</span>
+                        <span class="badge bg-dark">${channelInfo}</span>
+                    </small>
+                </p>
+            </a>
+        `;
+    });
     
     html += '</div>';
     modalBody.innerHTML = html;
