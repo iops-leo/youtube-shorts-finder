@@ -8,7 +8,6 @@ const MAX_HISTORY_ITEMS = 10; // 최대 저장 기록 수
 const HISTORY_STORAGE_KEY = 'youtubeShortSearchHistory';
 const CURRENT_PREFS_KEY = 'youtubeShortSearchPrefs';
 
-
 // DOM 요소 참조
 const loadMoreButton = document.getElementById('loadMoreButton');
 const loadMoreContainer = document.getElementById('loadMoreContainer');
@@ -31,17 +30,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 이벤트 리스너 설정
     setupEventListeners();
-
-
-    // 새로운 개선 기능 초기화
-    enhanceKeywordField();
-    enhanceVideoCards();
-    addSortingFeature();
-
-    // 숫자 포맷팅 설정 추가
-    setupNumberFormatting();
-
-    updateVideoCardFunction();
 });
 
 // 이벤트 리스너 설정 함수
@@ -59,7 +47,7 @@ function setupEventListeners() {
     // 설정 초기화 버튼 클릭 이벤트
     resetSettingsBtn.addEventListener('click', function() {
         if (confirm('저장된 모든 검색 설정을 초기화하시겠습니까?')) {
-            localStorage.removeItem('youtubeShortSearchPrefs');
+            localStorage.removeItem(CURRENT_PREFS_KEY);
             location.reload();
         }
     });
@@ -114,6 +102,17 @@ function setupEventListeners() {
     
     // 검색 기록 버튼 UI 초기화
     updateHistoryButtonUI();
+    
+    // 정렬 및 필터 이벤트 리스너
+    document.addEventListener('change', function(e) {
+        if (e.target && e.target.id === 'sortOption') {
+            sortResults(e.target.value);
+        }
+        
+        if (e.target && e.target.id === 'filterRegion') {
+            filterByRegion(e.target.value);
+        }
+    });
 }
 
 // 채널 관리 함수들
@@ -233,13 +232,13 @@ function saveFormValuesToLocalStorage() {
     formValues['selectedChannels'] = selectedChannels;
     
     // 객체를 JSON 문자열로 변환하여 저장
-    localStorage.setItem('youtubeShortSearchPrefs', JSON.stringify(formValues));
+    localStorage.setItem(CURRENT_PREFS_KEY, JSON.stringify(formValues));
     console.log('검색 설정이 저장되었습니다.');
 }
 
 // 폼 값 복원 함수
 function loadFormValuesFromLocalStorage() {
-    const savedValues = localStorage.getItem('youtubeShortSearchPrefs');
+    const savedValues = localStorage.getItem(CURRENT_PREFS_KEY);
     if (!savedValues) return;
     
     try {
@@ -261,7 +260,7 @@ function loadFormValuesFromLocalStorage() {
         console.log('저장된 검색 설정을 불러왔습니다.');
     } catch (error) {
         console.error('저장된 설정을 불러오는 중 오류 발생:', error);
-        localStorage.removeItem('youtubeShortSearchPrefs');
+        localStorage.removeItem(CURRENT_PREFS_KEY);
     }
 }
 
@@ -343,46 +342,16 @@ const searchChannel = debounce(function(query) {
 }, 300);
 
 // 검색 및 결과 처리 함수
-// main.js의 performSearch 함수 개선
-
 function performSearch(form) {
     // 로딩 표시
     document.getElementById('loader').style.display = 'block';
     document.getElementById('results').innerHTML = '';
     document.getElementById('resultsHeader').style.display = 'none';
+    document.getElementById('sortingControl').style.display = 'none';
 
     // 폼 데이터 가져오기
     const formData = new FormData(form);
-
-    // max_views 값이 비어있으면 formData에서 제거
-    if (formData.get('max_views') && formData.get('max_views').trim() === '') {
-        formData.delete('max_views');
-    }
     
-    // 채널 ID가 비어있으면 제거
-    if (formData.get('channel_ids') === '') {
-        formData.delete('channel_ids');
-    }
-    
-    // 키워드가 비어있으면 제거 (새로 추가)
-    if (formData.get('keyword') && formData.get('keyword').trim() === '') {
-        formData.delete('keyword');
-        console.log('빈 키워드 필드 제거됨');
-    } else if (formData.get('keyword')) {
-        console.log('검색 키워드:', formData.get('keyword'));
-    }
-    
-    // 제목 포함 필드가 비어있으면 제거 (새로 추가)
-    if (formData.get('title_contains') && formData.get('title_contains').trim() === '') {
-        formData.delete('title_contains');
-    }
-
-    // API 요청 전 폼 데이터 로깅 (디버깅용)
-    console.log('검색 파라미터:');
-    for (let [key, value] of formData.entries()) {
-        console.log(`${key}: ${value}`);
-    }
-
     // API 요청
     fetch('/search', {
         method: 'POST',
@@ -408,13 +377,7 @@ function performSearch(form) {
                             <i class="fas fa-exclamation-triangle me-2"></i>검색 조건에 맞는 결과가 없습니다.
                             <p class="mt-2 mb-0">
                                 <small>
-                                    <i class="fas fa-info-circle me-1"></i>다음을 시도해 보세요:
-                                    <ul class="mb-0">
-                                        <li>다른 키워드를 사용해보세요</li>
-                                        <li>국가 설정을 변경해보세요</li>
-                                        <li>더 오랜 기간을 검색해보세요 (최근 기간 값 증가)</li>
-                                        <li>낮은 최소 조회수를 설정해보세요</li>
-                                    </ul>
+                                    <i class="fas fa-info-circle me-1"></i>다른 검색 조건을 시도해 보세요.
                                 </small>
                             </p>
                         </div>
@@ -422,6 +385,9 @@ function performSearch(form) {
                 `;
                 return;
             }
+            
+            // 정렬/필터 컨트롤 표시
+            document.getElementById('sortingControl').style.display = 'block';
             
             // 첫 페이지 렌더링
             renderResults();
@@ -488,7 +454,7 @@ function renderResults(page = 1) {
     
     pageItems.forEach(video => {
         const videoCard = createVideoCard(video);
-        resultsContainer.innerHTML += videoCard; // 직접 HTML 추가
+        resultsContainer.appendChild(videoCard);
     });
     
     // 더 보기 버튼 표시 여부
@@ -508,64 +474,148 @@ function createVideoCard(video) {
     const likeCount = formatNumber(video.likeCount);
     const commentCount = formatNumber(video.commentCount);
     
-    // 국가 정보 배지 추가 (비디오 객체에 regionCode가 있을 경우)
+    // 국가 정보 배지 추가
     const regionBadge = video.regionCode ? 
         `<span class="badge bg-info" title="검색 국가 코드">${video.regionCode}</span>` : '';
     
-    return `
-        <div class="card h-100">
-            <a href="${video.url}" target="_blank">
-                <img src="${video.thumbnail}" class="card-img-top" alt="${video.title}">
-            </a>
-            <div class="card-body">
-                <h6 class="card-title">${video.title}</h6>
-                <p class="card-text small text-muted">
-                    <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="text-decoration-none">
-                        <i class="fas fa-user-circle me-1"></i>${video.channelTitle}
-                    </a>
-                    ${regionBadge}
-                </p>
-                <div class="stats">
-                    <span title="조회수">
-                        <i class="fas fa-eye me-1"></i>
-                        ${viewCount}
-                    </span>
-                    <span title="좋아요">
-                        <i class="fas fa-thumbs-up me-1"></i>
-                        ${likeCount}
-                    </span>
-                    <span title="댓글">
-                        <i class="fas fa-comment me-1"></i>
-                        ${commentCount}
-                    </span>
-                </div>
-                <div class="mt-2 small text-muted">
-                    <i class="far fa-calendar-alt me-1"></i><span>${publishDate}</span> • 
-                    <i class="far fa-clock me-1"></i><span>${video.duration}초</span>
-                </div>
-            </div>
-            <div class="card-footer">
-                <a href="${video.url}" target="_blank" class="btn btn-sm btn-primary w-100">
-                    <i class="fab fa-youtube me-1"></i>쇼츠 보기
+    // 설명 내용 처리
+    const description = video.description || '';
+    const shortDescription = description.length > 100 ? 
+        description.substring(0, 100) + '...' : description;
+    
+    // 카드 생성
+    const card = document.createElement('div');
+    card.className = 'card h-100';
+    card.innerHTML = `
+        <a href="${video.url}" target="_blank">
+            <img src="${video.thumbnail}" class="card-img-top" alt="${video.title}">
+        </a>
+        <div class="card-body">
+            <h6 class="card-title">${video.title}</h6>
+            <p class="card-text small text-muted">
+                <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="text-decoration-none">
+                    <i class="fas fa-user-circle me-1"></i>${video.channelTitle}
                 </a>
+                ${regionBadge}
+            </p>
+            
+            <!-- 설명 내용 표시 -->
+            <div class="description-content small text-muted mt-2 mb-2" style="font-size: 0.8rem; max-height: 4.5rem; overflow: hidden;">
+                ${shortDescription || '<i>설명 없음</i>'}
+            </div>
+            
+            <div class="stats">
+                <span title="조회수">
+                    <i class="fas fa-eye me-1"></i>
+                    ${viewCount}
+                </span>
+                <span title="좋아요">
+                    <i class="fas fa-thumbs-up me-1"></i>
+                    ${likeCount}
+                </span>
+                <span title="댓글">
+                    <i class="fas fa-comment me-1"></i>
+                    ${commentCount}
+                </span>
+            </div>
+            <div class="mt-2 small text-muted">
+                <i class="far fa-calendar-alt me-1"></i><span>${publishDate}</span> • 
+                <i class="far fa-clock me-1"></i><span>${video.duration}초</span>
             </div>
         </div>
+        <div class="card-footer">
+            <a href="${video.url}" target="_blank" class="btn btn-sm btn-primary w-100">
+                <i class="fab fa-youtube me-1"></i>쇼츠 보기
+            </a>
+        </div>
     `;
+    
+    return card;
+}
+
+// 정렬 함수
+function sortResults(sortBy) {
+    switch(sortBy) {
+        case 'viewCount':
+            allResults.sort((a, b) => b.viewCount - a.viewCount);
+            break;
+        case 'viewCountAsc':
+            allResults.sort((a, b) => a.viewCount - b.viewCount);
+            break;
+        case 'likeCount':
+            allResults.sort((a, b) => b.likeCount - a.likeCount);
+            break;
+        case 'commentCount':
+            allResults.sort((a, b) => b.commentCount - a.commentCount);
+            break;
+        case 'publishDate':
+            allResults.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+            break;
+        case 'publishDateAsc':
+            allResults.sort((a, b) => new Date(a.publishedAt) - new Date(b.publishedAt));
+            break;
+        case 'duration':
+            allResults.sort((a, b) => b.duration - a.duration);
+            break;
+        case 'durationAsc':
+            allResults.sort((a, b) => a.duration - b.duration);
+            break;
+    }
+    
+    // 결과 다시 렌더링
+    currentPage = 1;
+    document.getElementById('results').innerHTML = '';
+    renderResults();
+}
+
+// 국가별 필터링 함수
+function filterByRegion(regionCode) {
+    const resultsContainer = document.getElementById('results');
+    resultsContainer.innerHTML = '';
+    currentPage = 1;
+    
+    if (!regionCode || regionCode === 'all') {
+        // 모든 결과 표시
+        renderResults();
+        return;
+    }
+    
+    // 필터링된 결과
+    const filteredResults = allResults.filter(video => 
+        video.regionCode === regionCode || !video.regionCode
+    );
+    
+    if (filteredResults.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>선택한 국가(${regionCode})에 해당하는 결과가 없습니다.
+                </div>
+            </div>
+        `;
+        loadMoreContainer.style.display = 'none';
+        return;
+    }
+    
+    // 임시로 allResults 변경 (렌더링 함수 재사용을 위해)
+    const originalResults = [...allResults];
+    allResults = filteredResults;
+    
+    renderResults();
+    
+    // allResults 복원
+    allResults = originalResults;
 }
 
 // 유틸리티 함수
 function formatNumber(num) {
-    // 기본 콤마 형식으로 포맷팅
-    const withCommas = num.toLocaleString();
-    
-    // 천 단위 이상일 경우 약어 추가
     if (num >= 1000000) {
-        return `${(num / 1000000).toFixed(1)}M (${withCommas})`;
+        return `${(num / 1000000).toFixed(1)}M`;
     }
     if (num >= 1000) {
-        return `${(num / 1000).toFixed(1)}K (${withCommas})`;
+        return `${(num / 1000).toFixed(1)}K`;
     }
-    return withCommas;
+    return num.toLocaleString();
 }
 
 // 검색 기록 저장 함수
@@ -672,7 +722,7 @@ function showSearchHistoryModal() {
             ? `${channelCount}개 채널 선택됨` 
             : '모든 채널';
         
-        html += `
+            html += `
             <a href="#" class="list-group-item list-group-item-action search-history-item" data-index="${index}">
                 <div class="d-flex w-100 justify-content-between">
                     <h6 class="mb-1">${keyword}</h6>
@@ -680,7 +730,7 @@ function showSearchHistoryModal() {
                 </div>
                 <p class="mb-1">
                     <small>
-                        <span class="badge bg-primary me-1">최소 ${formatNumber(minViews)}회</span>
+                        <span class="badge bg-primary me-1">최소 ${formatNumber(parseInt(minViews))}회</span>
                         <span class="badge bg-secondary me-1">${categoryName}</span>
                         <span class="badge bg-info me-1">${regionName}</span>
                         <span class="badge bg-dark">${channelInfo}</span>
@@ -721,6 +771,9 @@ function loadSearchHistoryItem(index) {
         
         // 폼 값 복원
         loadFormValuesFromLocalStorage();
+        
+        // 선택된 채널 UI 업데이트
+        updateSelectedChannelsUI();
         
         // 알림 표시
         showToast('검색 기록이 로드되었습니다. 검색 버튼을 눌러 검색을 시작하세요.', 'success');
@@ -822,547 +875,4 @@ function showToast(message, type = 'primary') {
         delay: 3000
     });
     bsToast.show();
-}
-
-// 검색어(keyword) 입력 필드에 도움말 추가
-function enhanceKeywordField() {
-    const keywordInput = document.getElementById('keyword');
-    if (keywordInput) {
-        keywordInput.placeholder = "검색할 키워드 (콤마로 구분하여 여러 키워드 입력 가능)";
-        
-        // 도움말 추가
-        const keywordHelpText = document.createElement('div');
-        keywordHelpText.className = 'form-text text-muted';
-        keywordHelpText.innerHTML = '<small>여러 키워드는 콤마(,)로 구분하세요. 예: 축구,농구,야구</small>';
-        
-        keywordInput.parentNode.appendChild(keywordHelpText);
-    }
-}
-
-// 비디오 카드에 마우스 오버 시 추가 정보 표시
-function enhanceVideoCards() {
-    // CSS 스타일 추가
-    const style = document.createElement('style');
-    style.textContent = `
-        .video-hover-info {
-            display: none;
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 15px;
-            overflow: auto;
-            z-index: 10;
-            transition: opacity 0.3s;
-            border-radius: calc(0.375rem - 1px);
-        }
-        .card:hover .video-hover-info {
-            display: block;
-            opacity: 1;
-        }
-    `;
-    document.head.appendChild(style);
-    
-    // 비디오 카드 생성 함수 수정
-    window.createVideoCardWithHover = function(video) {
-        const publishDate = new Date(video.publishedAt).toLocaleDateString('ko-KR');
-        
-        // 조회수, 좋아요, 댓글 포맷팅
-        const viewCount = formatNumber(video.viewCount);
-        const likeCount = formatNumber(video.likeCount);
-        const commentCount = formatNumber(video.commentCount);
-        
-        // 게시일 포맷팅 (날짜 + 시간)
-        const publishDateTime = new Date(video.publishedAt).toLocaleString('ko-KR');
-        
-        return `
-                <div class="card">
-                    <a href="${video.url}" target="_blank">
-                        <img src="${video.thumbnail}" class="card-img-top" alt="${video.title}">
-                    </a>
-                    <div class="card-body">
-                        <h6 class="card-title">${video.title}</h6>
-                        <p class="card-text small text-muted">
-                            <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="text-decoration-none">
-                                <i class="fas fa-user-circle me-1"></i>${video.channelTitle}
-                            </a>
-                        </p>
-                        <div class="stats">
-                            <span title="조회수">
-                                <i class="fas fa-eye me-1"></i>
-                                ${viewCount}
-                            </span>
-                            <span title="좋아요">
-                                <i class="fas fa-thumbs-up me-1"></i>
-                                ${likeCount}
-                            </span>
-                            <span title="댓글">
-                                <i class="fas fa-comment me-1"></i>
-                                ${commentCount}
-                            </span>
-                        </div>
-                        <div class="mt-2 small text-muted">
-                            <i class="far fa-calendar-alt me-1"></i><span>${publishDate}</span> • 
-                            <i class="far fa-clock me-1"></i><span>${video.duration}초</span>
-                        </div>
-                    </div>
-                    <div class="card-footer">
-                        <a href="${video.url}" target="_blank" class="btn btn-sm btn-primary w-100">
-                            <i class="fab fa-youtube me-1"></i>쇼츠 보기
-                        </a>
-                    </div>
-                </div>
-        `;
-    };
-    
-    // 원래 함수를 새로운 함수로 대체
-    window.originalCreateVideoCard = window.createVideoCard;
-    window.createVideoCard = window.createVideoCardWithHover;
-}
-
-function setupNumberFormatting() {
-  // 대상 요소들
-  const minViewsInput = document.getElementById('min_views');
-  const maxViewsInput = document.getElementById('max_views');
-  
-  // 포맷팅할 요소들
-  const inputsToFormat = [minViewsInput, maxViewsInput];
-  
-  // 초기값 설정 - 최소 조회수에 기본값 설정
-  if (minViewsInput && !minViewsInput.value) {
-    minViewsInput.value = "100000"; // 기본값 설정
-  }
-  
-  inputsToFormat.forEach(input => {
-    if (!input) return;
-    
-    // 초기값에 콤마 적용 (값이 있고 유효한 숫자인 경우에만)
-    if (input.value && !isNaN(parseFloat(input.value))) {
-      input.value = parseInt(input.value).toLocaleString();
-    }
-    
-    // 입력란에 포커스가 오면 콤마 제거
-    input.addEventListener('focus', function() {
-      this.value = this.value.replace(/,/g, '');
-    });
-    
-    // 입력 시 숫자만 입력 가능하도록
-    input.addEventListener('input', function() {
-      this.value = this.value.replace(/[^\d]/g, '');
-    });
-    
-    // 입력란에서 포커스가 나가면 콤마 추가
-    input.addEventListener('blur', function() {
-      if (this.value) {
-        // 숫자가 아닌 문자 제거하고 숫자만 유지
-        const numericValue = this.value.replace(/[^\d]/g, '');
-        if (numericValue) {
-          this.value = parseInt(numericValue).toLocaleString();
-        }
-      }
-    });
-  });
-  
-  // 폼 제출 시 콤마 제거
-  const searchForm = document.getElementById('searchForm');
-  if (searchForm) {
-    // 기존 onsubmit 동작을 저장
-    const originalOnSubmit = searchForm.onsubmit;
-    
-    searchForm.onsubmit = function(e) {
-      e.preventDefault();
-      
-      // 제출 전에 콤마 제거
-      inputsToFormat.forEach(input => {
-        if (input && input.value) {
-          input.value = input.value.replace(/,/g, '');
-        }
-      });
-      
-      // 검색 수행 (기존 로직 호출)
-      performSearch(this);
-      
-      // 화면 표시를 위해 다시 콤마 추가
-      setTimeout(() => {
-        inputsToFormat.forEach(input => {
-          if (input && input.value && !isNaN(parseInt(input.value))) {
-            input.value = parseInt(input.value).toLocaleString();
-          }
-        });
-      }, 100);
-    };
-  }
-}
-
-// 정렬 및 필터링 기능 추가
-function addSortingFeature() {
-    // 정렬 컨트롤 추가
-    const sortingControlHTML = `
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <label for="sortOption" class="form-label"><i class="fas fa-sort me-1"></i>정렬 기준:</label>
-                <select id="sortOption" class="form-select">
-                    <option value="viewCount">조회수 (높은순)</option>
-                    <option value="viewCountAsc">조회수 (낮은순)</option>
-                    <option value="likeCount">좋아요 (높은순)</option>
-                    <option value="commentCount">댓글 (높은순)</option>
-                    <option value="publishDate">최신순</option>
-                    <option value="publishDateAsc">오래된순</option>
-                    <option value="duration">길이 (긴순)</option>
-                    <option value="durationAsc">길이 (짧은순)</option>
-                </select>
-            </div>
-            <div class="col-md-6 mb-3">
-                <label for="filterRegion" class="form-label"><i class="fas fa-globe me-1"></i>국가별 필터:</label>
-                <select id="filterRegion" class="form-select">
-                    <option value="all">모든 국가 표시</option>
-                    <option value="KR">한국 (KR)</option>
-                    <option value="US">미국 (US)</option>
-                    <option value="JP">일본 (JP)</option>
-                    <option value="GB">영국 (GB)</option>
-                    <option value="FR">프랑스 (FR)</option>
-                    <option value="DE">독일 (DE)</option>
-                    <option value="CA">캐나다 (CA)</option>
-                    <option value="AU">호주 (AU)</option>
-                    <option value="CN">중국 (CN)</option>
-                </select>
-            </div>
-        </div>
-    `;
-    
-    // 결과 헤더 영역에 정렬 컨트롤 추가
-    const resultsHeader = document.getElementById('resultsHeader');
-    if (resultsHeader) {
-        const sortingControlContainer = document.createElement('div');
-        sortingControlContainer.className = 'col-12 mt-2';
-        sortingControlContainer.innerHTML = sortingControlHTML;
-        sortingControlContainer.style.display = 'none';
-        sortingControlContainer.id = 'sortingControl';
-        resultsHeader.appendChild(sortingControlContainer);
-    }
-    
-    // 정렬 함수
-    window.sortResults = function(sortBy) {
-        switch(sortBy) {
-            case 'viewCount':
-                allResults.sort((a, b) => b.viewCount - a.viewCount);
-                break;
-            case 'viewCountAsc':
-                allResults.sort((a, b) => a.viewCount - b.viewCount);
-                break;
-            case 'likeCount':
-                allResults.sort((a, b) => b.likeCount - a.likeCount);
-                break;
-            case 'commentCount':
-                allResults.sort((a, b) => b.commentCount - a.commentCount);
-                break;
-            case 'publishDate':
-                allResults.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-                break;
-            case 'publishDateAsc':
-                allResults.sort((a, b) => new Date(a.publishedAt) - new Date(b.publishedAt));
-                break;
-            case 'duration':
-                allResults.sort((a, b) => b.duration - a.duration);
-                break;
-            case 'durationAsc':
-                allResults.sort((a, b) => a.duration - b.duration);
-                break;
-        }
-        
-        // 결과 다시 렌더링
-        currentPage = 1;
-        document.getElementById('results').innerHTML = '';
-        
-        // 국가별 필터가 선택되었는지 확인하고 필터링 적용
-        const filterRegion = document.getElementById('filterRegion').value;
-        renderFilteredResults(filterRegion);
-    };
-    
-    // 국가별 필터링 함수 추가
-    window.filterByRegion = function(regionCode) {
-        if (!regionCode || regionCode === 'all') {
-            // 모든 결과 표시
-            currentPage = 1;
-            document.getElementById('results').innerHTML = '';
-            renderResults();
-            return;
-        }
-        
-        // 선택된 국가로 필터링
-        currentPage = 1;
-        document.getElementById('results').innerHTML = '';
-        renderFilteredResults(regionCode);
-    };
-    
-    // 필터링된 결과 렌더링 함수
-    function renderFilteredResults(regionCode) {
-        if (!regionCode || regionCode === 'all') {
-            renderResults();
-            return;
-        }
-        
-        // 국가 코드로 필터링된 결과
-        const filteredResults = allResults.filter(video => 
-            video.regionCode === regionCode || 
-            !video.regionCode // regionCode 속성이 없는 기존 비디오도 포함
-        );
-        
-        // 필터링 결과 표시
-        const resultsContainer = document.getElementById('results');
-        
-        if (filteredResults.length === 0) {
-            resultsContainer.innerHTML = `
-                <div class="col-12">
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle me-2"></i>선택한 국가(${regionCode})에 해당하는 결과가 없습니다.
-                    </div>
-                </div>
-            `;
-            loadMoreContainer.style.display = 'none';
-            return;
-        }
-        
-        const start = 0;
-        const end = Math.min(itemsPerPage, filteredResults.length);
-        const pageItems = filteredResults.slice(start, end);
-        
-        pageItems.forEach(video => {
-            const videoCard = createVideoCard(video);
-            resultsContainer.innerHTML += videoCard;
-        });
-        
-        // 더 보기 버튼 표시 여부
-        if (filteredResults.length > end) {
-            loadMoreContainer.style.display = 'block';
-            
-            // 더 보기 버튼 이벤트 수정 - 필터링된 결과에 대해 작동하도록
-            loadMoreButton.onclick = function() {
-                currentPage++;
-                const newStart = (currentPage - 1) * itemsPerPage;
-                const newEnd = currentPage * itemsPerPage;
-                const nextPageItems = filteredResults.slice(newStart, newEnd);
-                
-                nextPageItems.forEach(video => {
-                    const videoCard = createVideoCard(video);
-                    resultsContainer.innerHTML += videoCard;
-                });
-                
-                // 더 보기 버튼 표시 여부 업데이트
-                if (filteredResults.length <= newEnd) {
-                    loadMoreContainer.style.display = 'none';
-                }
-            };
-        } else {
-            loadMoreContainer.style.display = 'none';
-        }
-        
-        // 결과 수 업데이트
-        document.getElementById('resultCount').textContent = filteredResults.length;
-    }
-    
-    // 정렬 및 필터 변경 이벤트 리스너
-    document.addEventListener('change', function(e) {
-        if (e.target && e.target.id === 'sortOption') {
-            window.sortResults(e.target.value);
-        }
-        
-        if (e.target && e.target.id === 'filterRegion') {
-            window.filterByRegion(e.target.value);
-        }
-    });
-    
-    // 기존 performSearch 함수 수정 (정렬/필터 컨트롤 표시)
-    const originalPerformSearch = window.performSearch;
-    window.performSearch = function(form) {
-        // 원래 함수 호출
-        originalPerformSearch(form);
-        
-        // 정렬 컨트롤 숨김
-        document.getElementById('sortingControl').style.display = 'none';
-        
-        // API 응답 후 정렬 컨트롤 표시 (0.5초 후)
-        setTimeout(function() {
-            if (allResults.length > 0) {
-                document.getElementById('sortingControl').style.display = 'block';
-                
-                // 검색 시 사용한 region_code 값으로 기본 필터 설정
-                const regionCodeSelect = document.getElementById('region_code');
-                const filterRegionSelect = document.getElementById('filterRegion');
-                if (regionCodeSelect && filterRegionSelect) {
-                    // 검색에 사용된 region_code 값
-                    const searchedRegion = regionCodeSelect.value;
-                    // filterRegion 선택 옵션 갱신
-                    filterRegionSelect.value = searchedRegion;
-                }
-                
-                // 더 보기 버튼 이벤트 초기화 - 전체 결과에 대해 작동하도록
-                loadMoreButton.onclick = function() {
-                    currentPage++;
-                    renderResults(currentPage);
-                };
-            }
-        }, 500);
-    };
-}
-
-
-// 설명 일부를 보여주는 비디오 카드 생성 함수
-function createEnhancedVideoCard(video) {
-    const publishDate = new Date(video.publishedAt).toLocaleDateString('ko-KR');
-    
-    // 조회수, 좋아요, 댓글 포맷팅
-    const viewCount = formatNumber(video.viewCount);
-    const likeCount = formatNumber(video.likeCount);
-    const commentCount = formatNumber(video.commentCount);
-    
-    // 국가 정보 배지 추가 (비디오 객체에 regionCode가 있을 경우)
-    const regionBadge = video.regionCode ? 
-        `<span class="badge bg-info" title="검색 국가 코드">${video.regionCode}</span>` : '';
-    
-    // 설명 내용 처리 (새로 추가)
-    const description = video.description || '';
-    const shortDescription = description.length > 100 ? 
-        description.substring(0, 100) + '...' : description;
-    
-    return `
-        <div class="card h-100">
-            <a href="${video.url}" target="_blank">
-                <img src="${video.thumbnail}" class="card-img-top" alt="${video.title}">
-            </a>
-            <div class="card-body">
-                <h6 class="card-title">${video.title}</h6>
-                <p class="card-text small text-muted">
-                    <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="text-decoration-none">
-                        <i class="fas fa-user-circle me-1"></i>${video.channelTitle}
-                    </a>
-                    ${regionBadge}
-                </p>
-                
-                <!-- 설명 내용 표시 (새로 추가) -->
-                <div class="description-content small text-muted mt-2 mb-2" style="font-size: 0.8rem; max-height: 4.5rem; overflow: hidden;">
-                    ${shortDescription || '<i>설명 없음</i>'}
-                </div>
-                
-                <div class="stats">
-                    <span title="조회수">
-                        <i class="fas fa-eye me-1"></i>
-                        ${viewCount}
-                    </span>
-                    <span title="좋아요">
-                        <i class="fas fa-thumbs-up me-1"></i>
-                        ${likeCount}
-                    </span>
-                    <span title="댓글">
-                        <i class="fas fa-comment me-1"></i>
-                        ${commentCount}
-                    </span>
-                </div>
-                <div class="mt-2 small text-muted">
-                    <i class="far fa-calendar-alt me-1"></i><span>${publishDate}</span> • 
-                    <i class="far fa-clock me-1"></i><span>${video.duration}초</span>
-                </div>
-            </div>
-            <div class="card-footer">
-                <a href="${video.url}" target="_blank" class="btn btn-sm btn-primary w-100">
-                    <i class="fab fa-youtube me-1"></i>쇼츠 보기
-                </a>
-            </div>
-        </div>
-    `;
-}
-
-function createEnhancedHoverVideoCard(video) {
-    const publishDate = new Date(video.publishedAt).toLocaleDateString('ko-KR');
-    
-    // 조회수, 좋아요, 댓글 포맷팅
-    const viewCount = formatNumber(video.viewCount);
-    const likeCount = formatNumber(video.likeCount);
-    const commentCount = formatNumber(video.commentCount);
-    
-    // 게시일 포맷팅 (날짜 + 시간)
-    const publishDateTime = new Date(video.publishedAt).toLocaleString('ko-KR');
-    
-    // 설명 내용 처리 (새로 추가)
-    const description = video.description || '';
-    const shortDescription = description.length > 100 ? 
-        description.substring(0, 100) + '...' : description;
-    
-    // 국가 정보 배지 추가
-    const regionBadge = video.regionCode ? 
-        `<span class="badge bg-info" title="검색 국가 코드">${video.regionCode}</span>` : '';
-    
-    return `
-        <div class="card">
-            <a href="${video.url}" target="_blank">
-                <img src="${video.thumbnail}" class="card-img-top" alt="${video.title}">
-            </a>
-            <div class="card-body">
-                <h6 class="card-title">${video.title}</h6>
-                <p class="card-text small text-muted">
-                    <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="text-decoration-none">
-                        <i class="fas fa-user-circle me-1"></i>${video.channelTitle}
-                    </a>
-                    ${regionBadge}
-                </p>
-                
-                <!-- 설명 내용 표시 (새로 추가) -->
-                <div class="description-content small text-muted mt-2 mb-2" style="font-size: 0.8rem; max-height: 4.5rem; overflow: hidden;">
-                    ${shortDescription || '<i>설명 없음</i>'}
-                </div>
-                
-                <div class="stats">
-                    <span title="조회수">
-                        <i class="fas fa-eye me-1"></i>
-                        ${viewCount}
-                    </span>
-                    <span title="좋아요">
-                        <i class="fas fa-thumbs-up me-1"></i>
-                        ${likeCount}
-                    </span>
-                    <span title="댓글">
-                        <i class="fas fa-comment me-1"></i>
-                        ${commentCount}
-                    </span>
-                </div>
-                <div class="mt-2 small text-muted">
-                    <i class="far fa-calendar-alt me-1"></i><span>${publishDate}</span> • 
-                    <i class="far fa-clock me-1"></i><span>${video.duration}초</span>
-                </div>
-            </div>
-            <div class="card-footer">
-                <a href="${video.url}" target="_blank" class="btn btn-sm btn-primary w-100">
-                    <i class="fab fa-youtube me-1"></i>쇼츠 보기
-                </a>
-                <div class="mt-2">
-                    <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="btn btn-sm btn-outline-secondary w-100">
-                        채널 방문
-                    </a>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-function updateVideoCardFunction() {
-    // 원래 함수 백업
-    window.originalCreateVideoCard = window.createVideoCard;
-    
-    // 설명란이 포함된 새 함수로 교체
-    window.createVideoCard = createEnhancedHoverVideoCard;
-    
-    // CSS 스타일 업데이트 (설명란 스타일 추가)
-    const style = document.createElement('style');
-    style.textContent = `
-        .description-content {
-            color: #6c757d;
-            position: relative;
-            overflow: hidden;
-            line-height: 1.5;
-        }
-    `;
-    document.head.appendChild(style);
 }

@@ -9,6 +9,7 @@ from functools import lru_cache
 import time
 import hashlib
 import re
+import math
 
 app = Flask(__name__)
 
@@ -45,28 +46,21 @@ def save_to_cache(cache_key, data):
         del cache[oldest_key]
 
 
-# app.py의 get_recent_popular_shorts 함수 수정
-
-def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago=5, max_results=50,
+def get_recent_popular_shorts(api_key, min_views=100000, days_ago=5, max_results=300,
                              category_id=None, region_code="KR", language=None,
-                             duration_max=60, keyword=None, title_contains=None, 
-                             description_contains=None, channel_ids=None):
+                             channel_ids=None, keyword=None):
     """
-    인기 YouTube Shorts 검색 함수 - 대량의 결과를 처리하도록 개선
+    인기 YouTube Shorts 검색 함수 - 심플한 버전
     """
     # 캐시 키 생성
     cache_params = {
         'min_views': min_views,
-        'max_views': max_views,
         'days_ago': days_ago,
         'max_results': max_results,
         'category_id': category_id,
         'region_code': region_code,
         'language': language,
-        'duration_max': duration_max,
         'keyword': keyword,
-        'title_contains': title_contains,
-        'description_contains': description_contains,
         'channel_ids': channel_ids
     }
     cache_key = get_cache_key(cache_params)
@@ -77,10 +71,8 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
         print(f"캐시에서 결과 가져옴: {len(cached_results)}개 항목")
         return cached_results
     
-    print(f"API 검색 시작: 조회수 {min_views}~{max_views if max_views else '무제한'}, {days_ago}일 이내, "
+    print(f"API 검색 시작: 조회수 {min_views}+, {days_ago}일 이내, "
           f"카테고리: {category_id if category_id else '없음(any)'}, 키워드: {keyword if keyword else '없음'}, "
-          f"제목 포함: {title_contains if title_contains else '없음'}, "
-          f"설명 포함: {description_contains if description_contains else '없음'}, "
           f"지역: {region_code}, 언어: {language if language and language != 'any' else '모두'}, "
           f"채널IDs: {channel_ids if channel_ids else '모든 채널'}")
 
@@ -99,32 +91,22 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
     
     try:
         # 키워드 처리
-        original_keyword = keyword
-        enhanced_keyword = None
-        
-        # 키워드가 있는 경우에만 처리
-        if keyword and keyword.strip():
-            enhanced_keyword = keyword.strip()
+        enhanced_keyword = keyword.strip() if keyword and keyword.strip() else None
             
-            # 키워드에 콤마가 있으면 공백으로 변환 (OR 검색)
-            if enhanced_keyword and ',' in enhanced_keyword:
-                enhanced_keyword = enhanced_keyword.replace(',', ' ')
-                
-            print(f"키워드 처리: 원본 '{original_keyword}' -> 처리 후 '{enhanced_keyword}'")
-        else:
-            print("키워드 없음")
+        # 키워드에 콤마가 있으면 공백으로 변환 (OR 검색)
+        if enhanced_keyword and ',' in enhanced_keyword:
+            enhanced_keyword = enhanced_keyword.replace(',', ' ')
         
         # 요청 결과 수 계산: 일반 검색 또는 채널별 검색
         if not channel_ids:
-            # 일반 검색 - 요청 결과 수는 max_results
-            # 기본 검색은 최대 300개 결과로 증가
-            enhanced_max_results = min(300, max_results * 3)  # 기본적으로 요청된 결과의 3배까지 검색 (최대 300개)
+            # 일반 검색 - 최대 설정된 max_results 사용
+            enhanced_max_results = max_results
             
-            print(f"일반 검색: {enhanced_max_results}개 결과 요청 (원래 요청: {max_results}개)")
+            print(f"일반 검색: {enhanced_max_results}개 결과 요청")
             
-            search_results = perform_search(youtube, min_views, max_views, days_ago, enhanced_max_results, 
-                                           category_id, region_code, language, duration_max, 
-                                           enhanced_keyword, title_contains, description_contains, None)
+            search_results = perform_search(youtube, min_views, days_ago, enhanced_max_results, 
+                                           category_id, region_code, language, 
+                                           enhanced_keyword, None)
             all_results.extend(search_results)
         else:
             # 채널 ID 처리
@@ -139,16 +121,15 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
             # 채널 수에 따라 채널별 요청 결과 수 계산
             channel_count = len(channel_id_list)
             # 채널별 최대 100개까지 요청 (너무 많은 채널이 있으면 채널당 결과 수 줄임)
-            results_per_channel = min(100, max(20, math.ceil(300 / channel_count)))  
+            results_per_channel = min(100, max(20, math.ceil(max_results / channel_count)))  
             
             print(f"채널별 검색: {channel_count}개 채널, 채널당 {results_per_channel}개 요청")
                 
             # 각 채널별로 검색 실행
             for channel_id in channel_id_list:
-                channel_results = perform_search(youtube, min_views, max_views, days_ago, 
-                                               results_per_channel, 
-                                               category_id, region_code, language, duration_max, 
-                                               enhanced_keyword, title_contains, description_contains, channel_id)
+                channel_results = perform_search(youtube, min_views, days_ago, results_per_channel, 
+                                               category_id, region_code, language,
+                                               enhanced_keyword, channel_id)
                 all_results.extend(channel_results)
     except Exception as e:
         print(f"검색 실행 중 오류: {str(e)}")
@@ -169,11 +150,9 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
     # 조회수 기준 내림차순 정렬
     unique_results.sort(key=lambda x: x['viewCount'], reverse=True)
     
-    # 최대 결과 수 제한 - 이제 사용자 요청보다 많은 결과 반환
-    # 클라이언트에서 필터링을 위해 더 많은 데이터 필요
-    final_result_limit = min(300, max(max_results, len(unique_results)))
-    if len(unique_results) > final_result_limit:
-        unique_results = unique_results[:final_result_limit]
+    # 최대 결과 수 제한
+    if len(unique_results) > max_results:
+        unique_results = unique_results[:max_results]
     
     # 결과 캐싱
     save_to_cache(cache_key, unique_results)
@@ -187,9 +166,9 @@ def get_recent_popular_shorts(api_key, min_views=10000, max_views=None, days_ago
     return unique_results
 
 
-def perform_search(youtube, min_views, max_views, days_ago, max_results, 
-                  category_id, region_code, language, duration_max, 
-                  keyword, title_contains, description_contains, channel_id):
+def perform_search(youtube, min_views, days_ago, max_results, 
+                  category_id, region_code, language, 
+                  keyword, channel_id):
     """단일 검색 수행 함수 - 페이지네이션 추가 및 설명란 필터링 기능 유지"""
     # 현재 시간 기준으로 n일 전 날짜 계산
     now = datetime.now(pytz.UTC)
@@ -224,7 +203,7 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
         search_params['channelId'] = channel_id
 
     # 디버깅을 위한 검색 조건 로그 추가
-    print(f"실제 검색 조건: keyword={keyword}, min_views={min_views}, max_views={max_views}, "
+    print(f"실제 검색 조건: keyword={keyword}, min_views={min_views}, "
           f"days_ago={days_ago}, region_code={region_code}, max_results={max_results}")
 
     # 페이지네이션으로 모든 결과 수집
@@ -287,17 +266,8 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
                     elif 'default' in item['snippet']['thumbnails']:
                         thumbnail_url = item['snippet']['thumbnails']['default']['url']
 
-                    if (view_count >= min_views and
-                        (max_views is None or view_count <= max_views) and
-                        duration_seconds <= duration_max):
-
-                        if title_contains and title_contains.lower() not in item['snippet']['title'].lower():
-                            continue
-                        if description_contains:
-                            description = item['snippet'].get('description', '')
-                            if description_contains.lower() not in description.lower():
-                                continue
-
+                    # 최소 조회수 체크
+                    if view_count >= min_views and duration_seconds <= 60:
                         print(f"비디오 발견: {item['snippet']['title']} - 조회수: {view_count}, 지역: {region_code}")
                         filtered_videos.append({
                             'id': item['id'],
@@ -326,55 +296,6 @@ def perform_search(youtube, min_views, max_views, days_ago, max_results,
             continue
     
     print(f"필터링 후 최종 결과: {len(filtered_videos)}개 항목")
-    return filtered_videos
-
-def process_video_results(video_response, min_views, max_views, duration_max, title_contains):
-    """비디오 응답 데이터 처리 함수"""
-    filtered_videos = []
-    
-    for item in video_response.get('items', []):
-        # 조회수 추출
-        view_count = int(item['statistics'].get('viewCount', 0))
-        
-        # 동영상 길이 추출
-        duration = item['contentDetails']['duration']
-        duration_seconds = isodate.parse_duration(duration).total_seconds()
-
-        # 썸네일 확인 (세로형 확인용)
-        # if 'high' in item['snippet']['thumbnails']:
-        #     thumbnail = item['snippet']['thumbnails']['high']
-        #     is_vertical = thumbnail['height'] > thumbnail['width']
-        # elif 'medium' in item['snippet']['thumbnails']:
-        #     thumbnail = item['snippet']['thumbnails']['medium']
-        #     is_vertical = thumbnail['height'] > thumbnail['width']
-        # else:
-        is_vertical = True
-
-        # 비디오가 조건을 충족하는지 확인
-        if (view_count >= min_views and
-            (max_views is None or view_count <= max_views) and
-            duration_seconds <= duration_max):
-
-            # 제목 필터 적용
-            if title_contains:
-                if title_contains.lower() not in item['snippet']['title'].lower():
-                    continue
-
-            filtered_videos.append({
-                'id': item['id'],
-                'title': item['snippet']['title'],
-                'channelTitle': item['snippet']['channelTitle'],
-                'channelId': item['snippet']['channelId'],
-                'publishedAt': item['snippet']['publishedAt'],
-                'viewCount': view_count,
-                'likeCount': int(item['statistics'].get('likeCount', 0)),
-                'commentCount': int(item['statistics'].get('commentCount', 0)),
-                'duration': round(duration_seconds),
-                'url': f"https://www.youtube.com/shorts/{item['id']}",
-                'thumbnail': item['snippet']['thumbnails']['high']['url'] if 'high' in item['snippet']['thumbnails'] else '',
-                'isVertical': is_vertical
-            })
-            
     return filtered_videos
 
 @app.route('/')
@@ -419,8 +340,8 @@ def index():
     ]
 
     # 기본값 설정
-    selected_region = request.args.get('region', 'US')
-    selected_language = request.args.get('language', 'en')
+    selected_region = request.args.get('region', 'KR')
+    selected_language = request.args.get('language', 'ko')
 
     return render_template('index.html', categories=categories, regions=regions, languages=languages,
                            selected_region=selected_region, selected_language=selected_language)
@@ -432,33 +353,21 @@ def search():
         data = request.form
         print("검색 요청 파라미터:", data)
 
-        # 콤마가 포함된 문자열을 처리하여 정수로 변환
-        try:
-            min_views_str = data.get('min_views', '10000')
-            min_views = int(min_views_str.replace(',', '')) if min_views_str else 10000
-            
-            max_views_str = data.get('max_views', '')
-            max_views = int(max_views_str.replace(',', '')) if max_views_str.strip() else None
-        except ValueError as e:
-            print(f"조회수 값 변환 중 오류: {str(e)}")
-            return jsonify({"status": "error", "message": f"조회수 값이 유효하지 않습니다: {str(e)}"})
-        
+        # 필수 파라미터 설정
+        min_views = int(data.get('min_views', '100000'))
         days_ago = int(data.get('days_ago', 5))
+        max_results = int(data.get('max_results', 300))
         
-        # 사용자 입력 max_results는 UI 표시 용도로만 사용
-        user_max_results = int(data.get('max_results', 50))
-        # 실제 API 요청에는 증가된 값(300) 사용
-        api_max_results = 300
+        # 최대 500개 제한
+        if max_results > 500:
+            max_results = 500
         
         category_id = data.get('category_id', 'any')
         region_code = data.get('region_code', 'KR')
         language = data.get('language', 'any')
-        duration_max = int(data.get('duration_max', 60))
         keyword = data.get('keyword', '')
-        title_contains = data.get('title_contains', '')
-        description_contains = data.get('description_contains', '')  # 설명 필터 추가
         
-        # 여러 채널 ID 처리
+        # 채널 ID 처리
         channel_ids = data.get('channel_ids', '')
 
         if not API_KEY:
@@ -469,31 +378,21 @@ def search():
             results = get_recent_popular_shorts(
                 api_key=API_KEY,
                 min_views=min_views,
-                max_views=max_views,
                 days_ago=days_ago,
-                max_results=api_max_results,  # 여기서 증가된 값 사용
+                max_results=max_results,
                 category_id=category_id if category_id != 'any' else None,
                 region_code=region_code,
                 language=language if language != 'any' else None,
-                duration_max=duration_max,
-                keyword=keyword,
-                title_contains=title_contains,
-                description_contains=description_contains,
-                channel_ids=channel_ids if channel_ids else None
+                channel_ids=channel_ids if channel_ids else None,
+                keyword=keyword
             )
 
-            # 결과를 사용자가 요청한 max_results로 제한
-            if len(results) > user_max_results:
-                displayed_results = results[:user_max_results]
-            else:
-                displayed_results = results
-
-            print(f"API 검색 결과: {len(results)}개 항목 찾음, 표시: {len(displayed_results)}개")
+            print(f"API 검색 결과: {len(results)}개 항목 찾음")
             return jsonify({
                 "status": "success", 
-                "results": results,  # 전체 결과 반환 (클라이언트에서 필터링에 사용)
+                "results": results,
                 "count": len(results),
-                "displayCount": len(displayed_results)
+                "displayCount": len(results)
             })
             
         except Exception as e:

@@ -41,17 +41,12 @@
                     <div class="card-body">
                         <form id="searchForm">
                             <div class="row g-3">
+                                <!-- 기본 검색 조건 -->
                                 <div class="col-md-6">
                                     <label for="min_views" class="form-label">
                                         <i class="fas fa-eye me-1"></i>최소 조회수
                                     </label>
-                                    <input type="text" class="form-control" id="min_views" name="min_views" value="100000">
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="max_views" class="form-label">
-                                        <i class="fas fa-eye me-1"></i>최대 조회수 (선택 사항)
-                                    </label>
-                                    <input type="text" class="form-control" id="max_views" name="max_views" placeholder="제한 없음">
+                                    <input type="number" class="form-control" id="min_views" name="min_views" value="100000" min="1000">
                                 </div>
                                 <div class="col-md-6">
                                     <label for="days_ago" class="form-label">
@@ -78,9 +73,6 @@
                                         <option value="{{ region.code }}" {% if region.code == selected_region %}selected{% endif %}>{{ region.name }}</option>
                                         {% endfor %}
                                     </select>
-                                    <div class="form-text text-muted">
-                                        <small><i class="fas fa-info-circle me-1"></i>국가 설정은 검색 결과에 우선적으로 적용되나, YouTube의 정책에 따라 100% 정확하지 않을 수 있습니다.</small>
-                                    </div>
                                 </div>
                                 <div class="col-md-6">
                                     <label for="language" class="form-label">
@@ -91,46 +83,28 @@
                                         <option value="{{ lang.code }}" {% if lang.code == selected_language %}selected{% endif %}>{{ lang.name }}</option>
                                         {% endfor %}
                                     </select>
-                                    <div class="form-text text-muted">
-                                        <small><i class="fas fa-info-circle me-1"></i>언어 설정은 키워드 검색 시 주로 영향을 미칩니다.</small>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="duration_max" class="form-label">
-                                        <i class="far fa-clock me-1"></i>최대 길이 (초)
-                                    </label>
-                                    <input type="number" class="form-control" id="duration_max" name="duration_max" value="60" min="15" max="180">
                                 </div>
                                 <div class="col-md-6">
                                     <label for="max_results" class="form-label">
                                         <i class="fas fa-list-ol me-1"></i>최대 결과 수
                                     </label>
-                                    <input type="number" class="form-control" id="max_results" name="max_results" value="50" min="10" max="50">
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="keyword" class="form-label">
-                                        <i class="fas fa-key me-1"></i>키워드 (선택사항)
-                                    </label>
-                                    <input type="text" class="form-control" id="keyword" name="keyword" placeholder="검색할 키워드">
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="title_contains" class="form-label">
-                                        <i class="fas fa-heading me-1"></i>제목 포함 (선택 사항)
-                                    </label>
-                                    <input type="text" class="form-control" id="title_contains" name="title_contains" placeholder="제목에 포함될 단어">
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="description_contains" class="form-label">
-                                        <i class="fas fa-align-left me-1"></i>설명 포함 (선택 사항)
-                                    </label>
-                                    <input type="text" class="form-control" id="description_contains" name="description_contains" placeholder="설명에 포함될 단어">
+                                    <input type="number" class="form-control" id="max_results" name="max_results" value="300" min="50" max="500">
                                     <div class="form-text text-muted">
-                                        <small>영상 설명에 포함된 단어를 기준으로 필터링합니다.</small>
+                                        <small>최대 500개까지 검색할 수 있습니다. 결과가 많을수록 시간이 오래 걸립니다.</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-12">
+                                    <label for="keyword" class="form-label">
+                                        <i class="fas fa-key me-1"></i>키워드
+                                    </label>
+                                    <input type="text" class="form-control" id="keyword" name="keyword" placeholder="검색할 키워드 (콤마로 구분하여 여러 키워드 입력 가능)">
+                                    <div class="form-text text-muted">
+                                        <small>여러 키워드는 콤마(,)로 구분하세요. 예: 축구,농구,야구</small>
                                     </div>
                                 </div>
 
-                                <!-- 멀티 채널 선택 영역 -->
-                                <div class="col-md-12">
+                                <!-- 채널 검색 영역 -->
+                                <div class="col-md-12 mt-3">
                                     <label for="channel_search" class="form-label">
                                         <i class="fas fa-user-circle me-1"></i>채널 검색 (최대 50개 추가 가능)
                                     </label>
@@ -151,7 +125,7 @@
                                     <div id="selectedChannels" class="selected-channels-container"></div>
                                 </div>
 
-                                <div class="col-12">
+                                <div class="col-12 mt-3">
                                     <button type="submit" class="btn btn-primary w-100">
                                         <i class="fas fa-search me-2"></i>검색
                                     </button>
@@ -173,9 +147,43 @@
             </div>
         </div>
 
+        <!-- 정렬 및 필터 영역 -->
+        <div id="sortingControl" style="display: none;" class="mb-3">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="sortOption" class="form-label"><i class="fas fa-sort me-1"></i>정렬 기준:</label>
+                    <select id="sortOption" class="form-select">
+                        <option value="viewCount">조회수 (높은순)</option>
+                        <option value="viewCountAsc">조회수 (낮은순)</option>
+                        <option value="likeCount">좋아요 (높은순)</option>
+                        <option value="commentCount">댓글 (높은순)</option>
+                        <option value="publishDate">최신순</option>
+                        <option value="publishDateAsc">오래된순</option>
+                        <option value="duration">길이 (긴순)</option>
+                        <option value="durationAsc">길이 (짧은순)</option>
+                    </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="filterRegion" class="form-label"><i class="fas fa-globe me-1"></i>국가별 필터:</label>
+                    <select id="filterRegion" class="form-select">
+                        <option value="all">모든 국가 표시</option>
+                        <option value="KR">한국 (KR)</option>
+                        <option value="US">미국 (US)</option>
+                        <option value="JP">일본 (JP)</option>
+                        <option value="GB">영국 (GB)</option>
+                        <option value="FR">프랑스 (FR)</option>
+                        <option value="DE">독일 (DE)</option>
+                        <option value="CA">캐나다 (CA)</option>
+                        <option value="AU">호주 (AU)</option>
+                        <option value="CN">중국 (CN)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
         <div class="video-container" id="results"></div>
         
-        <div id="loadMoreContainer">
+        <div id="loadMoreContainer" style="display: none;" class="my-4 text-center">
             <button id="loadMoreButton" class="btn btn-outline-primary">
                 <i class="fas fa-plus-circle me-2"></i>더 보기
             </button>
@@ -188,7 +196,7 @@
         </div>
     </footer>
 
-    <!-- 검색 기록 모달 추가 - body 닫기 태그 전에 추가 -->
+    <!-- 검색 기록 모달 -->
     <div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -199,7 +207,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body" id="historyModalBody">
-                    <!-- 여기에 검색 기록이 동적으로 표시됩니다 -->
+                    <!-- 검색 기록이 동적으로 표시됩니다 -->
                     <div class="text-center p-4 text-muted">저장된 검색 기록이 없습니다.</div>
                 </div>
                 <div class="modal-footer">
@@ -214,7 +222,6 @@
 
     <!-- 부트스트랩 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/imask/6.4.3/imask.min.js"></script>
     <!-- 커스텀 자바스크립트 -->
     <script src="/static/js/main.js"></script>
 </body>

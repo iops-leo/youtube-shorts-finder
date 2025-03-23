@@ -1,6 +1,8 @@
 /* 카드 스타일 */
 .card {
-    transition: transform 0.3s;
+    transition: transform 0.3s, box-shadow 0.3s;
+    height: 100%;
+    margin-bottom: 20px;
 }
 .card:hover {
     transform: translateY(-5px);
@@ -26,18 +28,11 @@
 /* 비디오 그리드 레이아웃 */
 .video-container {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 15px; /* 간격 줄임 */
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
 }
-/* 쇼츠 비디오 카드 전체 스타일 */
-.video-container .card {
-    margin-bottom: 0; /* 마진 제거 */
-    height: 100%;
-}
-
-/* 카드 이미지 비율 조정 */
 .card-img-top {
-    height: 240px; /* 세로로 긴 쇼츠 형태에 맞게 조정 */
+    height: 180px;
     object-fit: cover;
 }
 
@@ -99,15 +94,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.channel-badge {
-    display: inline-block;
-    font-size: 0.75rem;
-    font-weight: bold;
-    padding: 3px 6px;
-    border-radius: 3px;
-    margin-right: 5px;
-    vertical-align: middle;
-}
 
 /* 더 보기 버튼 컨테이너 */
 #loadMoreContainer {
@@ -128,14 +114,14 @@
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    max-height: 300px;
+    max-height: 200px;
     overflow-y: auto;
     padding: 10px;
     border: 1px solid #dee2e6;
     border-radius: 0.25rem;
     margin-bottom: 15px;
     background-color: #f8f9fa;
-    min-height: 100px;
+    min-height: 80px;
 }
 
 /* 선택된 채널 항목 스타일 */
@@ -176,18 +162,6 @@
     cursor: pointer;
 }
 
-/* 채널 검색 영역에 대한 높이 제한 */
-#channelSearchResults {
-    max-height: 300px;
-    overflow-y: auto;
-    z-index: 1001;
-}
-
-/* 채널 검색 결과 항목에 대한 호버 효과 개선 */
-.channel-item:hover {
-    background-color: #e9ecef;
-}
-
 /* 선택된 채널이 없을 때 스타일 */
 .empty-channels-message {
     width: 100%;
@@ -197,47 +171,30 @@
     font-style: italic;
 }
 
-/* 스크롤바 스타일링 */
-.selected-channels-container::-webkit-scrollbar,
-.channel-search-results::-webkit-scrollbar {
-    width: 6px;
-}
-
-.selected-channels-container::-webkit-scrollbar-track,
-.channel-search-results::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 3px;
-}
-
-.selected-channels-container::-webkit-scrollbar-thumb,
-.channel-search-results::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 3px;
-}
-
-.selected-channels-container::-webkit-scrollbar-thumb:hover,
-.channel-search-results::-webkit-scrollbar-thumb:hover {
-    background: #555;
-}
-
-/* 채널 검색 결과 포지셔닝 수정 */
-.position-relative {
-    position: relative;
-}
-
-/* 채널 검색 결과 항목 간격 조정 */
-.channel-search-results .channel-item {
-    padding: 10px 15px;
-}
-
-/* 채널 검색 결과 컨테이너 테두리 */
-.channel-search-results {
-    border: 1px solid #ced4da;
-    margin-top: 2px;
-}
-
-/* 검색 결과가 없을 때 메시지 스타일 */
-.channel-search-results .p-3 {
-    padding: 15px !important;
+/* 설명 내용 스타일 */
+.description-content {
     color: #6c757d;
+    position: relative;
+    overflow: hidden;
+    line-height: 1.5;
+    max-height: 4.5rem;
+    margin: 10px 0;
+    font-size: 0.85rem;
+}
+
+/* 모바일 반응형 조정 */
+@media (max-width: 768px) {
+    .video-container {
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    }
+    
+    .selected-channel-item .channel-name {
+        max-width: 120px;
+    }
+}
+
+@media (max-width: 576px) {
+    .video-container {
+        grid-template-columns: 1fr;
+    }
 }
