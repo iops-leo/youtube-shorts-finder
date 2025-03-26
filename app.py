@@ -16,12 +16,40 @@ app = Flask(__name__)
 # 정적 파일 경로 설정
 app.static_folder = 'static'
 
-# 환경 변수에서 API 키 가져오기
-API_KEY = os.environ.get('YOUTUBE_API_KEY')
+# 콤마로 구분된 API 키들을 리스트로 변환
+api_keys = []
+api_key_str = os.environ.get('YOUTUBE_API_KEY', '')
 
 # 캐시 설정 (API 호출 결과를 메모리에 저장)
 CACHE_TIMEOUT = 600  # 캐시 유효시간 (초)
 cache = {}
+
+if api_key_str:
+    api_keys = [key.strip() for key in api_key_str.split(',') if key.strip()]
+    print(f"{len(api_keys)}개의 API 키가 로드되었습니다.")
+else:
+    print("경고: YOUTUBE_API_KEY 환경 변수가 설정되지 않았습니다.")
+
+# 현재 사용 중인 API 키 인덱스
+current_key_index = 0
+
+def get_current_api_key():
+    """현재 사용할 API 키 반환"""
+    if not api_keys:
+        return None
+    return api_keys[current_key_index]
+
+def switch_to_next_api_key():
+    """다음 API 키로 전환"""
+    global current_key_index
+    if not api_keys:
+        return None
+        
+    # 다음 키 인덱스로 전환 (순환)
+    current_key_index = (current_key_index + 1) % len(api_keys)
+    new_key = get_current_api_key()
+    print(f"API 키 전환: 인덱스 {current_key_index}의 키로 변경됨")
+    return new_key
 
 def get_cache_key(params):
     """파라미터로부터 캐시 키 생성"""
@@ -45,12 +73,31 @@ def save_to_cache(cache_key, data):
         oldest_key = min(cache.keys(), key=lambda k: cache[k][1])
         del cache[oldest_key]
 
+def get_youtube_api_service():
+    """YouTube API 서비스 인스턴스 생성 (키 오류 시 다음 키로 전환)"""
+    api_key = get_current_api_key()
+    if not api_key:
+        raise Exception("사용 가능한 YouTube API 키가 없습니다.")
+        
+    try:
+        youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=api_key)
+        return youtube
+    except Exception as e:
+        error_str = str(e).lower()
+        if 'quota' in error_str or 'exceeded' in error_str:
+            # 할당량 초과 시 다음 키로 전환
+            next_api_key = switch_to_next_api_key()
+            if next_api_key:
+                print(f"할당량 초과로 다음 API 키로 전환합니다.")
+                return googleapiclient.discovery.build("youtube", "v3", developerKey=next_api_key)
+        # 다른 오류는 그대로 전파
+        raise
 
-def get_recent_popular_shorts(api_key, min_views=100000, days_ago=5, max_results=300,
+def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
                              category_id=None, region_code="KR", language=None,
                              channel_ids=None, keyword=None):
     """
-    인기 YouTube Shorts 검색 함수 - 심플한 버전
+    인기 YouTube Shorts 검색 함수 - API 키 순환 지원 추가
     """
     # 캐시 키 생성
     cache_params = {
@@ -76,100 +123,112 @@ def get_recent_popular_shorts(api_key, min_views=100000, days_ago=5, max_results
           f"지역: {region_code}, 언어: {language if language and language != 'any' else '모두'}, "
           f"채널IDs: {channel_ids if channel_ids else '모든 채널'}")
 
-    # API 빌드
-    try:
-        youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=api_key)
-    except Exception as e:
-        print(f"YouTube API 빌드 오류: {str(e)}")
-        # 쿼터 제한 오류인 경우 상위로 전파
-        if 'quota' in str(e).lower() or 'exceeded' in str(e).lower():
-            raise Exception(f"YouTube API 할당량 초과: {str(e)}")
-        raise
-
-    # 여러 채널 ID가 있는 경우 각 채널별로 검색하고 결과 합치기
-    all_results = []
+    # 최대 API 키 시도 횟수 (API 키의 수만큼)
+    max_api_key_attempts = len(api_keys) if api_keys else 1
+    attempt_count = 0
     
-    try:
-        # 키워드 처리
-        enhanced_keyword = keyword.strip() if keyword and keyword.strip() else None
+    # API 키 순환하며 검색 시도
+    while attempt_count < max_api_key_attempts:
+        try:
+            # API 빌드 (할당량 초과 시 자동으로 다음 키로 전환)
+            youtube = get_youtube_api_service()
             
-        # 키워드에 콤마가 있으면 공백으로 변환 (OR 검색)
-        if enhanced_keyword and ',' in enhanced_keyword:
-            enhanced_keyword = enhanced_keyword.replace(',', ' ')
-        
-        # 요청 결과 수 계산: 일반 검색 또는 채널별 검색
-        if not channel_ids:
-            # 일반 검색 - 최대 설정된 max_results 사용
-            enhanced_max_results = max_results
+            # 여러 채널 ID가 있는 경우 각 채널별로 검색하고 결과 합치기
+            all_results = []
             
-            print(f"일반 검색: {enhanced_max_results}개 결과 요청")
+            # 키워드 처리
+            enhanced_keyword = keyword.strip() if keyword and keyword.strip() else None
+                
+            # 키워드에 콤마가 있으면 공백으로 변환 (OR 검색)
+            if enhanced_keyword and ',' in enhanced_keyword:
+                enhanced_keyword = enhanced_keyword.replace(',', ' ')
             
-            search_results = perform_search(youtube, min_views, days_ago, enhanced_max_results, 
-                                           category_id, region_code, language, 
-                                           enhanced_keyword, None)
-            all_results.extend(search_results)
-        else:
-            # 채널 ID 처리
-            if isinstance(channel_ids, str):
-                if ',' in channel_ids:
-                    channel_id_list = [ch_id.strip() for ch_id in channel_ids.split(',')]
-                else:
-                    channel_id_list = [channel_ids]
+            # 요청 결과 수 계산: 일반 검색 또는 채널별 검색
+            if not channel_ids:
+                # 일반 검색 - 최대 설정된 max_results 사용
+                enhanced_max_results = max_results
+                
+                print(f"일반 검색: {enhanced_max_results}개 결과 요청")
+                
+                search_results = perform_search(youtube, min_views, days_ago, enhanced_max_results, 
+                                               category_id, region_code, language, 
+                                               enhanced_keyword, None)
+                all_results.extend(search_results)
             else:
-                channel_id_list = channel_ids
+                # 채널 ID 처리
+                if isinstance(channel_ids, str):
+                    if ',' in channel_ids:
+                        channel_id_list = [ch_id.strip() for ch_id in channel_ids.split(',')]
+                    else:
+                        channel_id_list = [channel_ids]
+                else:
+                    channel_id_list = channel_ids
+                    
+                # 채널 수에 따라 채널별 요청 결과 수 계산
+                channel_count = len(channel_id_list)
+                # 채널별 최대 100개까지 요청 (너무 많은 채널이 있으면 채널당 결과 수 줄임)
+                results_per_channel = min(100, max(20, math.ceil(max_results / channel_count)))  
                 
-            # 채널 수에 따라 채널별 요청 결과 수 계산
-            channel_count = len(channel_id_list)
-            # 채널별 최대 100개까지 요청 (너무 많은 채널이 있으면 채널당 결과 수 줄임)
-            results_per_channel = min(100, max(20, math.ceil(max_results / channel_count)))  
+                print(f"채널별 검색: {channel_count}개 채널, 채널당 {results_per_channel}개 요청")
+                    
+                # 각 채널별로 검색 실행
+                for channel_id in channel_id_list:
+                    channel_results = perform_search(youtube, min_views, days_ago, results_per_channel, 
+                                                   category_id, region_code, language,
+                                                   enhanced_keyword, channel_id)
+                    all_results.extend(channel_results)
             
-            print(f"채널별 검색: {channel_count}개 채널, 채널당 {results_per_channel}개 요청")
+            # 중복 제거 (비디오 ID 기준)
+            seen_video_ids = set()
+            unique_results = []
+            for video in all_results:
+                if video['id'] not in seen_video_ids:
+                    seen_video_ids.add(video['id'])
+                    unique_results.append(video)
+           
+            # 조회수 기준 내림차순 정렬
+            unique_results.sort(key=lambda x: x['viewCount'], reverse=True)
+            
+            # 최대 결과 수 제한
+            if len(unique_results) > max_results:
+                unique_results = unique_results[:max_results]
+            
+            # 결과 캐싱
+            save_to_cache(cache_key, unique_results)
+            
+            # 결과 통계 출력
+            if unique_results:
+                print(f"검색 결과: {len(unique_results)}개 비디오 찾음, 국가: {region_code}")
+            else:
+                print(f"검색 결과 없음! 국가: {region_code}, 키워드: {keyword}")
+            
+            return unique_results
+            
+        except Exception as e:
+            error_str = str(e).lower()
+            if 'quota' in error_str or 'exceeded' in error_str:
+                print(f"API 할당량 초과 (시도 {attempt_count + 1}/{max_api_key_attempts})")
                 
-            # 각 채널별로 검색 실행
-            for channel_id in channel_id_list:
-                channel_results = perform_search(youtube, min_views, days_ago, results_per_channel, 
-                                               category_id, region_code, language,
-                                               enhanced_keyword, channel_id)
-                all_results.extend(channel_results)
-    except Exception as e:
-        print(f"검색 실행 중 오류: {str(e)}")
-        # 쿼터 제한 오류인 경우 상위로 전파
-        if 'quota' in str(e).lower() or 'exceeded' in str(e).lower():
-            raise Exception(f"YouTube API 할당량 초과: {str(e)}")
-        # 다른 오류는 빈 결과 반환
-        all_results = []
+                # 다음 API 키로 전환
+                next_key = switch_to_next_api_key()
+                if next_key:
+                    print(f"다음 API 키로 전환합니다.")
+                    attempt_count += 1
+                    continue
+                else:
+                    raise Exception("모든 API 키의 할당량이 초과되었습니다.")
+            else:
+                # 할당량 외 다른 오류는 바로 전파
+                raise
     
-    # 중복 제거 (비디오 ID 기준)
-    seen_video_ids = set()
-    unique_results = []
-    for video in all_results:
-        if video['id'] not in seen_video_ids:
-            seen_video_ids.add(video['id'])
-            unique_results.append(video)
-   
-    # 조회수 기준 내림차순 정렬
-    unique_results.sort(key=lambda x: x['viewCount'], reverse=True)
-    
-    # 최대 결과 수 제한
-    if len(unique_results) > max_results:
-        unique_results = unique_results[:max_results]
-    
-    # 결과 캐싱
-    save_to_cache(cache_key, unique_results)
-    
-    # 결과 통계 출력
-    if unique_results:
-        print(f"검색 결과: {len(unique_results)}개 비디오 찾음, 국가: {region_code}")
-    else:
-        print(f"검색 결과 없음! 국가: {region_code}, 키워드: {keyword}")
-    
-    return unique_results
+    # 모든 시도 실패 시
+    raise Exception("모든 API 키 시도 후에도 검색에 실패했습니다.")
 
 
 def perform_search(youtube, min_views, days_ago, max_results, 
                   category_id, region_code, language, 
                   keyword, channel_id):
-    """단일 검색 수행 함수 - 페이지네이션 추가 및 설명란 필터링 기능 유지"""
+    """단일 검색 수행 함수 - API 키 순환 지원 추가"""
     # 현재 시간 기준으로 n일 전 날짜 계산
     now = datetime.now(pytz.UTC)
     published_after = (now - timedelta(days=days_ago)).isoformat()
@@ -216,7 +275,26 @@ def perform_search(youtube, min_views, days_ago, max_results,
             if next_page_token:
                 search_params['pageToken'] = next_page_token
             
-            search_response = youtube.search().list(**search_params).execute()
+            # API 호출 시 할당량 초과 예외 처리 및 키 전환
+            try:
+                search_response = youtube.search().list(**search_params).execute()
+            except Exception as e:
+                error_str = str(e).lower()
+                if 'quota' in error_str or 'exceeded' in error_str:
+                    # 다음 키로 전환 시도
+                    next_key = switch_to_next_api_key()
+                    if next_key:
+                        # 새 키로 YouTube API 서비스 재생성
+                        youtube = get_youtube_api_service()
+                        # 재시도
+                        search_response = youtube.search().list(**search_params).execute()
+                    else:
+                        # 더 이상 사용 가능한 키가 없을 때
+                        raise Exception("모든 API 키의 할당량이 초과되었습니다.")
+                else:
+                    # 할당량 외 다른 오류는 그대로 전파
+                    raise
+            
             items = search_response.get('items', [])
             print(f"페이지 결과: {len(items)}개 항목 발견 (총 {len(all_video_ids) + len(items)}개)")
             
@@ -232,9 +310,8 @@ def perform_search(youtube, min_views, days_ago, max_results,
             
     except Exception as e:
         print(f"YouTube API 검색 오류: {str(e)}")
-        if 'quota' in str(e).lower() or 'exceeded' in str(e).lower():
-            raise Exception(f"YouTube API 할당량 초과: {str(e)}")
-        return []
+        # 특별한 처리 없이 상위로 예외 전파 (get_recent_popular_shorts에서 처리)
+        raise
 
     if not all_video_ids:
         print("검색 결과 없음 - 빈 리스트 반환")
@@ -246,11 +323,35 @@ def perform_search(youtube, min_views, days_ago, max_results,
         batch_ids = all_video_ids[i:i + 50]
         try:
             print(f"비디오 상세 정보 요청: {len(batch_ids)}개 ID (총 {len(all_video_ids)}개 중)")
-            video_response = youtube.videos().list(
-                part='snippet,statistics,contentDetails',
-                id=','.join(batch_ids),
-                regionCode=region_code
-            ).execute()
+            
+            # API 호출 시 할당량 초과 예외 처리 및 키 전환
+            try:
+                video_response = youtube.videos().list(
+                    part='snippet,statistics,contentDetails',
+                    id=','.join(batch_ids),
+                    regionCode=region_code
+                ).execute()
+            except Exception as e:
+                error_str = str(e).lower()
+                if 'quota' in error_str or 'exceeded' in error_str:
+                    # 다음 키로 전환 시도
+                    next_key = switch_to_next_api_key()
+                    if next_key:
+                        # 새 키로 YouTube API 서비스 재생성
+                        youtube = get_youtube_api_service()
+                        # 재시도
+                        video_response = youtube.videos().list(
+                            part='snippet,statistics,contentDetails',
+                            id=','.join(batch_ids),
+                            regionCode=region_code
+                        ).execute()
+                    else:
+                        # 더 이상 사용 가능한 키가 없을 때
+                        raise Exception("모든 API 키의 할당량이 초과되었습니다.")
+                else:
+                    # 할당량 외 다른 오류는 그대로 전파
+                    raise
+            
             print(f"비디오 상세 정보 결과: {len(video_response.get('items', []))}개 항목")
 
             for item in video_response.get('items', []):
@@ -291,9 +392,8 @@ def perform_search(youtube, min_views, days_ago, max_results,
 
         except Exception as e:
             print(f"YouTube API 비디오 상세 정보 오류: {str(e)}")
-            if 'quota' in str(e).lower() or 'exceeded' in str(e).lower():
-                raise Exception(f"YouTube API 할당량 초과: {str(e)}")
-            continue
+            # 특별한 처리 없이 상위로 예외 전파 (get_recent_popular_shorts에서 처리)
+            raise
     
     print(f"필터링 후 최종 결과: {len(filtered_videos)}개 항목")
     return filtered_videos
@@ -370,13 +470,13 @@ def search():
         # 채널 ID 처리
         channel_ids = data.get('channel_ids', '')
 
-        if not API_KEY:
+        # API 키 확인
+        if not api_keys:
             print("경고: API 키가 설정되지 않았습니다.")
-            return jsonify({"status": "error", "message": "API 키가 설정되지 않았습니다."})
+            return jsonify({"status": "error", "message": "YouTube API 키가 설정되지 않았습니다."})
 
         try:
             results = get_recent_popular_shorts(
-                api_key=API_KEY,
                 min_views=min_views,
                 days_ago=days_ago,
                 max_results=max_results,
@@ -403,7 +503,7 @@ def search():
             if 'quota' in error_msg.lower() or 'exceeded' in error_msg.lower():
                 return jsonify({
                     "status": "quota_exceeded", 
-                    "message": "YouTube API 일일 할당량이 초과되었습니다. 내일 다시 시도해주세요.",
+                    "message": "모든 YouTube API 키의 일일 할당량이 초과되었습니다. 내일 다시 시도해주세요.",
                     "details": error_msg
                 })
             else:
@@ -416,91 +516,106 @@ def search():
 
 @app.route('/channel-search', methods=['GET'])
 def channel_search():
-    """채널 검색 API 엔드포인트"""
+    """채널 검색 API 엔드포인트 - 다중 API 키 지원"""
     try:
         query = request.args.get('q', '')
         if not query:
             return jsonify({"status": "error", "message": "검색어가 필요합니다."})
             
-        if not API_KEY:
-            return jsonify({"status": "error", "message": "API 키가 설정되지 않았습니다."})
+        if not api_keys:
+            return jsonify({"status": "error", "message": "YouTube API 키가 설정되지 않았습니다."})
         
-        # URL이나 핸들(@) 형식인지 확인
-        if '@' in query or 'youtube.com/' in query:
-            # URL에서 채널 ID 또는 핸들 추출
-            if 'youtube.com/' in query:
-                parts = query.split('/')
-                for part in parts:
-                    if part.startswith('@'):
-                        query = part
-                        break
-            
-            # @ 기호가 있으면 그대로 사용하고, 없으면 추가
-            if not query.startswith('@') and '@' not in query:
-                query = '@' + query
-            
-            # 핸들 검색 (채널 이름으로 검색 + 필터링)
-            youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=API_KEY)
-            response = youtube.search().list(
-                part="snippet",
-                type="channel",
-                q=query.replace('@', ''),  # @ 기호 제거하고 검색
-                maxResults=10  # 더 많은 결과를 가져와서 필터링
-            ).execute()
-            
-            # 결과에서 정확히 일치하거나 유사한 핸들을 가진 채널 필터링
-            filtered_channels = []
-            channel_handle = query.lower().replace('@', '')
-            
-            for item in response.get('items', []):
-                channel_title = item['snippet']['title'].lower()
-                channel_desc = item['snippet']['description'].lower()
+        # 최대 API 키 시도 횟수
+        max_api_key_attempts = len(api_keys) if api_keys else 1
+        attempt_count = 0
+        
+        while attempt_count < max_api_key_attempts:
+            try:
+                # YouTube API 서비스 가져오기 (자동 키 순환)
+                youtube = get_youtube_api_service()
                 
-                if (channel_handle in channel_title.replace(' ', '') or 
-                    channel_handle in channel_desc):
-                    filtered_channels.append({
-                        'id': item['id']['channelId'],
-                        'title': item['snippet']['title'],
-                        'thumbnail': item['snippet']['thumbnails']['default']['url'] if 'default' in item['snippet']['thumbnails'] else '',
-                        'description': item['snippet']['description']
-                    })
-            
-            if filtered_channels:
-                return jsonify({"status": "success", "channels": filtered_channels})
+                # URL이나 핸들(@) 형식인지 확인
+                if '@' in query or 'youtube.com/' in query:
+                    # URL에서 채널 ID 또는 핸들 추출
+                    if 'youtube.com/' in query:
+                        parts = query.split('/')
+                        for part in parts:
+                            if part.startswith('@'):
+                                query = part
+                                break
+                    
+                    # @ 기호가 있으면 그대로 사용하고, 없으면 추가
+                    if not query.startswith('@') and '@' not in query:
+                        query = '@' + query
+                    
+                    # 핸들 검색 (채널 이름으로 검색 + 필터링)
+                    response = youtube.search().list(
+                        part="snippet",
+                        type="channel",
+                        q=query.replace('@', ''),  # @ 기호 제거하고 검색
+                        maxResults=10  # 더 많은 결과를 가져와서 필터링
+                    ).execute()
+                    
+                    # 결과에서 정확히 일치하거나 유사한 핸들을 가진 채널 필터링
+                    filtered_channels = []
+                    channel_handle = query.lower().replace('@', '')
+                    
+                    for item in response.get('items', []):
+                        channel_title = item['snippet']['title'].lower()
+                        channel_desc = item['snippet']['description'].lower()
+                        
+                        if (channel_handle in channel_title.replace(' ', '') or 
+                            channel_handle in channel_desc):
+                            filtered_channels.append({
+                                'id': item['id']['channelId'],
+                                'title': item['snippet']['title'],
+                                'thumbnail': item['snippet']['thumbnails']['default']['url'] if 'default' in item['snippet']['thumbnails'] else '',
+                                'description': item['snippet']['description']
+                            })
+                    
+                    if filtered_channels:
+                        return jsonify({"status": "success", "channels": filtered_channels})
+                
+                # 일반 검색으로 진행
+                response = youtube.search().list(
+                    part="snippet",
+                    type="channel",
+                    q=query,
+                    maxResults=5
+                ).execute()
+                
+                channels = [{
+                    'id': item['id']['channelId'],
+                    'title': item['snippet']['title'],
+                    'thumbnail': item['snippet']['thumbnails']['default']['url'] if 'default' in item['snippet']['thumbnails'] else '',
+                    'description': item['snippet']['description']
+                } for item in response.get('items', [])]
+                
+                return jsonify({"status": "success", "channels": channels})
+                
+            except Exception as e:
+                error_str = str(e).lower()
+                if 'quota' in error_str or 'exceeded' in error_str:
+                    # 다음 API 키로 전환
+                    next_key = switch_to_next_api_key()
+                    if next_key:
+                        print(f"채널 검색: 할당량 초과로 다음 API 키로 전환합니다.")
+                        attempt_count += 1
+                        continue
+                    else:
+                        return jsonify({
+                            "status": "quota_exceeded", 
+                            "message": "모든 YouTube API 키의 할당량이 초과되었습니다."
+                        })
+                else:
+                    return jsonify({"status": "error", "message": str(e)})
         
-        # 일반 검색으로 진행
-        youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=API_KEY)
-        response = youtube.search().list(
-            part="snippet",
-            type="channel",
-            q=query,
-            maxResults=5
-        ).execute()
+        # 모든 시도 실패 시
+        return jsonify({"status": "error", "message": "모든 API 키 시도 후에도 검색에 실패했습니다."})
         
-        channels = [{
-            'id': item['id']['channelId'],
-            'title': item['snippet']['title'],
-            'thumbnail': item['snippet']['thumbnails']['default']['url'] if 'default' in item['snippet']['thumbnails'] else '',
-            'description': item['snippet']['description']
-        } for item in response.get('items', [])]
-        
-        return jsonify({"status": "success", "channels": channels})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
-@app.route('/api-test', methods=['GET'])
-def api_test():
-    try:
-        if not API_KEY:
-            return jsonify({"status": "error", "message": "API 키가 설정되지 않았습니다."})
-
-        # 간단한 API 호출로 키 테스트
-        youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=API_KEY)
-        response = youtube.channels().list(part="snippet", forUsername="YouTube", maxResults=1).execute()
-
-        return jsonify({"status": "success", "message": "API 키가 정상적으로 작동합니다.", "response": "API 연결 성공"})
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"API 키 오류: {str(e)}"})
 
 # 정적 파일 제공 라우트
 @app.route('/static/<path:filename>')
@@ -508,9 +623,11 @@ def serve_static(filename):
     return send_from_directory(app.static_folder, filename)
 
 if __name__ == '__main__':
-    if not API_KEY:
+    if not api_keys:
         print("경고: YOUTUBE_API_KEY 환경 변수가 설정되지 않았습니다.")
-        print("다음 명령으로 설정하세요: export YOUTUBE_API_KEY='YOUR_API_KEY'")
+        print("다음 명령으로 설정하세요: export YOUTUBE_API_KEY='YOUR_API_KEY_1,YOUR_API_KEY_2,YOUR_API_KEY_3'")
+    else:
+        print(f"{len(api_keys)}개의 YouTube API 키가 로드되었습니다.")
 
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
