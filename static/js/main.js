@@ -483,6 +483,17 @@ function createVideoCard(video) {
     const shortDescription = description.length > 100 ? 
         description.substring(0, 100) + '...' : description;
     
+    // 번역된 제목이 있으면 표시, 없으면 원본 제목만 표시
+    let titleDisplay = `<h6 class="card-title">${video.title}</h6>`;
+    if (video.translated_title) {
+        titleDisplay = `
+            <h6 class="card-title">${video.title}</h6>
+            <p class="card-subtitle text-muted small mb-2">
+                <i class="fas fa-language me-1"></i>${video.translated_title}
+            </p>
+        `;
+    }
+    
     // 카드 생성
     const card = document.createElement('div');
     card.className = 'card h-100';
@@ -491,7 +502,7 @@ function createVideoCard(video) {
             <img src="${video.thumbnail}" class="card-img-top" alt="${video.title}">
         </a>
         <div class="card-body">
-            <h6 class="card-title">${video.title}</h6>
+            ${titleDisplay}
             <p class="card-text small text-muted">
                 <a href="https://www.youtube.com/channel/${video.channelId}" target="_blank" class="text-decoration-none">
                     <i class="fas fa-user-circle me-1"></i>${video.channelTitle}
