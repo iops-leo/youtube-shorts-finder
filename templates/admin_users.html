@@ -1,0 +1,1001 @@
+<!-- admin_users.html -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>사용자 관리 - YouTube Shorts 도구</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon">
+    <!-- 부트스트랩 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 아이콘 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- 커스텀 CSS -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fab fa-youtube text-danger me-2"></i>YouTube Shorts 도구
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/"><i class="fas fa-home me-1"></i>홈</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/admin/users"><i class="fas fa-users me-1"></i>사용자 관리</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin/stats"><i class="fas fa-chart-line me-1"></i>통계</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <img src="{{ current_user.picture }}" alt="프로필" class="rounded-circle me-1" style="width: 24px; height: 24px;">
+                            {{ current_user.name }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                            <li><a class="dropdown-item" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>로그아웃</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-5 pt-3">
+        <div class="row">
+            <!-- 사이드바 메뉴 -->
+            <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">
+                                <i class="fas fa-search me-2"></i>인기 Shorts 검색
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/#page-channels">
+                                <i class="fas fa-users me-2"></i>채널 관리
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/admin/users">
+                                <i class="fas fa-user-cog me-2"></i>사용자 관리
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/stats">
+                                <i class="fas fa-chart-bar me-2"></i>API 사용 통계
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 메인 콘텐츠 영역 -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2"><i class="fas fa-users me-2"></i>사용자 관리</h1>
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="refreshBtn">
+                            <i class="fas fa-sync-alt me-1"></i>새로고침
+                        </button>
+                    </div>
+                </div>
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <div id="statusMessage"></div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input type="text" id="userSearch" class="form-control" placeholder="이름 또는 이메일로 검색...">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="btn-group float-end" role="group">
+                            <button type="button" class="btn btn-outline-primary" id="filterAll">전체</button>
+                            <button type="button" class="btn btn-outline-warning" id="filterPending">대기 중</button>
+                            <button type="button" class="btn btn-outline-success" id="filterApproved">승인됨</button>
+                            <button type="button" class="btn btn-outline-danger" id="filterAdmin">관리자</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th scope="col">프로필</th>
+                                <th scope="col">이름</th>
+                                <th scope="col">이메일</th>
+                                <th scope="col">상태</th>
+                                <th scope="col">가입일</th>
+                                <th scope="col">마지막 로그인</th>
+                                <th scope="col">API 호출 수</th>
+                                <th scope="col">작업</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr data-role="{{ user['role'] }}">
+                                <td>
+                                    <img src="{{ user['picture'] }}" alt="프로필" class="rounded-circle" style="width: 40px; height: 40px;" onerror="this.src='https://via.placeholder.com/40'">
+                                </td>
+                                <td>{{ user['name'] }}</td>
+                                <td>{{ user['email'] }}</td>
+                                <td>
+                                    {% if user['role'] == 'pending' %}
+                                    <span class="badge bg-warning">대기 중</span>
+                                    {% elif user['role'] == 'approved' %}
+                                    <span class="badge bg-success">승인됨</span>
+                                    {% elif user['role'] == 'admin' %}
+                                    <span class="badge bg-danger">관리자</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user['created_at'].split(' ')[0] if user['created_at'] else 'N/A' }}</td>
+                                <td>{{ user['last_login'].split(' ')[0] if user['last_login'] else 'N/A' }}</td>
+                                <td>{{ user['api_calls'] }}</td>
+                                <td>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="actionDropdown{{ user['id'] }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                            작업
+                                        </button>
+                                        <ul class="dropdown-menu" aria-labelledby="actionDropdown{{ user['id'] }}">
+                                            {% if user['role'] == 'pending' %}
+                                            <li><button class="dropdown-item text-success approve-btn" data-user-id="{{ user['id'] }}" data-action="approve"><i class="fas fa-check me-1"></i>승인</button></li>
+                                            <li><button class="dropdown-item text-danger reject-btn" data-user-id="{{ user['id'] }}" data-action="reject"><i class="fas fa-ban me-1"></i>거부</button></li>
+                                            {% elif user['role'] == 'approved' %}
+                                            <li><button class="dropdown-item text-primary make-admin-btn" data-user-id="{{ user['id'] }}" data-action="make_admin"><i class="fas fa-user-shield me-1"></i>관리자로 설정</button></li>
+                                            <li><button class="dropdown-item text-danger reject-btn" data-user-id="{{ user['id'] }}" data-action="reject"><i class="fas fa-ban me-1"></i>계정 삭제</button></li>
+                                            {% elif user['role'] == 'admin' and user['id'] != current_user.id %}
+                                            <li><button class="dropdown-item text-secondary remove-admin-btn" data-user-id="{{ user['id'] }}" data-action="remove_admin"><i class="fas fa-user me-1"></i>일반 사용자로 변경</button></li>
+                                            {% endif %}
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 부트스트랩 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 승인 및 거부 버튼 이벤트
+            document.querySelectorAll('.approve-btn, .reject-btn, .make-admin-btn, .remove-admin-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const userId = this.dataset.userId;
+                    const action = this.dataset.action;
+                    let confirmMsg = '';
+                    
+                    if (action === 'approve') {
+                        confirmMsg = '이 사용자를 승인하시겠습니까?';
+                    } else if (action === 'reject') {
+                        confirmMsg = '이 사용자를 거부/삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.';
+                    } else if (action === 'make_admin') {
+                        confirmMsg = '이 사용자를 관리자로 설정하시겠습니까?';
+                    } else if (action === 'remove_admin') {
+                        confirmMsg = '이 사용자의 관리자 권한을 제거하시겠습니까?';
+                    }
+                    
+                    if (confirm(confirmMsg)) {
+                        const formData = new FormData();
+                        formData.append('action', action);
+                        
+                        fetch(`/admin/users/${userId}/approve`, {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            const statusDiv = document.getElementById('statusMessage');
+                            if (data.status === 'success') {
+                                statusDiv.innerHTML = `<div class="alert alert-success alert-dismissible fade show" role="alert">
+                                    ${data.message}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>`;
+                                
+                                // 페이지 새로고침
+                                setTimeout(() => {
+                                    window.location.reload();
+                                }, 1000);
+                            } else {
+                                statusDiv.innerHTML = `<div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                    ${data.message}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>`;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            document.getElementById('statusMessage').innerHTML = `<div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                오류가 발생했습니다.
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>`;
+                        });
+                    }
+                });
+            });
+            
+            // 새로고침 버튼
+            document.getElementById('refreshBtn').addEventListener('click', function() {
+                window.location.reload();
+            });
+            
+            // 사용자 검색 기능
+            document.getElementById('userSearch').addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                document.querySelectorAll('tbody tr').forEach(row => {
+                    const name = row.children[1].textContent.toLowerCase();
+                    const email = row.children[2].textContent.toLowerCase();
+                    if (name.includes(searchTerm) || email.includes(searchTerm)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+            
+            // 필터 버튼
+            document.getElementById('filterAll').addEventListener('click', function() {
+                document.querySelectorAll('tbody tr').forEach(row => {
+                    row.style.display = '';
+                });
+                setActiveFilter(this);
+            });
+            
+            document.getElementById('filterPending').addEventListener('click', function() {
+                filterByRole('pending');
+                setActiveFilter(this);
+            });
+            
+            document.getElementById('filterApproved').addEventListener('click', function() {
+                filterByRole('approved');
+                setActiveFilter(this);
+            });
+            
+            document.getElementById('filterAdmin').addEventListener('click', function() {
+                filterByRole('admin');
+                setActiveFilter(this);
+            });
+            
+            function filterByRole(role) {
+                document.querySelectorAll('tbody tr').forEach(row => {
+                    if (row.dataset.role === role) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            }
+            
+            function setActiveFilter(button) {
+                document.querySelectorAll('.btn-group .btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                button.classList.add('active');
+            }
+            
+            // 기본적으로 '전체' 필터 활성화
+            document.getElementById('filterAll').classList.add('active');
+        });
+    </script>
+</body>
+</html>
+
+<!-- admin_stats.html -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 사용 통계 - YouTube Shorts 도구</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon">
+    <!-- 부트스트랩 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 아이콘 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 커스텀 CSS -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fab fa-youtube text-danger me-2"></i>YouTube Shorts 도구
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/"><i class="fas fa-home me-1"></i>홈</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin/users"><i class="fas fa-users me-1"></i>사용자 관리</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/admin/stats"><i class="fas fa-chart-line me-1"></i>통계</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <img src="{{ current_user.picture }}" alt="프로필" class="rounded-circle me-1" style="width: 24px; height: 24px;">
+                            {{ current_user.name }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                            <li><a class="dropdown-item" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>로그아웃</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-5 pt-3">
+        <div class="row">
+            <!-- 사이드바 메뉴 -->
+            <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">
+                                <i class="fas fa-search me-2"></i>인기 Shorts 검색
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/#page-channels">
+                                <i class="fas fa-users me-2"></i>채널 관리
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/users">
+                                <i class="fas fa-user-cog me-2"></i>사용자 관리
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/admin/stats">
+                                <i class="fas fa-chart-bar me-2"></i>API 사용 통계
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 메인 콘텐츠 영역 -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2"><i class="fas fa-chart-bar me-2"></i>API 사용 통계</h1>
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="refreshBtn">
+                            <i class="fas fa-sync-alt me-1"></i>새로고침
+                        </button>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- 일일 API 호출 차트 -->
+                    <div class="col-md-12 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0"><i class="fas fa-calendar-day me-2"></i>일일 API 호출 통계</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="dailyChart" height="300"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 사용자별 API 호출 통계 -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="mb-0"><i class="fas fa-users me-2"></i>사용자별 API 호출 통계</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="userChart" height="300"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 엔드포인트별 API 호출 통계 -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0"><i class="fas fa-code me-2"></i>엔드포인트별 API 호출 통계</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="endpointChart" height="300"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 부트스트랩 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 일일 API 호출 차트
+            const dailyCtx = document.getElementById('dailyChart').getContext('2d');
+            const dailyChart = new Chart(dailyCtx, {
+                type: 'line',
+                data: {
+                    labels: [{% for stat in daily_stats %}'{{ stat.date }}',{% endfor %}],
+                    datasets: [{
+                        label: 'API 호출 수',
+                        data: [{% for stat in daily_stats %}{{ stat.count }},{% endfor %}],
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 2,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '호출 수'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '날짜'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '최근 30일 API 호출 추이'
+                        }
+                    }
+                }
+            });
+
+            // 사용자별 API 호출 차트
+            const userCtx = document.getElementById('userChart').getContext('2d');
+            const userChart = new Chart(userCtx, {
+                type: 'bar',
+                data: {
+                    labels: [{% for stat in user_stats %}'{{ stat.email }}',{% endfor %}],
+                    datasets: [{
+                        label: 'API 호출 수',
+                        data: [{% for stat in user_stats %}{{ stat.call_count }},{% endfor %}],
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '호출 수'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '사용자'
+                            }
+                        }
+                    },
+                    indexAxis: 'y',
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '사용자별 API 호출 수 (상위 20명)'
+                        }
+                    }
+                }
+            });
+
+            // 엔드포인트별 API 호출 차트
+            const endpointCtx = document.getElementById('endpointChart').getContext('2d');
+            const endpointChart = new Chart(endpointCtx, {
+                type: 'pie',
+                data: {
+                    labels: [{% for stat in endpoint_stats %}'{{ stat.endpoint }}',{% endfor %}],
+                    datasets: [{
+                        data: [{% for stat in endpoint_stats %}{{ stat.count }},{% endfor %}],
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.2)',
+                            'rgba(54, 162, 235, 0.2)',
+                            'rgba(255, 206, 86, 0.2)',
+                            'rgba(75, 192, 192, 0.2)',
+                            'rgba(153, 102, 255, 0.2)',
+                            'rgba(255, 159, 64, 0.2)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(153, 102, 255, 1)',
+                            'rgba(255, 159, 64, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '엔드포인트별 API 호출 분포'
+                        }
+                    }
+                }
+            });
+
+            // 새로고침 버튼
+            document.getElementById('refreshBtn').addEventListener('click', function() {
+                window.location.reload();
+            });
+        });
+    </script>
+</body>
+</html>
+
+<!-- 404.html -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>페이지를 찾을 수 없음 - YouTube Shorts 도구</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon">
+    <!-- 부트스트랩 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 아이콘 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+        .error-container {
+            max-width: 500px;
+            width: 100%;
+            padding: 20px;
+            text-align: center;
+        }
+        .error-code {
+            font-size: 8rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: #dc3545;
+        }
+        .error-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-code">404</div>
+        <div class="error-icon"><i class="fas fa-map-signs"></i></div>
+        <!-- 404.html (계속) -->
+        <h1 class="mb-4">페이지를 찾을 수 없습니다</h1>
+        <p class="lead mb-4">요청하신 페이지가 존재하지 않거나 이동되었습니다.</p>
+        <div class="d-grid gap-2">
+            <a href="/" class="btn btn-primary">
+                <i class="fas fa-home me-2"></i>홈으로 돌아가기
+            </a>
+        </div>
+    </div>
+</body>
+</html>
+
+<!-- 500.html -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>서버 오류 - YouTube Shorts 도구</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon">
+    <!-- 부트스트랩 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 아이콘 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+        .error-container {
+            max-width: 500px;
+            width: 100%;
+            padding: 20px;
+            text-align: center;
+        }
+        .error-code {
+            font-size: 8rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: #dc3545;
+        }
+        .error-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-code">500</div>
+        <div class="error-icon"><i class="fas fa-exclamation-triangle"></i></div>
+        <h1 class="mb-4">서버 오류가 발생했습니다</h1>
+        <p class="lead mb-4">예기치 않은 오류가 발생했습니다. 잠시 후 다시 시도해주세요.</p>
+        <div class="d-grid gap-2">
+            <a href="/" class="btn btn-primary">
+                <i class="fas fa-home me-2"></i>홈으로 돌아가기
+            </a>
+            <button onclick="location.reload()" class="btn btn-outline-secondary">
+                <i class="fas fa-sync-alt me-2"></i>새로고침
+            </button>
+        </div>
+    </div>
+</body>
+</html>
+
+<!-- 수정된 index.html (로그인 체크 및 사용자 정보 표시 추가) -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Shorts 도구</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon">
+    <!-- 부트스트랩 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 아이콘 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- 커스텀 CSS -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fab fa-youtube text-danger me-2"></i>YouTube Shorts 도구
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {% if current_user.is_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin/users">
+                            <i class="fas fa-user-cog me-1"></i>관리자 페이지
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="historyButton" data-bs-toggle="modal" data-bs-target="#historyModal">
+                            <i class="fas fa-history me-1"></i>검색 기록
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="resetSettings">
+                            <i class="fas fa-trash-alt me-1"></i>설정 초기화
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <img src="{{ current_user.picture }}" alt="프로필" class="rounded-circle me-1" style="width: 24px; height: 24px;">
+                            {{ current_user.name }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li>
+                                <div class="dropdown-item text-muted">
+                                    <small>
+                                        <i class="fas fa-envelope me-1"></i>{{ current_user.email }}<br>
+                                        <i class="fas fa-chart-line me-1"></i>API 호출: {{ current_user.api_calls }}회
+                                    </small>
+                                </div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>로그아웃</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-5 pt-3">
+        <div class="row">
+            <!-- 사이드바 메뉴 -->
+            <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse" id="sidebarMenu">
+                <div class="position-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active" id="nav-search" href="#page-search">
+                                <i class="fas fa-search me-2"></i>인기 Shorts 검색
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="nav-channels" href="#page-channels">
+                                <i class="fas fa-users me-2"></i>채널 관리
+                            </a>
+                        </li>
+                        {% if current_user.is_admin %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/users">
+                                <i class="fas fa-user-cog me-2"></i>사용자 관리
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/stats">
+                                <i class="fas fa-chart-bar me-2"></i>API 사용 통계
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 메인 콘텐츠 영역 -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show mt-3" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                <!-- API 사용량 표시 -->
+                <div class="alert alert-info alert-dismissible fade show mt-3" role="alert">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>API 사용량:</strong> 오늘 {{ daily_api_calls }}/100회 사용 (남은 호출: {{ 100 - daily_api_calls }}회)
+                        </div>
+                        <div class="progress" style="width: 200px; height: 15px;">
+                            <div class="progress-bar 
+                                {% if daily_api_calls < 50 %}bg-success
+                                {% elif daily_api_calls < 80 %}bg-warning
+                                {% else %}bg-danger{% endif %}"
+                                role="progressbar"
+                                style="width: {{ daily_api_calls }}%;"
+                                aria-valuenow="{{ daily_api_calls }}"
+                                aria-valuemin="0"
+                                aria-valuemax="100">
+                                {{ daily_api_calls }}%
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+
+                <!-- 기존 페이지 콘텐츠 유지 -->
+                <!-- 검색 페이지 -->
+                <div id="page-search" class="page-content">
+                    <!-- 검색 페이지 내용 유지 -->
+                </div>
+
+                <!-- 채널 관리 페이지 -->
+                <div id="page-channels" class="page-content" style="display: none;">
+                    <!-- 채널 관리 페이지 내용 유지 -->
+                </div>
+                
+                <footer class="footer mt-auto py-3 bg-dark text-white text-center">
+                    <div class="container">
+                        <p class="mb-0"><i class="far fa-copyright me-1"></i>2025 YouTube Shorts 도구</p>
+                    </div>
+                </footer>
+            </main>
+        </div>
+    </div>
+
+    <!-- 검색 기록 모달 -->
+    <div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalLabel" aria-hidden="true">
+        <!-- 기존 모달 내용 유지 -->
+    </div>
+
+    <!-- 채널 추가 모달 -->
+    <div class="modal fade" id="addChannelModal" tabindex="-1" aria-labelledby="addChannelModalLabel" aria-hidden="true">
+        <!-- 기존 모달 내용 유지 -->
+    </div>
+
+    <div class="modal fade" id="dataHelpModal" tabindex="-1" aria-labelledby="dataHelpModalLabel" aria-hidden="true">
+        <!-- 기존 모달 내용 유지 -->
+    </div>
+    
+    <!-- API 사용량 제한 알림 모달 -->
+    <div class="modal fade" id="apiLimitModal" tabindex="-1" aria-labelledby="apiLimitModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title" id="apiLimitModalLabel">
+                        <i class="fas fa-exclamation-triangle me-2"></i>API 사용량 제한
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>일일 API 호출 제한에 도달했습니다. 내일 다시 시도해주세요.</p>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <small>YouTube Data API는 사용자당 일일 제한이 있습니다. 이 제한은 매일 자정(UTC)에 초기화됩니다.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 부트스트랩 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- 커스텀 자바스크립트 -->
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/channel-manager.js"></script>
+
+    <!-- API 제한 처리를 위한 스크립트 -->
+    <script>
+        // API 오류 응답 처리
+        function handleApiResponse(response) {
+            if (response.status === 'error') {
+                if (response.message.includes('API 호출 제한')) {
+                    // API 제한 모달 표시
+                    const apiLimitModal = new bootstrap.Modal(document.getElementById('apiLimitModal'));
+                    apiLimitModal.show();
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        // 검색 폼 제출 이벤트 오버라이드
+        document.addEventListener('DOMContentLoaded', function() {
+            const originalFormSubmit = searchForm.onsubmit;
+            searchForm.onsubmit = function(e) {
+                e.preventDefault();
+                
+                // 폼 데이터 가져오기
+                const formData = new FormData(this);
+                
+                // API 요청
+                fetch('/search', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (handleApiResponse(data)) {
+                        // 원래 처리 로직 실행
+                        // 여기서는 원래 코드를 직접 실행하지 않고, 
+                        // 대신 특정 부분만 재구현합니다.
+                        
+                        // 로딩 표시
+                        document.getElementById('loader').style.display = 'none';
+                        
+                        if (data.status === 'success') {
+                            // 전체 결과 저장
+                            allResults = data.results;
+                            
+                            // 결과 헤더 표시
+                            document.getElementById('resultsHeader').style.display = 'block';
+                            document.getElementById('resultCount').textContent = data.count;
+                            
+                            // 결과가 없으면 메시지 표시
+                            if (data.results.length === 0) {
+                                document.getElementById('results').innerHTML = `
+                                    <div class="col-12">
+                                        <div class="alert alert-warning">
+                                            <i class="fas fa-exclamation-triangle me-2"></i>검색 조건에 맞는 결과가 없습니다.
+                                            <p class="mt-2 mb-0">
+                                                <small>
+                                                    <i class="fas fa-info-circle me-1"></i>다른 검색 조건을 시도해 보세요.
+                                                </small>
+                                            </p>
+                                        </div>
+                                    </div>
+                                `;
+                                return;
+                            }
+                            
+                            // 정렬/필터 컨트롤 표시
+                            document.getElementById('sortingControl').style.display = 'block';
+                            
+                            // 첫 페이지 렌더링
+                            currentPage = 1;
+                            renderResults();
+                        }
+                        else {
+                            // 오류 메시지 표시
+                            document.getElementById('resultsHeader').style.display = 'block';
+                            document.getElementById('resultCount').textContent = '0';
+                            document.getElementById('results').innerHTML = `
+                                <div class="col-12">
+                                    <div class="alert alert-danger">
+                                        <h5 class="mb-0"><i class="fas fa-exclamation-circle me-2"></i>오류가 발생했습니다</h5>
+                                        <p class="mb-0">${data.message}</p>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
+                })
+                .catch(error => {
+                    // 로딩 숨기기
+                    document.getElementById('loader').style.display = 'none';
+                    
+                    // 오류 표시
+                    document.getElementById('resultsHeader').style.display = 'block';
+                    document.getElementById('resultCount').textContent = '0';
+                    document.getElementById('results').innerHTML = `
+                        <div class="col-12">
+                            <div class="alert alert-danger">
+                                <h5 class="mb-0"><i class="fas fa-wifi me-2"></i>네트워크 오류가 발생했습니다</h5>
+                                <p class="mb-0">${error.message}</p>
+                            </div>
+                        </div>
+                    `;
+                });
+            };
+        });
+    </script>
+</body>
+</html>
