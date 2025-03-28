@@ -1,8 +1,10 @@
-/* 기존 카드 스타일 */
-.card {
+/* 필수 스타일만 유지 */
+
+/* 비디오 카드 호버 효과 - 검색 조건 카드에는 적용되지 않음 */
+.video-card {
     transition: transform 0.3s;
 }
-.card:hover {
+.video-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 10px 20px rgba(0,0,0,0.2);
 }
@@ -23,7 +25,7 @@
     100% { transform: rotate(360deg); }
 }
 
-/* 비디오 그리드 레이아웃 */
+/* 비디오 그리드 레이아웃 - 부트스트랩 그리드로 대체하기 어려운 부분 */
 .video-container {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -34,19 +36,7 @@
     object-fit: cover;
 }
 
-/* 비디오 카드 내부 스타일 */
-.stats {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 10px;
-    font-size: 0.85rem;
-}
-.stats span {
-    display: flex;
-    align-items: center;
-}
-
-/* 채널 검색 결과 스타일 */
+/* 채널 검색 결과 스타일 - 기능적으로 필요한 부분 */
 .channel-search-results {
     position: absolute;
     z-index: 1000;
@@ -69,9 +59,6 @@
 .channel-item:hover {
     background-color: #f8f9fa;
 }
-.channel-item:last-child {
-    border-bottom: none;
-}
 .channel-thumbnail {
     width: 40px;
     height: 40px;
@@ -92,31 +79,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.channel-badge {
-    display: inline-block;
-    font-size: 0.75rem;
-    font-weight: bold;
-    padding: 3px 6px;
-    border-radius: 3px;
-    margin-right: 5px;
-    vertical-align: middle;
-}
 
-/* 더 보기 버튼 컨테이너 */
-#loadMoreContainer {
-    text-align: center;
-    margin: 20px 0;
-    display: none;
-}
-
-/* 설정 바 */
-.settings-bar {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 10px;
-}
-
-/* 선택된 채널 컨테이너 스타일 */
+/* 선택된 채널 컨테이너 스타일 - 기능적으로 필요한 부분 */
 .selected-channels-container {
     display: flex;
     flex-wrap: wrap;
@@ -131,7 +95,6 @@
     min-height: 100px;
 }
 
-/* 선택된 채널 항목 스타일 */
 .selected-channel-item {
     display: flex;
     align-items: center;
@@ -169,28 +132,7 @@
     cursor: pointer;
 }
 
-/* 채널 검색 영역에 대한 높이 제한 */
-#channelSearchResults, #channelSearchResultsModal {
-    max-height: 300px;
-    overflow-y: auto;
-    z-index: 1001;
-}
-
-/* 채널 검색 결과 항목에 대한 호버 효과 개선 */
-.channel-item:hover {
-    background-color: #e9ecef;
-}
-
-/* 선택된 채널이 없을 때 스타일 */
-.empty-channels-message {
-    width: 100%;
-    text-align: center;
-    padding: 20px;
-    color: #6c757d;
-    font-style: italic;
-}
-
-/* 스크롤바 스타일링 */
+/* 스크롤바 스타일링 - 사용성 향상을 위한 필수 부분 */
 .selected-channels-container::-webkit-scrollbar,
 .channel-search-results::-webkit-scrollbar {
     width: 6px;
@@ -208,94 +150,12 @@
     border-radius: 3px;
 }
 
-.selected-channels-container::-webkit-scrollbar-thumb:hover,
-.channel-search-results::-webkit-scrollbar-thumb:hover {
-    background: #555;
+/* 상단 고정 네비바와 겹치지 않도록 여백 설정 */
+body {
+    padding-top: 56px;
 }
 
-/* 채널 검색 결과 포지셔닝 수정 */
-.position-relative {
-    position: relative;
-}
-
-/* 채널 검색 결과 항목 간격 조정 */
-.channel-search-results .channel-item {
-    padding: 10px 15px;
-}
-
-/* 채널 검색 결과 컨테이너 테두리 */
-.channel-search-results {
-    border: 1px solid #ced4da;
-    margin-top: 2px;
-}
-
-/* 검색 결과가 없을 때 메시지 스타일 */
-.channel-search-results .p-3 {
-    padding: 15px !important;
-    color: #6c757d;
-}
-
-/* 사이드바 스타일 */
-.sidebar {
-    position: fixed;
-    top: 56px; /* 네비게이션 바 높이만큼 아래로 */
-    left: 0;
-    bottom: 0;
-    z-index: 100;
-    padding: 48px 0 0;
-    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
-}
-
-@media (max-width: 767.98px) {
-    .sidebar {
-        position: static;
-        padding-top: 1.5rem;
-    }
-}
-
-.sidebar .nav-link {
-    font-weight: 500;
-    color: #333;
-}
-
-.sidebar .nav-link.active {
-    color: #007bff;
-}
-
-.sidebar .nav-link:hover {
-    color: #0056b3;
-}
-
-.sidebar .nav-link i {
-    margin-right: 4px;
-    color: #999;
-}
-
-.sidebar .nav-link.active i {
-    color: #007bff;
-}
-
-.footer {
-    margin-top: 2rem;
-    border-radius: 0.25rem;
-    margin-bottom: 1rem;
-    width: 100%;
-}
-
-/* 메인 콘텐츠 영역 패딩 */
-main {
-    display: flex;
-    flex-direction: column;
-    min-height: calc(100vh - 56px);
-    padding-bottom: 0;
-}
-
-/* 페이지 콘텐츠 스타일 */
-.page-content {
-    flex: 1;
-    padding-bottom: 20px;
-}
-/* 카테고리 관리 스타일 */
+/* 카테고리 관리 페이지의 카드 스타일 */
 .category-card .card-header {
     padding: 10px 15px;
 }
@@ -314,98 +174,4 @@ main {
     position: absolute;
     width: 100%;
     z-index: 1050;
-}
-
-/* 토스트 알림 */
-.toast-container {
-    z-index: 1100;
-}
-
-/* 상단 고정 네비바와 겹치지 않도록 여백 설정 */
-body {
-    padding-top: 56px;
-}
-
-@media (min-width: 768px) {
-    .ms-sm-auto {
-        margin-left: auto;
-    }
-}
-
-/* 카테고리 카드 전체 디자인 개선 */
-.category-card {
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    border-radius: 0.375rem;
-    overflow: hidden;
-}
-
-.category-card .card {
-    border: none;
-}
-
-/* 카드 헤더에 있는 버튼 스타일 개선 */
-.card-header .btn {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.875rem;
-    border-radius: 0.25rem;
-}
-
-.card-header .btn-add-channel {
-    background-color: #198754;
-    border-color: #198754;
-    color: white;
-}
-
-.card-header .btn-delete-category {
-    background-color: #dc3545;
-    border-color: #dc3545;
-    color: white;
-}
-
-.card-header .btn-add-channel:hover {
-    background-color: #157347;
-    border-color: #146c43;
-}
-
-.card-header .btn-delete-category:hover {
-    background-color: #bb2d3b;
-    border-color: #b02a37;
-}
-
-/* 카테고리 관리 페이지의 버튼 스타일 통일 */
-#page-channels .btn-outline-primary,
-#page-channels .btn-outline-info,
-#page-channels .btn-outline-secondary {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.875rem;
-}
-
-/* 내보내기/가져오기 버튼 특별 스타일 */
-.data-export-btn, .data-import-btn {
-    font-weight: 500;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: all 0.2s ease;
-}
-
-.data-export-btn:hover, .data-import-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-/* 드롭다운 메뉴 개선 */
-.dropdown-menu {
-    border: none;
-    border-radius: 0.375rem;
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-    animation: fadeIn 0.2s ease;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* 내보내기/가져오기 버튼 아이콘 강조 */
-.data-export-btn i, .data-import-btn i {
-    font-size: 0.9rem;
 }

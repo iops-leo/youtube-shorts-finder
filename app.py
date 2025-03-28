@@ -146,6 +146,54 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
     """
     인기 YouTube Shorts 검색 함수 - API 키 순환 지원 추가
     """
+    # 'all' 값이 입력된 경우 여러 국가 검색을 위한 처리
+    if region_code == 'all':
+        # 주요 국가 목록 정의
+        main_regions = ["KR", "US", "JP", "GB"]
+        all_results = []
+        
+        # 각 국가별로 검색 실행
+        for reg_code in main_regions:
+            try:
+                # 각 국가별로 전체 max_results의 일부분만 요청
+                region_max_results = max_results // len(main_regions)
+                print(f"국가 '{reg_code}' 검색 시작: {region_max_results}개 결과 요청")
+                
+                reg_results = get_recent_popular_shorts(
+                    min_views=min_views,
+                    days_ago=days_ago,
+                    max_results=region_max_results,
+                    category_id=category_id,
+                    region_code=reg_code,  # 각 국가 코드로 검색
+                    language=language,
+                    channel_ids=channel_ids,
+                    keyword=keyword
+                )
+                all_results.extend(reg_results)
+                print(f"국가 '{reg_code}': {len(reg_results)}개 항목 찾음")
+            except Exception as e:
+                print(f"국가 '{reg_code}' 검색 중 오류: {str(e)}")
+                continue
+                
+        # 중복 제거 (비디오 ID 기준)
+        seen_video_ids = set()
+        unique_results = []
+        for video in all_results:
+            if video['id'] not in seen_video_ids:
+                seen_video_ids.add(video['id'])
+                unique_results.append(video)
+                
+        # 조회수 기준 내림차순 정렬
+        unique_results.sort(key=lambda x: x['viewCount'], reverse=True)
+        
+        # 최대 결과 수 제한
+        if len(unique_results) > max_results:
+            unique_results = unique_results[:max_results]
+            
+        print(f"'모든 국가' 검색 결과: {len(unique_results)}개 비디오 찾음")
+        return unique_results
+    
+    # 이하는 기존 함수 로직 (특정 국가 검색용)
     # 캐시 키 생성
     cache_params = {
         'min_views': min_views,
@@ -213,8 +261,8 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
                     
                 # 채널 수에 따라 채널별 요청 결과 수 계산
                 channel_count = len(channel_id_list)
-                # 채널별 최대 100개까지 요청 (너무 많은 채널이 있으면 채널당 결과 수 줄임)
-                results_per_channel = min(100, max(20, math.ceil(max_results / channel_count)))  
+                # 채널별 최대 30개까지 요청 (너무 많은 채널이 있으면 채널당 결과 수 줄임)
+                results_per_channel = min(30, max(20, math.ceil(max_results / channel_count)))  
                 
                 print(f"채널별 검색: {channel_count}개 채널, 채널당 {results_per_channel}개 요청")
                     

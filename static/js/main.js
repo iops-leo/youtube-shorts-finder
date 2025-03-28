@@ -495,9 +495,9 @@ function createVideoCard(video) {
         `;
     }
     
-    // 카드 생성
+    // 카드 생성 - video-card 클래스 추가로 호버 효과 적용
     const card = document.createElement('div');
-    card.className = 'card h-100';
+    card.className = 'card h-100 video-card';
     card.innerHTML = `
         <a href="${video.url}" target="_blank">
             <img src="${video.thumbnail}" class="card-img-top" alt="${video.title}">
@@ -516,7 +516,7 @@ function createVideoCard(video) {
                 ${shortDescription || '<i>설명 없음</i>'}
             </div>
             
-            <div class="stats">
+            <div class="d-flex justify-content-between mt-2">
                 <span title="조회수">
                     <i class="fas fa-eye me-1"></i>
                     ${viewCount}
