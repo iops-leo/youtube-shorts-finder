@@ -96,16 +96,22 @@ function setupNavigationListeners() {
 // 카테고리 관련 함수
 // 카테고리 로드
 function loadCategories() {
-    try {
-        const savedCategories = localStorage.getItem(CHANNEL_CATEGORIES_KEY);
-        if (savedCategories) {
-            channelCategories = JSON.parse(savedCategories);
-            renderCategories();
-        }
-    } catch (error) {
-        console.error('카테고리 로드 중 오류:', error);
-        channelCategories = [];
-    }
+    fetch('/api/categories')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                channelCategories = data.categories;
+                renderCategories();
+                updateChannelCategoryDropdown();
+            } else {
+                console.error('카테고리 로드 중 오류:', data.message);
+                showToast('카테고리 로드 중 오류가 발생했습니다.', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('카테고리 로드 중 오류:', error);
+            showToast('카테고리 로드 중 오류가 발생했습니다.', 'danger');
+        });
 }
 
 // 카테고리 저장
@@ -129,35 +135,40 @@ function addCategory() {
         return;
     }
     
-    // 중복 체크
-    if (channelCategories.some(cat => cat.name === name)) {
-        showToast('이미 존재하는 카테고리 이름입니다.', 'warning');
-        return;
-    }
-    
-    // 새 카테고리 객체 생성
-    const newCategory = {
-        id: Date.now().toString(), // 타임스탬프를 ID로 사용
-        name: name,
-        description: description,
-        channels: [],
-        createdAt: new Date().toISOString()
-    };
-    
-    // 카테고리 목록에 추가
-    channelCategories.push(newCategory);
-    
-    // 저장 및 UI 업데이트
-    saveCategories();
-    renderCategories();
-    updateChannelCategoryDropdown();
-    
-    // 폼 초기화
-    categoryNameInput.value = '';
-    categoryDescInput.value = '';
-    
-    showToast(`'${name}' 카테고리가 추가되었습니다.`, 'success');
+    // API 호출로 카테고리 생성
+    fetch('/api/categories', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            name: name,
+            description: description
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // 새 카테고리 추가하여 UI 업데이트
+            channelCategories.push(data.category);
+            renderCategories();
+            updateChannelCategoryDropdown();
+            
+            // 폼 초기화
+            categoryNameInput.value = '';
+            categoryDescInput.value = '';
+            
+            showToast(`'${name}' 카테고리가 추가되었습니다.`, 'success');
+        } else {
+            showToast(data.message, 'warning');
+        }
+    })
+    .catch(error => {
+        console.error('카테고리 추가 중 오류:', error);
+        showToast('카테고리 추가 중 오류가 발생했습니다.', 'danger');
+    });
 }
+
 
 // 카테고리 삭제
 function deleteCategory(categoryId) {
@@ -169,15 +180,27 @@ function deleteCategory(categoryId) {
         return;
     }
     
-    // 카테고리 삭제
-    channelCategories = channelCategories.filter(cat => cat.id !== categoryId);
-    
-    // 저장 및 UI 업데이트
-    saveCategories();
-    renderCategories();
-    updateChannelCategoryDropdown();
-    
-    showToast(`'${category.name}' 카테고리가 삭제되었습니다.`, 'info');
+    // API 호출로 카테고리 삭제
+    fetch(`/api/categories/${categoryId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // 로컬 배열에서 카테고리 제거
+            channelCategories = channelCategories.filter(cat => cat.id !== categoryId);
+            renderCategories();
+            updateChannelCategoryDropdown();
+            
+            showToast(`'${category.name}' 카테고리가 삭제되었습니다.`, 'info');
+        } else {
+            showToast(data.message, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('카테고리 삭제 중 오류:', error);
+        showToast('카테고리 삭제 중 오류가 발생했습니다.', 'danger');
+    });
 }
 
 // 카테고리 UI 렌더링
@@ -373,13 +396,10 @@ function loadChannelsFromCategory(categoryId) {
 
 // 카테고리에서 채널 삭제
 function removeChannelFromCategory(categoryId, channelId) {
-    // 해당 카테고리 찾기
-    const categoryIndex = channelCategories.findIndex(cat => cat.id === categoryId);
-    if (categoryIndex === -1) return;
-    
-    const category = channelCategories[categoryIndex];
-    
     // 삭제 확인
+    const category = channelCategories.find(cat => cat.id === categoryId);
+    if (!category) return;
+    
     const channel = category.channels.find(ch => ch.id === channelId);
     if (!channel) return;
     
@@ -387,20 +407,25 @@ function removeChannelFromCategory(categoryId, channelId) {
         return;
     }
     
-    // 채널 삭제
-    channelCategories[categoryIndex].channels = category.channels.filter(ch => ch.id !== channelId);
-    
-    // 저장 및 UI 업데이트
-    saveCategories();
-    renderCategories();
-    updateChannelCategoryDropdown();
-    
-    // 현재 검색 폼에 해당 카테고리가 선택되어 있다면 채널 목록 업데이트
-    if (channelCategorySelect && channelCategorySelect.value === categoryId) {
-        loadChannelsFromCategory(categoryId);
-    }
-    
-    showToast(`채널이 삭제되었습니다.`, 'info');
+    // API 호출로 채널 삭제
+    fetch(`/api/categories/${categoryId}/channels/${channelId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // 성공적으로 삭제되면 카테고리 다시 로드
+            loadCategories();
+            
+            showToast(`채널이 삭제되었습니다.`, 'info');
+        } else {
+            showToast(data.message, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('채널 삭제 중 오류:', error);
+        showToast('채널 삭제 중 오류가 발생했습니다.', 'danger');
+    });
 }
 
 function enhanceChannelCategorySelection() {
@@ -621,41 +646,41 @@ function saveChannelsToCategory() {
     }
     
     // 카테고리 찾기
-    const categoryIndex = channelCategories.findIndex(cat => cat.id === categoryId);
-    if (categoryIndex === -1) {
+    const category = channelCategories.find(cat => cat.id === categoryId);
+    if (!category) {
         showToast('유효하지 않은 카테고리입니다.', 'danger');
         return;
     }
     
-    // 중복 확인 및 추가
-    const category = channelCategories[categoryIndex];
-    const existingChannelIds = category.channels.map(ch => ch.id);
-    
-    // 새로 추가되는 채널 수 계산
-    let newChannelCount = 0;
-    
-    modalSelectedChannels.forEach(channel => {
-        if (!existingChannelIds.includes(channel.id)) {
-            channelCategories[categoryIndex].channels.push(channel);
-            newChannelCount++;
+    // API 호출로 채널 추가
+    fetch(`/api/categories/${categoryId}/channels`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            channels: modalSelectedChannels
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // 성공적으로 추가되면 카테고리 다시 로드
+            loadCategories();
+            
+            // 모달 닫기
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addChannelModal'));
+            modal.hide();
+            
+            showToast(data.message, 'success');
+        } else {
+            showToast(data.message, 'danger');
         }
+    })
+    .catch(error => {
+        console.error('채널 추가 중 오류:', error);
+        showToast('채널 추가 중 오류가 발생했습니다.', 'danger');
     });
-    
-    // 변경사항 저장 및 UI 업데이트
-    saveCategories();
-    renderCategories();
-    updateChannelCategoryDropdown();
-    
-    // 모달 닫기
-    const modal = bootstrap.Modal.getInstance(document.getElementById('addChannelModal'));
-    modal.hide();
-    
-    // 알림 표시
-    if (newChannelCount > 0) {
-        showToast(`${newChannelCount}개의 채널이 '${category.name}' 카테고리에 추가되었습니다.`, 'success');
-    } else {
-        showToast('추가된 새 채널이 없습니다. 모든 채널이 이미 카테고리에 포함되어 있습니다.', 'info');
-    }
 }
 
 // 토스트 알림 표시 함수
@@ -707,30 +732,42 @@ function debounce(func, wait) {
 
 function exportChannelCategories() {
     try {
-        // 모든 데이터 가져오기
-        const allData = {
-            channelCategories: channelCategories,
-            exportDate: new Date().toISOString(),
-            appVersion: '1.0.0'
-        };
-        
-        // JSON 문자열로 변환
-        const jsonString = JSON.stringify(allData, null, 2);
-        
-        // Blob 객체 생성
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        
-        // 다운로드 링크 생성
-        const downloadLink = document.createElement('a');
-        downloadLink.href = URL.createObjectURL(blob);
-        downloadLink.download = `youtube-shorts-channels-${new Date().toISOString().slice(0, 10)}.json`;
-        
-        // 링크 클릭 (다운로드 시작)
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
-        
-        showToast('채널 카테고리 데이터가 성공적으로 내보내기 되었습니다!', 'success');
+        fetch('/api/categories')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // 내보낼 데이터 포맷 설정
+                    const exportData = {
+                        channelCategories: data.categories,
+                        exportDate: new Date().toISOString(),
+                        appVersion: '1.0.0'
+                    };
+                    
+                    // JSON 문자열로 변환
+                    const jsonString = JSON.stringify(exportData, null, 2);
+                    
+                    // Blob 객체 생성
+                    const blob = new Blob([jsonString], { type: 'application/json' });
+                    
+                    // 다운로드 링크 생성
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = URL.createObjectURL(blob);
+                    downloadLink.download = `youtube-shorts-channels-${new Date().toISOString().slice(0, 10)}.json`;
+                    
+                    // 링크 클릭 (다운로드 시작)
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+                    
+                    showToast('채널 카테고리 데이터가 성공적으로 내보내기 되었습니다!', 'success');
+                } else {
+                    showToast('데이터 내보내기 중 오류가 발생했습니다: ' + data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('데이터 내보내기 오류:', error);
+                showToast('데이터 내보내기 중 오류가 발생했습니다.', 'danger');
+            });
     } catch (error) {
         console.error('데이터 내보내기 오류:', error);
         showToast('데이터 내보내기 중 오류가 발생했습니다.', 'danger');
@@ -750,15 +787,28 @@ function importChannelCategories(file) {
             }
             
             if (confirm('기존 채널 카테고리를 모두 대체하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
-                // 데이터 적용
-                channelCategories = importedData.channelCategories;
-                saveCategories();
-                
-                // UI 업데이트
-                renderCategories();
-                updateChannelCategoryDropdown();
-                
-                showToast('채널 카테고리 데이터가 성공적으로 가져오기 되었습니다!', 'success');
+                // API 호출로 데이터 가져오기
+                fetch('/api/categories/import', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ categories: importedData.channelCategories })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // 데이터 다시 로드
+                        loadCategories();
+                        showToast('채널 카테고리 데이터가 성공적으로 가져오기 되었습니다!', 'success');
+                    } else {
+                        showToast('데이터 가져오기 중 오류가 발생했습니다: ' + data.message, 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('데이터 가져오기 오류:', error);
+                    showToast('데이터 가져오기 중 오류가 발생했습니다.', 'danger');
+                });
             }
         } catch (error) {
             console.error('데이터 가져오기 오류:', error);
@@ -785,45 +835,28 @@ function mergeChannelCategories(file) {
                 throw new Error('유효하지 않은 데이터 형식입니다.');
             }
             
-            // 병합 실행
-            let newCategoriesCount = 0;
-            let updatedCategoriesCount = 0;
-            
-            importedData.channelCategories.forEach(importedCategory => {
-                // 기존에 같은 ID의 카테고리가 있는지 확인
-                const existingCategoryIndex = channelCategories.findIndex(cat => cat.id === importedCategory.id);
-                
-                if (existingCategoryIndex === -1) {
-                    // 새 카테고리 추가
-                    channelCategories.push(importedCategory);
-                    newCategoriesCount++;
+            // API 호출로 데이터 병합
+            fetch('/api/categories/merge', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ categories: importedData.channelCategories })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // 데이터 다시 로드
+                    loadCategories();
+                    showToast(`데이터가 병합되었습니다! ${data.newCategoriesCount}개의 새 카테고리, ${data.updatedCategoriesCount}개의 카테고리가 업데이트되었습니다.`, 'success');
                 } else {
-                    // 기존 카테고리에 채널 추가 (중복 제거)
-                    const existingCategory = channelCategories[existingCategoryIndex];
-                    const existingChannelIds = existingCategory.channels.map(ch => ch.id);
-                    
-                    let newChannelsCount = 0;
-                    importedCategory.channels.forEach(importedChannel => {
-                        if (!existingChannelIds.includes(importedChannel.id)) {
-                            existingCategory.channels.push(importedChannel);
-                            newChannelsCount++;
-                        }
-                    });
-                    
-                    if (newChannelsCount > 0) {
-                        updatedCategoriesCount++;
-                    }
+                    showToast('데이터 병합 중 오류가 발생했습니다: ' + data.message, 'danger');
                 }
+            })
+            .catch(error => {
+                console.error('데이터 병합 오류:', error);
+                showToast('데이터 병합 중 오류가 발생했습니다.', 'danger');
             });
-            
-            // 변경사항 저장
-            saveCategories();
-            
-            // UI 업데이트
-            renderCategories();
-            updateChannelCategoryDropdown();
-            
-            showToast(`데이터가 병합되었습니다! ${newCategoriesCount}개의 새 카테고리, ${updatedCategoriesCount}개의 카테고리가 업데이트되었습니다.`, 'success');
         } catch (error) {
             console.error('데이터 병합 오류:', error);
             showToast('데이터 병합 중 오류가 발생했습니다.', 'danger');

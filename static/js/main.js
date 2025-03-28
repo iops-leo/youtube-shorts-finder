@@ -27,6 +27,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 선택된 채널 UI 업데이트
     updateSelectedChannelsUI();
+
+    // 이미 마이그레이션이 완료되었는지 확인
+    const migrationCompleted = localStorage.getItem('migration_completed');
+
+    if (!migrationCompleted) {
+        // 마이그레이션 실행
+        migrateLocalStorageToServer();
+    }
     
     // 이벤트 리스너 설정
     setupEventListeners();
@@ -228,40 +236,50 @@ function saveFormValuesToLocalStorage() {
         formValues[key] = value;
     }
     
-    // 선택된 채널 정보 저장
-    formValues['selectedChannels'] = selectedChannels;
-    
-    // 객체를 JSON 문자열로 변환하여 저장
-    localStorage.setItem(CURRENT_PREFS_KEY, JSON.stringify(formValues));
-    console.log('검색 설정이 저장되었습니다.');
+    // API 호출로 검색 설정 저장
+    fetch('/api/search/preferences', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formValues)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            console.log('검색 설정이 저장되었습니다.');
+        } else {
+            console.error('검색 설정 저장 중 오류:', data.message);
+        }
+    })
+    .catch(error => {
+        console.error('검색 설정 저장 중 오류:', error);
+    });
 }
+
 
 // 폼 값 복원 함수
 function loadFormValuesFromLocalStorage() {
-    const savedValues = localStorage.getItem(CURRENT_PREFS_KEY);
-    if (!savedValues) return;
-    
-    try {
-        const formValues = JSON.parse(savedValues);
-        
-        // 각 입력 필드에 저장된 값 설정
-        for (const key in formValues) {
-            const input = searchForm.elements[key];
-            if (input && key !== 'selectedChannels') {
-                input.value = formValues[key];
+    fetch('/api/search/preferences')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success' && data.has_preferences) {
+                const formValues = data.preferences;
+                
+                // 각 입력 필드에 저장된 값 설정
+                for (const key in formValues) {
+                    const input = searchForm.elements[key];
+                    if (input) {
+                        input.value = formValues[key];
+                    }
+                }
+                
+                console.log('저장된 검색 설정을 불러왔습니다.');
             }
-        }
-        
-        // 채널 정보 복원 (있는 경우)
-        if (formValues['selectedChannels'] && Array.isArray(formValues['selectedChannels'])) {
-            selectedChannels = formValues['selectedChannels'];
-        }
-        
-        console.log('저장된 검색 설정을 불러왔습니다.');
-    } catch (error) {
-        console.error('저장된 설정을 불러오는 중 오류 발생:', error);
-        localStorage.removeItem(CURRENT_PREFS_KEY);
-    }
+        })
+        .catch(error => {
+            console.error('저장된 설정을 불러오는 중 오류 발생:', error);
+        });
 }
 
 // 채널 검색 관련 함수
@@ -634,66 +652,65 @@ function formatNumber(num) {
 function saveSearchHistory() {
     try {
         // 현재 검색 설정 가져오기
-        const currentPrefs = JSON.parse(localStorage.getItem(CURRENT_PREFS_KEY));
-        if (!currentPrefs) return;
+        const formData = new FormData(searchForm);
+        const formValues = {};
         
-        // 기존 기록 로드
-        let history = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY)) || [];
-        
-        // 현재 시간 추가
-        const timestamp = new Date().toISOString();
-        const historyItem = {
-            ...currentPrefs,
-            timestamp,
-            dateFormatted: new Date().toLocaleString()
-        };
-        
-        // 중복 검사 (완전히 동일한 설정은 저장하지 않음)
-        const isDuplicate = history.some(item => {
-            // timestamp와 dateFormatted 제외하고 비교
-            const item1 = {...item};
-            const item2 = {...historyItem};
-            
-            delete item1.timestamp;
-            delete item1.dateFormatted;
-            delete item2.timestamp;
-            delete item2.dateFormatted;
-            
-            return JSON.stringify(item1) === JSON.stringify(item2);
-        });
-        
-        if (!isDuplicate) {
-            // 최근 검색을 배열 앞에 추가
-            history.unshift(historyItem);
-            
-            // 최대 저장 수 제한
-            if (history.length > MAX_HISTORY_ITEMS) {
-                history = history.slice(0, MAX_HISTORY_ITEMS);
-            }
-            
-            // 저장
-            localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
-            
-            // 히스토리 버튼 UI 업데이트
-            updateHistoryButtonUI();
+        // FormData를 객체로 변환
+        for (let [key, value] of formData.entries()) {
+            formValues[key] = value;
         }
+        
+        // API 호출로 검색 기록 저장
+        fetch('/api/search/history', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formValues)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                console.log('검색 기록이 저장되었습니다.');
+                updateHistoryButtonUI();
+            }
+        })
+        .catch(error => {
+            console.error('검색 기록 저장 중 오류:', error);
+        });
     } catch (error) {
         console.error('검색 기록 저장 중 오류:', error);
     }
 }
 
-// 검색 기록 UI 업데이트
 function updateHistoryButtonUI() {
-    const historyBtn = document.getElementById('historyButton');
-    const historyCount = getSearchHistoryCount();
+    getSearchHistoryCount(); // 이 함수에서 UI 업데이트 처리
+}
+
+// 검색 기록 UI 업데이트
+function getSearchHistoryCount() {
+    // 비동기 작업이므로 초기값 반환 후 UI 업데이트 방식으로 변경
+    fetch('/api/search/history')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const count = data.history.length;
+                const historyBtn = document.getElementById('historyButton');
+                
+                if (count > 0) {
+                    historyBtn.textContent = `검색 기록 (${count})`;
+                    historyBtn.disabled = false;
+                } else {
+                    historyBtn.textContent = '검색 기록';
+                    historyBtn.disabled = true;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('검색 기록 읽기 중 오류:', error);
+        });
     
-    if (historyCount > 0) {
-        historyBtn.textContent = `검색 기록 (${historyCount})`;
-        historyBtn.disabled = false;
-    } else {
-        historyBtn.textContent = '검색 기록';
-        historyBtn.disabled = true;
-    }
+    return 0; // 초기값 반환
 }
 
 // 검색 기록 개수 가져오기
@@ -707,106 +724,289 @@ function getSearchHistoryCount() {
     }
 }
 
+function shareCategories() {
+    try {
+        fetch('/api/categories')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // 모든 데이터 가져오기
+                    const allData = {
+                        channelCategories: data.categories,
+                        exportDate: new Date().toISOString(),
+                        appVersion: '1.0.0'
+                    };
+                    
+                    // JSON 문자열로 변환
+                    const jsonString = JSON.stringify(allData);
+                    
+                    // 데이터 크기 확인 (모바일에서 공유하기에 너무 큰지 확인)
+                    const dataSizeKB = Math.round(jsonString.length / 1024);
+                    
+                    if (dataSizeKB > 100) {
+                        showToast(`데이터 크기가 너무 큽니다 (${dataSizeKB}KB). 내보내기 기능을 사용해 주세요.`, 'warning');
+                        return;
+                    }
+                    
+                    // 데이터 URL 생성
+                    const dataUrl = `data:application/json;charset=utf-8,${encodeURIComponent(jsonString)}`;
+                    
+                    // 공유 API 사용
+                    if (navigator.share) {
+                        const file = new File([jsonString], 'youtube-shorts-channels.json', {
+                            type: 'application/json',
+                        });
+                        
+                        navigator.share({
+                            title: 'YouTube Shorts 채널 데이터',
+                            text: 'YouTube Shorts 도구에서 내보낸 채널 카테고리 데이터입니다.',
+                            files: [file]
+                        }).then(() => {
+                            showToast('데이터가 성공적으로 공유되었습니다!', 'success');
+                        }).catch((error) => {
+                            console.error('공유 오류:', error);
+                            
+                            // 공유 실패 시 다운로드 방식으로 대체
+                            const downloadLink = document.createElement('a');
+                            downloadLink.href = dataUrl;
+                            downloadLink.download = `youtube-shorts-channels-${new Date().toISOString().slice(0, 10)}.json`;
+                            document.body.appendChild(downloadLink);
+                            downloadLink.click();
+                            document.body.removeChild(downloadLink);
+                            
+                            showToast('공유할 수 없어 다운로드로 대체되었습니다.', 'info');
+                        });
+                    } else {
+                        // 공유 API를 지원하지 않는 경우 다운로드
+                        const downloadLink = document.createElement('a');
+                        downloadLink.href = dataUrl;
+                        downloadLink.download = `youtube-shorts-channels-${new Date().toISOString().slice(0, 10)}.json`;
+                        document.body.appendChild(downloadLink);
+                        downloadLink.click();
+                        document.body.removeChild(downloadLink);
+                        
+                        showToast('공유 기능을 지원하지 않는 브라우저입니다. 파일이 다운로드되었습니다.', 'info');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('데이터 공유 오류:', error);
+                showToast('데이터 공유 중 오류가 발생했습니다.', 'danger');
+            });
+    } catch (error) {
+        console.error('데이터 공유 오류:', error);
+        showToast('데이터 공유 중 오류가 발생했습니다.', 'danger');
+    }
+}
+
 // 검색 기록 모달 표시
 function showSearchHistoryModal() {
-    const history = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY)) || [];
     const modalBody = document.getElementById('historyModalBody');
     
-    if (history.length === 0) {
-        modalBody.innerHTML = '<div class="text-center p-4 text-muted">저장된 검색 기록이 없습니다.</div>';
-        return;
-    }
-    
-    // 기록 목록 생성
-    let html = '<div class="list-group">';
-    
-    history.forEach((item, index) => {
-        // 기본 정보 추출
-        const dateFormatted = item.dateFormatted || '날짜 정보 없음';
-        const keyword = item.keyword || '키워드 없음';
-        const minViews = item.min_views || '제한 없음';
-        const categoryName = getCategoryNameById(item.category_id);
-        const regionName = getRegionNameByCode(item.region_code);
-        
-        // 채널 정보
-        const channelCount = item.selectedChannels ? item.selectedChannels.length : 0;
-        const channelInfo = channelCount > 0 
-            ? `${channelCount}개 채널 선택됨` 
-            : '모든 채널';
-        
-            html += `
-            <a href="#" class="list-group-item list-group-item-action search-history-item" data-index="${index}">
-                <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1">${keyword}</h6>
-                    <small class="text-muted">${dateFormatted}</small>
-                </div>
-                <p class="mb-1">
-                    <small>
-                        <span class="badge bg-primary me-1">최소 ${formatNumber(parseInt(minViews))}회</span>
-                        <span class="badge bg-secondary me-1">${categoryName}</span>
-                        <span class="badge bg-info me-1">${regionName}</span>
-                        <span class="badge bg-dark">${channelInfo}</span>
-                    </small>
-                </p>
-            </a>
-        `;
-    });
-    
-    html += '</div>';
-    modalBody.innerHTML = html;
-    
-    // 각 항목에 클릭 이벤트 추가
-    const historyItems = document.querySelectorAll('.search-history-item');
-    historyItems.forEach(item => {
-        item.addEventListener('click', function(e) {
-            e.preventDefault();
-            const index = parseInt(this.dataset.index);
-            loadSearchHistoryItem(index);
-            
-            // 모달 닫기 (Bootstrap 방식)
-            const historyModal = bootstrap.Modal.getInstance(document.getElementById('historyModal'));
-            historyModal.hide();
+    // API 호출로 검색 기록 가져오기
+    fetch('/api/search/history')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const history = data.history;
+                
+                if (history.length === 0) {
+                    modalBody.innerHTML = '<div class="text-center p-4 text-muted">저장된 검색 기록이 없습니다.</div>';
+                    return;
+                }
+                
+                // 기록 목록 생성
+                let html = '<div class="list-group">';
+                
+                history.forEach((item, index) => {
+                    // 기본 정보 추출
+                    const dateFormatted = item.dateFormatted || '날짜 정보 없음';
+                    const keyword = item.keyword || '키워드 없음';
+                    const minViews = item.min_views || '제한 없음';
+                    const categoryName = getCategoryNameById(item.category_id);
+                    const regionName = getRegionNameByCode(item.region_code);
+                    
+                    html += `
+                        <a href="#" class="list-group-item list-group-item-action search-history-item" data-index="${index}">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">${keyword}</h6>
+                                <small class="text-muted">${dateFormatted}</small>
+                            </div>
+                            <p class="mb-1">
+                                <small>
+                                    <span class="badge bg-primary me-1">최소 ${formatNumber(parseInt(minViews))}회</span>
+                                    <span class="badge bg-secondary me-1">${categoryName}</span>
+                                    <span class="badge bg-info me-1">${regionName}</span>
+                                </small>
+                            </p>
+                        </a>
+                    `;
+                });
+                
+                html += '</div>';
+                modalBody.innerHTML = html;
+                
+                // 각 항목에 클릭 이벤트 추가
+                const historyItems = document.querySelectorAll('.search-history-item');
+                historyItems.forEach((item, index) => {
+                    item.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        loadSearchHistoryItem(index);
+                        
+                        // 모달 닫기 (Bootstrap 방식)
+                        const historyModal = bootstrap.Modal.getInstance(document.getElementById('historyModal'));
+                        historyModal.hide();
+                    });
+                });
+            }
+        })
+        .catch(error => {
+            console.error('검색 기록 로드 중 오류:', error);
+            modalBody.innerHTML = '<div class="text-center p-4 text-danger">검색 기록을 불러오는 중 오류가 발생했습니다.</div>';
         });
-    });
 }
 
 // 특정 인덱스의 검색 기록 로드
 function loadSearchHistoryItem(index) {
-    try {
-        const history = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY)) || [];
-        if (index < 0 || index >= history.length) return;
-        
-        const item = history[index];
-        
-        // 현재 설정으로 저장
-        localStorage.setItem(CURRENT_PREFS_KEY, JSON.stringify(item));
-        
-        // 폼 값 복원
-        loadFormValuesFromLocalStorage();
-        
-        // 선택된 채널 UI 업데이트
-        updateSelectedChannelsUI();
-        
-        // 알림 표시
-        showToast('검색 기록이 로드되었습니다. 검색 버튼을 눌러 검색을 시작하세요.', 'success');
-    } catch (error) {
-        console.error('검색 기록 로드 중 오류:', error);
-        showToast('검색 기록을 로드하는 중 오류가 발생했습니다.', 'danger');
-    }
+    fetch('/api/search/history')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const history = data.history;
+                if (index < 0 || index >= history.length) return;
+                
+                const item = history[index];
+                
+                // 폼 값 설정
+                for (const key in item) {
+                    const input = searchForm.elements[key];
+                    if (input && key !== 'id' && key !== 'created_at' && key !== 'dateFormatted') {
+                        input.value = item[key];
+                    }
+                }
+                
+                // 선택된 채널 로드 (필요시 서버로부터 채널 정보 가져오기)
+                // 이 부분은 추가 API 엔드포인트가 필요할 수 있음
+                
+                showToast('검색 기록이 로드되었습니다. 검색 버튼을 눌러 검색을 시작하세요.', 'success');
+            }
+        })
+        .catch(error => {
+            console.error('검색 기록 로드 중 오류:', error);
+            showToast('검색 기록을 로드하는 중 오류가 발생했습니다.', 'danger');
+        });
 }
 
 // 검색 기록 모두 지우기
 function clearAllSearchHistory() {
     if (confirm('모든 검색 기록을 삭제하시겠습니까?')) {
-        localStorage.removeItem(HISTORY_STORAGE_KEY);
-        updateHistoryButtonUI();
-        showToast('모든 검색 기록이 삭제되었습니다.', 'info');
-        
-        // 모달이 열려있는 경우 내용 업데이트
-        const modalBody = document.getElementById('historyModalBody');
-        if (modalBody) {
-            modalBody.innerHTML = '<div class="text-center p-4 text-muted">저장된 검색 기록이 없습니다.</div>';
+        fetch('/api/search/history', {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                updateHistoryButtonUI();
+                showToast('모든 검색 기록이 삭제되었습니다.', 'info');
+                
+                // 모달이 열려있는 경우 내용 업데이트
+                const modalBody = document.getElementById('historyModalBody');
+                if (modalBody) {
+                    modalBody.innerHTML = '<div class="text-center p-4 text-muted">저장된 검색 기록이 없습니다.</div>';
+                }
+            } else {
+                showToast(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('검색 기록 삭제 중 오류:', error);
+            showToast('검색 기록 삭제 중 오류가 발생했습니다.', 'danger');
+        });
+    }
+}
+
+function migrateLocalStorageToServer() {
+    // 기존 로컬 스토리지 데이터 확인
+    const channelCategories = localStorage.getItem('youtubeShortChannelCategories');
+    const searchPrefs = localStorage.getItem('youtubeShortSearchPrefs');
+    const searchHistory = localStorage.getItem('youtubeShortSearchHistory');
+    
+    let migrationPromises = [];
+    
+    // 카테고리 데이터 마이그레이션
+    if (channelCategories) {
+        try {
+            const categories = JSON.parse(channelCategories);
+            if (categories && categories.length > 0) {
+                const promise = fetch('/api/categories/import', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ categories: categories })
+                });
+                migrationPromises.push(promise);
+            }
+        } catch (e) {
+            console.error('카테고리 마이그레이션 오류:', e);
         }
+    }
+    
+    // 검색 설정 마이그레이션
+    if (searchPrefs) {
+        try {
+            const prefs = JSON.parse(searchPrefs);
+            if (prefs) {
+                const promise = fetch('/api/search/preferences', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(prefs)
+                });
+                migrationPromises.push(promise);
+            }
+        } catch (e) {
+            console.error('검색 설정 마이그레이션 오류:', e);
+        }
+    }
+    
+    // 검색 기록 마이그레이션
+    if (searchHistory) {
+        try {
+            const history = JSON.parse(searchHistory);
+            if (history && history.length > 0) {
+                // 각 기록 항목에 대해 별도의 요청 생성
+                for (const item of history) {
+                    const promise = fetch('/api/search/history', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(item)
+                    });
+                    migrationPromises.push(promise);
+                }
+            }
+        } catch (e) {
+            console.error('검색 기록 마이그레이션 오류:', e);
+        }
+    }
+    
+    // 모든 마이그레이션 요청 처리
+    if (migrationPromises.length > 0) {
+        Promise.all(migrationPromises.map(p => p.catch(e => e)))
+            .then(results => {
+                // 마이그레이션 완료 후 로컬 스토리지 데이터 백업 (삭제하지 않고 이름 변경)
+                if (channelCategories) localStorage.setItem('youtubeShortChannelCategories_backup', channelCategories);
+                if (searchPrefs) localStorage.setItem('youtubeShortSearchPrefs_backup', searchPrefs);
+                if (searchHistory) localStorage.setItem('youtubeShortSearchHistory_backup', searchHistory);
+                
+                // 마이그레이션 완료 표시
+                localStorage.setItem('migration_completed', 'true');
+                
+                showToast('로컬 데이터가 서버로 성공적으로 마이그레이션되었습니다.', 'success');
+            });
     }
 }
 

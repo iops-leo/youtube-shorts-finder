@@ -85,6 +85,59 @@ class ApiLog(db.Model):
     
     user = db.relationship('User', backref=db.backref('api_logs', lazy=True))
 
+# app.py에 추가할 모델
+
+class ChannelCategory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(128), db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(128), nullable=False)
+    description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('categories', lazy=True))
+    
+class Channel(db.Model):
+    id = db.Column(db.String(128), primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+    thumbnail = db.Column(db.String(255))
+    
+class CategoryChannel(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('channel_category.id', ondelete='CASCADE'), nullable=False)
+    channel_id = db.Column(db.String(128), db.ForeignKey('channel.id'), nullable=False)
+    
+    category = db.relationship('ChannelCategory', backref=db.backref('category_channels', lazy=True, cascade='all, delete-orphan'))
+    channel = db.relationship('Channel', backref=db.backref('category_channels', lazy=True))
+    
+class SearchPreference(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(128), db.ForeignKey('user.id'), nullable=False)
+    keyword = db.Column(db.String(255))
+    min_views = db.Column(db.Integer, default=100000)
+    days_ago = db.Column(db.Integer, default=5)
+    category_id = db.Column(db.String(10))
+    region_code = db.Column(db.String(10))
+    language = db.Column(db.String(10))
+    max_results = db.Column(db.Integer, default=300)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('search_preferences', lazy=True))
+
+class SearchHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(128), db.ForeignKey('user.id'), nullable=False)
+    keyword = db.Column(db.String(255))
+    min_views = db.Column(db.Integer)
+    days_ago = db.Column(db.Integer)
+    category_id = db.Column(db.String(10))
+    region_code = db.Column(db.String(10))
+    language = db.Column(db.String(10))
+    max_results = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('search_history', lazy=True))
+
 with app.app_context():
     db.create_all()
     app.logger.info('데이터베이스 테이블 생성 완료')
@@ -999,6 +1052,295 @@ def search():
         return jsonify({"status": "error", "message": str(e)})
     
 
+
+@app.route('/api/categories', methods=['GET'])
+@login_required
+def get_categories():
+    """사용자의 모든 채널 카테고리 가져오기"""
+    categories = ChannelCategory.query.filter_by(user_id=current_user.id).all()
+    result = []
+    
+    for category in categories:
+        # 카테고리에 속한 채널 가져오기
+        channels = []
+        for cat_channel in category.category_channels:
+            channel = cat_channel.channel
+            channels.append({
+                'id': channel.id,
+                'title': channel.title,
+                'description': channel.description,
+                'thumbnail': channel.thumbnail
+            })
+        
+        result.append({
+            'id': str(category.id),
+            'name': category.name,
+            'description': category.description,
+            'createdAt': category.created_at.isoformat(),
+            'channels': channels
+        })
+    
+    return jsonify({"status": "success", "categories": result})
+
+@app.route('/api/categories', methods=['POST'])
+@login_required
+def create_category():
+    """새 채널 카테고리 생성"""
+    data = request.json
+    
+    if not data.get('name'):
+        return jsonify({"status": "error", "message": "카테고리 이름은 필수입니다."})
+    
+    # 이름 중복 확인
+    existing = ChannelCategory.query.filter_by(user_id=current_user.id, name=data['name']).first()
+    if existing:
+        return jsonify({"status": "error", "message": "이미 존재하는 카테고리 이름입니다."})
+    
+    # 새 카테고리 생성
+    category = ChannelCategory(
+        user_id=current_user.id,
+        name=data['name'],
+        description=data.get('description', '')
+    )
+    
+    db.session.add(category)
+    db.session.commit()
+    
+    return jsonify({
+        "status": "success", 
+        "message": "카테고리가 생성되었습니다.",
+        "category": {
+            "id": str(category.id),
+            "name": category.name,
+            "description": category.description,
+            "createdAt": category.created_at.isoformat(),
+            "channels": []
+        }
+    })
+
+@app.route('/api/categories/<int:category_id>', methods=['DELETE'])
+@login_required
+def delete_category(category_id):
+    """채널 카테고리 삭제"""
+    category = ChannelCategory.query.filter_by(id=category_id, user_id=current_user.id).first()
+    
+    if not category:
+        return jsonify({"status": "error", "message": "카테고리를 찾을 수 없습니다."})
+    
+    db.session.delete(category)
+    db.session.commit()
+    
+    return jsonify({"status": "success", "message": "카테고리가 삭제되었습니다."})
+
+@app.route('/api/categories/<int:category_id>/channels', methods=['POST'])
+@login_required
+def add_channels_to_category(category_id):
+    """카테고리에 채널 추가"""
+    data = request.json
+    category = ChannelCategory.query.filter_by(id=category_id, user_id=current_user.id).first()
+    
+    if not category:
+        return jsonify({"status": "error", "message": "카테고리를 찾을 수 없습니다."})
+    
+    if not data.get('channels') or not isinstance(data['channels'], list):
+        return jsonify({"status": "error", "message": "채널 목록이 유효하지 않습니다."})
+    
+    added_count = 0
+    for channel_data in data['channels']:
+        # 채널 ID가 없으면 스킵
+        if not channel_data.get('id'):
+            continue
+            
+        # 채널이 이미 데이터베이스에 있는지 확인
+        channel = Channel.query.get(channel_data['id'])
+        if not channel:
+            # 새 채널 추가
+            channel = Channel(
+                id=channel_data['id'],
+                title=channel_data.get('title', ''),
+                description=channel_data.get('description', ''),
+                thumbnail=channel_data.get('thumbnail', '')
+            )
+            db.session.add(channel)
+        
+        # 이미 카테고리에 추가되어 있는지 확인
+        existing = CategoryChannel.query.filter_by(
+            category_id=category.id, 
+            channel_id=channel.id
+        ).first()
+        
+        if not existing:
+            # 카테고리에 채널 연결
+            cat_channel = CategoryChannel(
+                category_id=category.id,
+                channel_id=channel.id
+            )
+            db.session.add(cat_channel)
+            added_count += 1
+    
+    db.session.commit()
+    
+    return jsonify({
+        "status": "success", 
+        "message": f"{added_count}개의 채널이 추가되었습니다.",
+        "added_count": added_count
+    })
+
+@app.route('/api/categories/<int:category_id>/channels/<channel_id>', methods=['DELETE'])
+@login_required
+def remove_channel_from_category(category_id, channel_id):
+    """카테고리에서 채널 제거"""
+    category = ChannelCategory.query.filter_by(id=category_id, user_id=current_user.id).first()
+    
+    if not category:
+        return jsonify({"status": "error", "message": "카테고리를 찾을 수 없습니다."})
+    
+    cat_channel = CategoryChannel.query.filter_by(
+        category_id=category.id, 
+        channel_id=channel_id
+    ).first()
+    
+    if not cat_channel:
+        return jsonify({"status": "error", "message": "채널을 찾을 수 없습니다."})
+    
+    db.session.delete(cat_channel)
+    db.session.commit()
+    
+    return jsonify({"status": "success", "message": "채널이 제거되었습니다."})
+
+@app.route('/api/search/preferences', methods=['GET'])
+@login_required
+def get_search_preferences():
+    """사용자의 저장된 검색 설정 가져오기"""
+    pref = SearchPreference.query.filter_by(user_id=current_user.id).order_by(SearchPreference.created_at.desc()).first()
+    
+    if not pref:
+        return jsonify({"status": "success", "has_preferences": False})
+    
+    return jsonify({
+        "status": "success",
+        "has_preferences": True,
+        "preferences": {
+            "keyword": pref.keyword,
+            "min_views": pref.min_views,
+            "days_ago": pref.days_ago,
+            "category_id": pref.category_id,
+            "region_code": pref.region_code,
+            "language": pref.language,
+            "max_results": pref.max_results
+        }
+    })
+
+@app.route('/api/search/preferences', methods=['POST'])
+@login_required
+def save_search_preferences():
+    """사용자의 검색 설정 저장"""
+    data = request.json
+    
+    # 기존 설정이 있으면 업데이트, 없으면 생성
+    pref = SearchPreference.query.filter_by(user_id=current_user.id).first()
+    if not pref:
+        pref = SearchPreference(user_id=current_user.id)
+    
+    # 데이터 업데이트
+    pref.keyword = data.get('keyword', '')
+    pref.min_views = data.get('min_views', 100000)
+    pref.days_ago = data.get('days_ago', 5)
+    pref.category_id = data.get('category_id', 'any')
+    pref.region_code = data.get('region_code', 'KR')
+    pref.language = data.get('language', 'any')
+    pref.max_results = data.get('max_results', 300)
+    pref.created_at = datetime.utcnow()
+    
+    db.session.add(pref)
+    db.session.commit()
+    
+    return jsonify({
+        "status": "success", 
+        "message": "검색 설정이 저장되었습니다."
+    })
+
+@app.route('/api/search/history', methods=['GET'])
+@login_required
+def get_search_history():
+    """사용자의 검색 기록 가져오기"""
+    history = SearchHistory.query.filter_by(user_id=current_user.id).order_by(SearchHistory.created_at.desc()).limit(10).all()
+    
+    result = []
+    for item in history:
+        result.append({
+            "id": item.id,
+            "keyword": item.keyword,
+            "min_views": item.min_views,
+            "days_ago": item.days_ago,
+            "category_id": item.category_id,
+            "region_code": item.region_code,
+            "language": item.language,
+            "max_results": item.max_results,
+            "created_at": item.created_at.isoformat(),
+            "dateFormatted": item.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        })
+    
+    return jsonify({"status": "success", "history": result})
+
+@app.route('/api/search/history', methods=['POST'])
+@login_required
+def add_search_history():
+    """새 검색 기록 추가"""
+    data = request.json
+    
+    # 중복 검색 확인 (완전히 동일한 검색 파라미터면 추가하지 않음)
+    existing = SearchHistory.query.filter_by(
+        user_id=current_user.id,
+        keyword=data.get('keyword', ''),
+        min_views=data.get('min_views', 0),
+        days_ago=data.get('days_ago', 0),
+        category_id=data.get('category_id', ''),
+        region_code=data.get('region_code', ''),
+        language=data.get('language', ''),
+        max_results=data.get('max_results', 0)
+    ).first()
+    
+    if existing:
+        # 기존 기록이 있으면 타임스탬프만 업데이트
+        existing.created_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({"status": "success", "message": "검색 기록이 업데이트되었습니다."})
+    
+    # 새 검색 기록 추가
+    history = SearchHistory(
+        user_id=current_user.id,
+        keyword=data.get('keyword', ''),
+        min_views=data.get('min_views', 0),
+        days_ago=data.get('days_ago', 0),
+        category_id=data.get('category_id', ''),
+        region_code=data.get('region_code', ''),
+        language=data.get('language', ''),
+        max_results=data.get('max_results', 0)
+    )
+    
+    db.session.add(history)
+    
+    # 최대 검색 기록 개수 제한 (사용자당 10개)
+    count = SearchHistory.query.filter_by(user_id=current_user.id).count()
+    if count > 10:
+        # 가장 오래된 항목 삭제
+        oldest = SearchHistory.query.filter_by(user_id=current_user.id).order_by(SearchHistory.created_at).first()
+        db.session.delete(oldest)
+    
+    db.session.commit()
+    
+    return jsonify({"status": "success", "message": "검색 기록이 저장되었습니다."})
+
+@app.route('/api/search/history', methods=['DELETE'])
+@login_required
+def clear_search_history():
+    """모든 검색 기록 삭제"""
+    SearchHistory.query.filter_by(user_id=current_user.id).delete()
+    db.session.commit()
+    
+    return jsonify({"status": "success", "message": "모든 검색 기록이 삭제되었습니다."})
+
 @app.route('/channel-search', methods=['GET'])
 def channel_search():
     # API 호출 로깅
@@ -1103,6 +1445,150 @@ def channel_search():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
+@app.route('/api/categories/import', methods=['POST'])
+@login_required
+def import_categories():
+    """카테고리 데이터 가져오기 (기존 데이터 대체)"""
+    data = request.json
+    
+    if not data or not data.get('categories') or not isinstance(data['categories'], list):
+        return jsonify({"status": "error", "message": "유효하지 않은 데이터 형식입니다."})
+    
+    # 기존 카테고리 삭제
+    ChannelCategory.query.filter_by(user_id=current_user.id).delete()
+    
+    imported_count = 0
+    for cat_data in data['categories']:
+        # 기본 정보 확인
+        if not cat_data.get('name'):
+            continue
+            
+        # 새 카테고리 생성
+        category = ChannelCategory(
+            user_id=current_user.id,
+            name=cat_data['name'],
+            description=cat_data.get('description', '')
+        )
+        db.session.add(category)
+        db.session.flush()  # ID 할당을 위해 플러시
+        
+        # 채널 추가
+        channels = cat_data.get('channels', [])
+        for channel_data in channels:
+            if not channel_data.get('id'):
+                continue
+                
+            # 채널 존재 여부 확인
+            channel = Channel.query.get(channel_data['id'])
+            if not channel:
+                # 새 채널 추가
+                channel = Channel(
+                    id=channel_data['id'],
+                    title=channel_data.get('title', ''),
+                    description=channel_data.get('description', ''),
+                    thumbnail=channel_data.get('thumbnail', '')
+                )
+                db.session.add(channel)
+                
+            # 카테고리에 채널 연결
+            cat_channel = CategoryChannel(
+                category_id=category.id,
+                channel_id=channel.id
+            )
+            db.session.add(cat_channel)
+        
+        imported_count += 1
+    
+    db.session.commit()
+    
+    return jsonify({
+        "status": "success", 
+        "message": f"{imported_count}개의 카테고리가 가져오기 되었습니다.",
+        "count": imported_count
+    })
+
+@app.route('/api/categories/merge', methods=['POST'])
+@login_required
+def merge_categories():
+    """카테고리 데이터 병합"""
+    data = request.json
+    
+    if not data or not data.get('categories') or not isinstance(data['categories'], list):
+        return jsonify({"status": "error", "message": "유효하지 않은 데이터 형식입니다."})
+    
+    new_categories_count = 0
+    updated_categories_count = 0
+    
+    for cat_data in data['categories']:
+        # 기본 정보 확인
+        if not cat_data.get('name'):
+            continue
+            
+        # 동일한 이름의 카테고리가 있는지 확인
+        existing = ChannelCategory.query.filter_by(
+            user_id=current_user.id, 
+            name=cat_data['name']
+        ).first()
+        
+        if not existing:
+            # 새 카테고리 생성
+            category = ChannelCategory(
+                user_id=current_user.id,
+                name=cat_data['name'],
+                description=cat_data.get('description', '')
+            )
+            db.session.add(category)
+            db.session.flush()  # ID 할당을 위해 플러시
+            new_categories_count += 1
+        else:
+            category = existing
+            
+        # 채널 추가
+        channels = cat_data.get('channels', [])
+        added_channels = 0
+        
+        for channel_data in channels:
+            if not channel_data.get('id'):
+                continue
+                
+            # 이미 카테고리에 추가된 채널인지 확인
+            existing_channel = CategoryChannel.query.filter_by(
+                category_id=category.id, 
+                channel_id=channel_data['id']
+            ).first()
+            
+            if not existing_channel:
+                # 채널 존재 여부 확인
+                channel = Channel.query.get(channel_data['id'])
+                if not channel:
+                    # 새 채널 추가
+                    channel = Channel(
+                        id=channel_data['id'],
+                        title=channel_data.get('title', ''),
+                        description=channel_data.get('description', ''),
+                        thumbnail=channel_data.get('thumbnail', '')
+                    )
+                    db.session.add(channel)
+                    
+                # 카테고리에 채널 연결
+                cat_channel = CategoryChannel(
+                    category_id=category.id,
+                    channel_id=channel.id
+                )
+                db.session.add(cat_channel)
+                added_channels += 1
+                
+        if added_channels > 0 and existing:
+            updated_categories_count += 1
+    
+    db.session.commit()
+    
+    return jsonify({
+        "status": "success", 
+        "message": f"{new_categories_count}개의 새 카테고리, {updated_categories_count}개의 카테고리가 업데이트되었습니다.",
+        "newCategoriesCount": new_categories_count,
+        "updatedCategoriesCount": updated_categories_count
+    })
 
 # 정적 파일 제공 라우트
 @app.route('/static/<path:filename>')
