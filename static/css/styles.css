@@ -275,16 +275,26 @@
     color: #007bff;
 }
 
+.footer {
+    margin-top: 2rem;
+    border-radius: 0.25rem;
+    margin-bottom: 1rem;
+    width: 100%;
+}
+
 /* 메인 콘텐츠 영역 패딩 */
 main {
-    padding-top: 20px;
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 56px);
+    padding-bottom: 0;
 }
 
 /* 페이지 콘텐츠 스타일 */
 .page-content {
-    padding-bottom: 40px;
+    flex: 1;
+    padding-bottom: 20px;
 }
-
 /* 카테고리 관리 스타일 */
 .category-card .card-header {
     padding: 10px 15px;

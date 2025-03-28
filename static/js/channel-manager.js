@@ -27,6 +27,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 채널 카테고리 목록 업데이트
     updateChannelCategoryDropdown();
+
+    enhanceChannelCategorySelection();
     
     // 카테고리 폼 이벤트 설정
     if (categoryForm) {
@@ -351,7 +353,18 @@ function loadChannelsFromCategory(categoryId) {
     selectedChannels = [...category.channels];
     updateSelectedChannelsUI();
     
+    // 채널 ID 필드 업데이트 (검색 시 사용하기 위함)
+    if (channelIdsInput) {
+        channelIdsInput.value = selectedChannels.map(ch => ch.id).join(',');
+    }
+    
+    // 카테고리 이름으로 알림 표시
     showToast(`'${category.name}' 카테고리의 채널 ${selectedChannels.length}개를 로드했습니다.`, 'info');
+    
+    // 채널 카운터 업데이트
+    if (channelCounter) {
+        channelCounter.textContent = `선택된 채널: ${selectedChannels.length}개`;
+    }
 }
 
 // 카테고리에서 채널 삭제
@@ -384,6 +397,44 @@ function removeChannelFromCategory(categoryId, channelId) {
     }
     
     showToast(`채널이 삭제되었습니다.`, 'info');
+}
+
+function enhanceChannelCategorySelection() {
+    if (!channelCategorySelect) return;
+    
+    // 드롭다운에 설명 추가
+    const helpText = document.createElement('div');
+    helpText.className = 'form-text text-muted mt-1';
+    helpText.innerHTML = '<small>카테고리를 선택하면 해당 카테고리의 채널들이 자동으로 로드됩니다.</small>';
+    
+    // 부모 요소에 추가
+    const parentElement = channelCategorySelect.parentElement;
+    if (parentElement && !parentElement.querySelector('.form-text')) {
+        parentElement.appendChild(helpText);
+    }
+    
+    // "카테고리 관리로 이동" 버튼 추가
+    const manageBtn = document.createElement('button');
+    manageBtn.type = 'button';
+    manageBtn.className = 'btn btn-sm btn-outline-primary mt-1';
+    manageBtn.innerHTML = '<i class="fas fa-cog me-1"></i>카테고리 관리';
+    manageBtn.addEventListener('click', function() {
+        // 채널 관리 페이지로 이동
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.classList.remove('active');
+        });
+        document.getElementById('nav-channels').classList.add('active');
+        
+        document.querySelectorAll('.page-content').forEach(page => {
+            page.style.display = 'none';
+        });
+        document.getElementById('page-channels').style.display = 'block';
+    });
+    
+    // 버튼을 드롭다운 아래에 추가
+    if (parentElement && !parentElement.querySelector('.btn-outline-primary')) {
+        parentElement.appendChild(manageBtn);
+    }
 }
 
 // 채널 추가 모달 관련 함수
@@ -648,4 +699,301 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(() => func.apply(this, args), wait);
     };
+}
+
+function exportChannelCategories() {
+    try {
+        // 모든 데이터 가져오기
+        const allData = {
+            channelCategories: channelCategories,
+            exportDate: new Date().toISOString(),
+            appVersion: '1.0.0'
+        };
+        
+        // JSON 문자열로 변환
+        const jsonString = JSON.stringify(allData, null, 2);
+        
+        // Blob 객체 생성
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        
+        // 다운로드 링크 생성
+        const downloadLink = document.createElement('a');
+        downloadLink.href = URL.createObjectURL(blob);
+        downloadLink.download = `youtube-shorts-channels-${new Date().toISOString().slice(0, 10)}.json`;
+        
+        // 링크 클릭 (다운로드 시작)
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        
+        showToast('채널 카테고리 데이터가 성공적으로 내보내기 되었습니다!', 'success');
+    } catch (error) {
+        console.error('데이터 내보내기 오류:', error);
+        showToast('데이터 내보내기 중 오류가 발생했습니다.', 'danger');
+    }
+}
+
+function importChannelCategories(file) {
+    const reader = new FileReader();
+    
+    reader.onload = function(event) {
+        try {
+            const importedData = JSON.parse(event.target.result);
+            
+            // 데이터 유효성 검증
+            if (!importedData.channelCategories || !Array.isArray(importedData.channelCategories)) {
+                throw new Error('유효하지 않은 데이터 형식입니다.');
+            }
+            
+            if (confirm('기존 채널 카테고리를 모두 대체하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+                // 데이터 적용
+                channelCategories = importedData.channelCategories;
+                saveCategories();
+                
+                // UI 업데이트
+                renderCategories();
+                updateChannelCategoryDropdown();
+                
+                showToast('채널 카테고리 데이터가 성공적으로 가져오기 되었습니다!', 'success');
+            }
+        } catch (error) {
+            console.error('데이터 가져오기 오류:', error);
+            showToast('데이터 가져오기 중 오류가 발생했습니다. 유효한 JSON 파일인지 확인하세요.', 'danger');
+        }
+    };
+    
+    reader.onerror = function() {
+        showToast('파일을 읽는 중 오류가 발생했습니다.', 'danger');
+    };
+    
+    reader.readAsText(file);
+}
+
+function mergeChannelCategories(file) {
+    const reader = new FileReader();
+    
+    reader.onload = function(event) {
+        try {
+            const importedData = JSON.parse(event.target.result);
+            
+            // 데이터 유효성 검증
+            if (!importedData.channelCategories || !Array.isArray(importedData.channelCategories)) {
+                throw new Error('유효하지 않은 데이터 형식입니다.');
+            }
+            
+            // 병합 실행
+            let newCategoriesCount = 0;
+            let updatedCategoriesCount = 0;
+            
+            importedData.channelCategories.forEach(importedCategory => {
+                // 기존에 같은 ID의 카테고리가 있는지 확인
+                const existingCategoryIndex = channelCategories.findIndex(cat => cat.id === importedCategory.id);
+                
+                if (existingCategoryIndex === -1) {
+                    // 새 카테고리 추가
+                    channelCategories.push(importedCategory);
+                    newCategoriesCount++;
+                } else {
+                    // 기존 카테고리에 채널 추가 (중복 제거)
+                    const existingCategory = channelCategories[existingCategoryIndex];
+                    const existingChannelIds = existingCategory.channels.map(ch => ch.id);
+                    
+                    let newChannelsCount = 0;
+                    importedCategory.channels.forEach(importedChannel => {
+                        if (!existingChannelIds.includes(importedChannel.id)) {
+                            existingCategory.channels.push(importedChannel);
+                            newChannelsCount++;
+                        }
+                    });
+                    
+                    if (newChannelsCount > 0) {
+                        updatedCategoriesCount++;
+                    }
+                }
+            });
+            
+            // 변경사항 저장
+            saveCategories();
+            
+            // UI 업데이트
+            renderCategories();
+            updateChannelCategoryDropdown();
+            
+            showToast(`데이터가 병합되었습니다! ${newCategoriesCount}개의 새 카테고리, ${updatedCategoriesCount}개의 카테고리가 업데이트되었습니다.`, 'success');
+        } catch (error) {
+            console.error('데이터 병합 오류:', error);
+            showToast('데이터 병합 중 오류가 발생했습니다.', 'danger');
+        }
+    };
+    
+    reader.onerror = function() {
+        showToast('파일을 읽는 중 오류가 발생했습니다.', 'danger');
+    };
+    
+    reader.readAsText(file);
+}
+
+function handleFileImport(event, mode = 'replace') {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+        showToast('JSON 파일만 가져올 수 있습니다.', 'warning');
+        return;
+    }
+    
+    if (mode === 'replace') {
+        importChannelCategories(file);
+    } else {
+        mergeChannelCategories(file);
+    }
+    
+    // 파일 입력 초기화 (같은 파일 다시 선택 가능하도록)
+    event.target.value = '';
+}
+
+// UI에 내보내기/가져오기 버튼 추가
+function addExportImportButtons() {
+    // 카테고리 헤더 찾기
+    const categoryHeader = document.querySelector('.card-header h5');
+    if (!categoryHeader) return;
+    
+    // 컨테이너 찾기
+    const headerContainer = categoryHeader.closest('.card-header');
+    if (!headerContainer) return;
+    
+    // 이미 버튼이 있는지 확인
+    if (headerContainer.querySelector('.data-export-btn')) return;
+    
+    // 버튼 컨테이너 생성
+    const btnContainer = document.createElement('div');
+    btnContainer.className = 'd-flex';
+    
+    // 내보내기 버튼
+    const exportBtn = document.createElement('button');
+    exportBtn.type = 'button';
+    exportBtn.className = 'btn btn-sm btn-outline-primary me-2 data-export-btn';
+    exportBtn.innerHTML = '<i class="fas fa-file-export me-1"></i>내보내기';
+    exportBtn.addEventListener('click', exportChannelCategories);
+    
+    // 가져오기 버튼 (드롭다운)
+    const importDropdown = document.createElement('div');
+    importDropdown.className = 'dropdown';
+    importDropdown.innerHTML = `
+        <button class="btn btn-sm btn-outline-success dropdown-toggle data-import-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-file-import me-1"></i>가져오기
+        </button>
+        <ul class="dropdown-menu">
+            <li>
+                <label class="dropdown-item" style="cursor: pointer;">
+                    <input type="file" id="importFileReplace" accept=".json" style="display: none;">
+                    덮어쓰기
+                </label>
+            </li>
+            <li>
+                <label class="dropdown-item" style="cursor: pointer;">
+                    <input type="file" id="importFileMerge" accept=".json" style="display: none;">
+                    병합하기
+                </label>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+                <div class="dropdown-item">
+                    <small class="text-muted">덮어쓰기: 모든 데이터 교체<br>병합하기: 새 데이터 추가</small>
+                </div>
+            </li>
+        </ul>
+    `;
+    
+    // 버튼 추가
+    btnContainer.appendChild(exportBtn);
+    btnContainer.appendChild(importDropdown);
+    
+    // 기존 컨테이너에 버튼 추가
+    headerContainer.appendChild(btnContainer);
+    
+    // 파일 입력 이벤트 리스너 추가
+    document.getElementById('importFileReplace').addEventListener('change', function(e) {
+        handleFileImport(e, 'replace');
+    });
+    
+    document.getElementById('importFileMerge').addEventListener('change', function(e) {
+        handleFileImport(e, 'merge');
+    });
+}
+
+// DOM 로드 시 내보내기/가져오기 버튼 추가
+document.addEventListener('DOMContentLoaded', function() {
+    // 카테고리 렌더링 후 내보내기/가져오기 버튼 추가
+    const originalRenderCategories = renderCategories;
+    renderCategories = function() {
+        originalRenderCategories();
+        addExportImportButtons();
+    };
+});
+
+// QR 코드 생성 및 공유 기능 추가
+function shareCategories() {
+    try {
+        // 모든 데이터 가져오기
+        const allData = {
+            channelCategories: channelCategories,
+            exportDate: new Date().toISOString(),
+            appVersion: '1.0.0'
+        };
+        
+        // JSON 문자열로 변환
+        const jsonString = JSON.stringify(allData);
+        
+        // 데이터 크기 확인 (모바일에서 공유하기에 너무 큰지 확인)
+        const dataSizeKB = Math.round(jsonString.length / 1024);
+        
+        if (dataSizeKB > 100) {
+            showToast(`데이터 크기가 너무 큽니다 (${dataSizeKB}KB). 내보내기 기능을 사용해 주세요.`, 'warning');
+            return;
+        }
+        
+        // 데이터 URL 생성
+        const dataUrl = `data:application/json;charset=utf-8,${encodeURIComponent(jsonString)}`;
+        
+        // 공유 API 사용
+        if (navigator.share) {
+            const file = new File([jsonString], 'youtube-shorts-channels.json', {
+                type: 'application/json',
+            });
+            
+            navigator.share({
+                title: 'YouTube Shorts 채널 데이터',
+                text: 'YouTube Shorts 도구에서 내보낸 채널 카테고리 데이터입니다.',
+                files: [file]
+            }).then(() => {
+                showToast('데이터가 성공적으로 공유되었습니다!', 'success');
+            }).catch((error) => {
+                console.error('공유 오류:', error);
+                
+                // 공유 실패 시 다운로드 방식으로 대체
+                const downloadLink = document.createElement('a');
+                downloadLink.href = dataUrl;
+                downloadLink.download = `youtube-shorts-channels-${new Date().toISOString().slice(0, 10)}.json`;
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                
+                showToast('공유할 수 없어 다운로드로 대체되었습니다.', 'info');
+            });
+        } else {
+            // 공유 API를 지원하지 않는 경우 다운로드
+            const downloadLink = document.createElement('a');
+            downloadLink.href = dataUrl;
+            downloadLink.download = `youtube-shorts-channels-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            
+            showToast('공유 기능을 지원하지 않는 브라우저입니다. 파일이 다운로드되었습니다.', 'info');
+        }
+    } catch (error) {
+        console.error('데이터 공유 오류:', error);
+        showToast('데이터 공유 중 오류가 발생했습니다.', 'danger');
+    }
 }

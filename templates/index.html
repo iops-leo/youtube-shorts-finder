@@ -240,6 +240,14 @@
                 <div id="page-channels" class="page-content" style="display: none;">
                     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                         <h1 class="h2"><i class="fas fa-users me-2"></i>채널 관리</h1>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-sm btn-outline-info" id="shareDataBtn">
+                                <i class="fas fa-share-alt me-1"></i>모바일로 공유
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="showDataHelpBtn" data-bs-toggle="modal" data-bs-target="#dataHelpModal">
+                                <i class="fas fa-question-circle me-1"></i>도움말
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="row">
@@ -295,15 +303,14 @@
                         </div>
                     </div>
                 </div>
+                <footer class="footer mt-auto py-3 bg-dark text-white text-center">
+                    <div class="container">
+                        <p class="mb-0"><i class="far fa-copyright me-1"></i>2025 YouTube Shorts 도구</p>
+                    </div>
+                </footer>
             </main>
         </div>
     </div>
-
-    <footer class="bg-dark text-white text-center py-3 mt-5">
-        <div class="container">
-            <p class="mb-0"><i class="far fa-copyright me-1"></i>2025 YouTube Shorts 도구</p>
-        </div>
-    </footer>
 
     <!-- 검색 기록 모달 -->
     <div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalLabel" aria-hidden="true">
@@ -373,6 +380,60 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="dataHelpModal" tabindex="-1" aria-labelledby="dataHelpModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="dataHelpModalLabel">
+                        <i class="fas fa-info-circle me-2"></i>채널 데이터 공유 도움말
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <h6 class="fw-bold"><i class="fas fa-file-export me-1"></i>내보내기/가져오기</h6>
+                    <p>채널 카테고리 데이터를 JSON 파일로 내보내고 가져올 수 있습니다. 이 기능을 사용하여 다음이 가능합니다:</p>
+                    <ul>
+                        <li>채널 데이터 백업</li>
+                        <li>다른 기기와 채널 데이터 공유</li>
+                        <li>다양한 채널 세트 관리</li>
+                    </ul>
+                    
+                    <h6 class="fw-bold mt-3"><i class="fas fa-share-alt me-1"></i>모바일로 공유</h6>
+                    <p>채널 데이터를 다음 방법으로 모바일 기기와 공유할 수 있습니다:</p>
+                    <ol>
+                        <li><strong>모바일로 공유</strong> 버튼 클릭</li>
+                        <li>모바일에서 공유된 JSON 파일 저장</li>
+                        <li>모바일에서 YouTube Shorts 도구 열기</li>
+                        <li>채널 관리 페이지에서 <strong>가져오기</strong> 선택</li>
+                        <li>저장한 JSON 파일 선택</li>
+                    </ol>
+                    
+                    <div class="alert alert-info">
+                        <small><i class="fas fa-lightbulb me-1"></i>팁: 카카오톡, 이메일 등 파일 공유가 가능한 앱을 통해 데이터를 공유할 수 있습니다.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 공유 버튼 JavaScript 이벤트 리스너 추가 -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const shareDataBtn = document.getElementById('shareDataBtn');
+        if (shareDataBtn) {
+            shareDataBtn.addEventListener('click', function() {
+                if (typeof shareCategories === 'function') {
+                    shareCategories();
+                } else {
+                    alert('공유 기능을 로드할 수 없습니다.');
+                }
+            });
+        }
+    });
+    </script>
 
     <!-- 부트스트랩 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
