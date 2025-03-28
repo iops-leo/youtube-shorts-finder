@@ -1101,12 +1101,12 @@ def favicon():
 # 에러 핸들러
 @app.errorhandler(404)
 def page_not_found(e):
-    return render_template('/error/404.html'), 404
+    return render_template('error/404.html'), 404
 
 @app.errorhandler(500)
 def internal_error(e):
     app.logger.error(f'서버 오류: {str(e)}')
-    return render_template('/error/500.html'), 500
+    return render_template('error/500.html'), 500
 
 @app.route('/health')
 def health():
