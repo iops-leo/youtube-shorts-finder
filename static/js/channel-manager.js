@@ -99,7 +99,6 @@ function setupNavigationListeners() {
     });
 }
 
-// 카테고리 관련 함수
 // 카테고리 로드
 function loadCategories() {
     fetch('/api/categories')
