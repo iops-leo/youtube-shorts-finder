@@ -79,16 +79,22 @@ function setupNavigationListeners() {
             document.querySelectorAll('.nav-link').forEach(link => {
                 link.classList.remove('active');
             });
-            
+    
             // 클릭된 메뉴 활성화
             this.classList.add('active');
-            
+    
             // 해당 페이지 표시
             const targetId = this.getAttribute('href').substring(1);
             document.querySelectorAll('.page-content').forEach(page => {
                 page.style.display = 'none';
             });
-            document.getElementById(targetId).style.display = 'block';
+    
+            const targetElement = document.getElementById(targetId);
+            if (targetElement) {
+                targetElement.style.display = 'block';
+            } else {
+                console.warn(`ID '${targetId}' 요소를 찾을 수 없습니다.`);
+            }
         });
     });
 }
