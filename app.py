@@ -10,6 +10,7 @@ import time
 import hashlib
 import re
 import math
+from deep_translator import GoogleTranslator
 
 app = Flask(__name__)
 
@@ -23,6 +24,9 @@ api_key_str = os.environ.get('YOUTUBE_API_KEY', '')
 # 캐시 설정 (API 호출 결과를 메모리에 저장)
 CACHE_TIMEOUT = 600  # 캐시 유효시간 (초)
 cache = {}
+
+# 번역 캐시 설정
+translation_cache = {}
 
 if api_key_str:
     api_keys = [key.strip() for key in api_key_str.split(',') if key.strip()]
@@ -50,6 +54,49 @@ def switch_to_next_api_key():
     new_key = get_current_api_key()
     print(f"API 키 전환: 인덱스 {current_key_index}의 키로 변경됨")
     return new_key
+
+def translate_text(text, target_lang='ko'):
+    """텍스트를 대상 언어로 번역"""
+    if not text or text.strip() == "":
+        return ""
+        
+    # 텍스트 길이 제한 (API 제한 고려)
+    if len(text) > 5000:
+        text = text[:5000]
+    
+    # 캐시 키 생성 (텍스트 + 대상 언어)
+    cache_key = f"{text}_{target_lang}"
+    
+    # 캐시에서 번역 확인
+    if cache_key in translation_cache:
+        print(f"번역 캐시 히트: {text[:30]}...")
+        return translation_cache[cache_key]
+    
+    try:
+        # 번역 실행
+        translator = GoogleTranslator(source='auto', target=target_lang)
+        translated = translator.translate(text)
+        
+        # 번역 결과가 None이거나 빈 문자열이면 원본 반환
+        if not translated:
+            return text
+            
+        # 번역 결과 캐싱
+        translation_cache[cache_key] = translated
+        
+        print(f"번역 완료: {text[:30]}... -> {translated[:30]}...")
+        return translated
+    except Exception as e:
+        print(f"번역 오류: {str(e)}")
+        return text  # 오류 시 원본 반환
+        
+    # 번역 캐시 크기 제한
+    if len(translation_cache) > 1000:
+        # 가장 오래된 항목 50개 제거
+        oldest_keys = list(translation_cache.keys())[:50]
+        for key in oldest_keys:
+            if key in translation_cache:
+                del translation_cache[key]
 
 def get_cache_key(params):
     """파라미터로부터 캐시 키 생성"""
@@ -370,9 +417,26 @@ def perform_search(youtube, min_views, days_ago, max_results,
                     # 최소 조회수 체크
                     if view_count >= min_views and duration_seconds <= 60:
                         print(f"비디오 발견: {item['snippet']['title']} - 조회수: {view_count}, 지역: {region_code}")
+                        
+                        # 원본 제목 저장
+                        original_title = item['snippet']['title']
+                        
+                        # 제목 번역 (한국어가 아닌 경우에만)
+                        translated_title = None
+                        try:
+                            # 언어 감지 및 번역 (한국어가 아닌 경우)
+                            if not any('\uAC00' <= char <= '\uD7A3' for char in original_title):  # 한글 문자 범위 확인
+                                translated_title = translate_text(original_title, 'ko')
+                                # 번역 결과가 원본과 동일하거나 빈 문자열이면 무시
+                                if translated_title == original_title or not translated_title:
+                                    translated_title = None
+                        except Exception as e:
+                            print(f"제목 번역 중 오류: {str(e)}")
+                        
                         filtered_videos.append({
                             'id': item['id'],
-                            'title': item['snippet']['title'],
+                            'title': original_title,
+                            'translated_title': translated_title,  # 번역된 제목 추가
                             'channelTitle': item['snippet']['channelTitle'],
                             'channelId': item['snippet']['channelId'],
                             'publishedAt': item['snippet']['publishedAt'],

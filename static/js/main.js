@@ -465,6 +465,7 @@ function renderResults(page = 1) {
     }
 }
 
+
 // 비디오 카드 생성 함수
 function createVideoCard(video) {
     const publishDate = new Date(video.publishedAt).toLocaleDateString('ko-KR');

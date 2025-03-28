@@ -181,6 +181,7 @@ function deleteCategory(categoryId) {
 }
 
 // 카테고리 UI 렌더링
+// 카테고리 UI 렌더링
 function renderCategories() {
     // 카테고리 컨테이너가 없으면 종료
     if (!categoriesContainer) return;
@@ -208,11 +209,11 @@ function renderCategories() {
         html += `
             <div class="category-card mb-4" data-category-id="${category.id}">
                 <div class="card">
-                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <div class="card-header">
                         <h5 class="mb-0">
                             <i class="fas fa-folder me-2"></i>${category.name}
                         </h5>
-                        <div>
+                        <div class="d-flex gap-2">
                             <button class="btn btn-sm btn-success btn-add-channel" data-category-id="${category.id}">
                                 <i class="fas fa-user-plus me-1"></i>채널 추가
                             </button>
@@ -242,6 +243,9 @@ function renderCategories() {
     
     // 이벤트 리스너 추가
     attachCategoryEventListeners();
+    
+    // 내보내기/가져오기 버튼 추가 (모든 카테고리 카드에)
+    addExportImportButtons();
 }
 
 // 채널 목록 HTML 생성
@@ -853,6 +857,7 @@ function handleFileImport(event, mode = 'replace') {
 }
 
 // UI에 내보내기/가져오기 버튼 추가
+// UI에 내보내기/가져오기 버튼 추가
 function addExportImportButtons() {
     // 카테고리 헤더 찾기
     const categoryHeader = document.querySelector('.card-header h5');
@@ -863,24 +868,24 @@ function addExportImportButtons() {
     if (!headerContainer) return;
     
     // 이미 버튼이 있는지 확인
-    if (headerContainer.querySelector('.data-export-btn')) return;
+    if (headerContainer.querySelector('.header-buttons')) return;
     
-    // 버튼 컨테이너 생성
+    // 버튼 컨테이너 생성 (클래스 변경)
     const btnContainer = document.createElement('div');
-    btnContainer.className = 'd-flex';
+    btnContainer.className = 'header-buttons';
     
-    // 내보내기 버튼
+    // 내보내기 버튼 (스타일 변경)
     const exportBtn = document.createElement('button');
     exportBtn.type = 'button';
-    exportBtn.className = 'btn btn-sm btn-outline-primary me-2 data-export-btn';
+    exportBtn.className = 'btn btn-primary btn-sm data-export-btn';
     exportBtn.innerHTML = '<i class="fas fa-file-export me-1"></i>내보내기';
     exportBtn.addEventListener('click', exportChannelCategories);
     
-    // 가져오기 버튼 (드롭다운)
+    // 가져오기 버튼 (드롭다운) (스타일 변경)
     const importDropdown = document.createElement('div');
     importDropdown.className = 'dropdown';
     importDropdown.innerHTML = `
-        <button class="btn btn-sm btn-outline-success dropdown-toggle data-import-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <button class="btn btn-success btn-sm dropdown-toggle data-import-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="fas fa-file-import me-1"></i>가져오기
         </button>
         <ul class="dropdown-menu">
