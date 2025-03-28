@@ -1153,12 +1153,15 @@ def internal_error(e):
     app.logger.error(f'서버 오류: {str(e)}')
     return render_template('500.html'), 500
 
-if __name__ == '__main__':
-    if not api_keys:
-        print("경고: YOUTUBE_API_KEY 환경 변수가 설정되지 않았습니다.")
-        print("다음 명령으로 설정하세요: export YOUTUBE_API_KEY='YOUR_API_KEY_1,YOUR_API_KEY_2,YOUR_API_KEY_3'")
-    else:
-        print(f"{len(api_keys)}개의 YouTube API 키가 로드되었습니다.")
+@app.before_first_request
+def create_tables():
+    db.create_all()
+    app.logger.info('데이터베이스 테이블 생성 완료')
 
+@app.route('/health')
+def health():
+    return jsonify({"status": "ok"})
+
+if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=True)  # 디버그 모드 활성화
