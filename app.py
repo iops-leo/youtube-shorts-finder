@@ -223,7 +223,23 @@ def admin_users():
         return redirect(url_for('index'))
     
     users = User.query.order_by(User.created_at.desc()).all()
-    return render_template('admin_users.html', users=users)
+    
+    # 사용자 목록을 사전 형태로 변환하고 datetime 객체를 문자열로 변환
+    users_list = []
+    for user in users:
+        user_dict = {
+            'id': user.id,
+            'email': user.email,
+            'name': user.name,
+            'picture': user.picture,
+            'role': user.role,
+            'created_at': user.created_at.strftime('%Y-%m-%d %H:%M:%S') if user.created_at else None,
+            'last_login': user.last_login.strftime('%Y-%m-%d %H:%M:%S') if user.last_login else None,
+            'api_calls': user.api_calls
+        }
+        users_list.append(user_dict)
+    
+    return render_template('admin_users.html', users=users_list)
 
 # 사용자 승인/거부
 @app.route('/admin/users/<user_id>/approve', methods=['POST'])

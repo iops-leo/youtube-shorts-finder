@@ -152,8 +152,8 @@
                                     <span class="badge bg-danger">관리자</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ user['created_at'].split(' ')[0] if user['created_at'] else 'N/A' }}</td>
-                                <td>{{ user['last_login'].split(' ')[0] if user['last_login'] else 'N/A' }}</td>
+                                <td>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else 'N/A' }}</td>
+                                <td>{{ user.last_login.strftime('%Y-%m-%d') if user.last_login else 'N/A' }}</td>
                                 <td>{{ user['api_calls'] }}</td>
                                 <td>
                                     <div class="dropdown">
