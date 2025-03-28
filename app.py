@@ -116,7 +116,7 @@ def login():
         return redirect(url_for('index'))
     
     flow = get_google_flow()
-    # redirect_uri는 OAuth 구성에 이미 있으므로 여기서 다시 지정하지 마세요
+    flow.redirect_uri = "https://shorts.ddns.net/login/callback"
     authorization_url, state = flow.authorization_url(
         access_type='offline',
         include_granted_scopes='true'
