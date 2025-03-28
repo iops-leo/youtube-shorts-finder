@@ -224,7 +224,6 @@ def admin_users():
     
     users = User.query.order_by(User.created_at.desc()).all()
     
-    # 사용자 목록을 사전 형태로 변환하고 datetime 객체를 문자열로 변환
     users_list = []
     for user in users:
         user_dict = {
@@ -238,8 +237,15 @@ def admin_users():
             'api_calls': user.api_calls
         }
         users_list.append(user_dict)
-    
-    return render_template('admin_users.html', users=users_list)
+
+    # 오늘 API 호출 수 계산 (관리자 계정 기준 또는 전체 합산도 가능)
+    today = datetime.utcnow().date()
+    daily_api_calls = ApiLog.query.filter(
+        ApiLog.user_id == current_user.id,
+        db.func.date(ApiLog.timestamp) == today
+    ).count()
+
+    return render_template('admin_users.html', users=users_list, daily_api_calls=daily_api_calls)
 
 # 사용자 승인/거부
 @app.route('/admin/users/<user_id>/approve', methods=['POST'])
