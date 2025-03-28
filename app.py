@@ -133,6 +133,7 @@ def login_callback():
         return redirect(url_for('login'))
     
     flow = get_google_flow()
+    flow.redirect_uri = "https://shorts.ddns.net/login/callback"
     flow.fetch_token(authorization_response=request.url)
     
     credentials = flow.credentials
