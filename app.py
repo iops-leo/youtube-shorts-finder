@@ -83,9 +83,7 @@ class ApiLog(db.Model):
     
     user = db.relationship('User', backref=db.backref('api_logs', lazy=True))
 
-# 데이터베이스 초기화 함수
-@app.before_first_request
-def create_tables():
+with app.app_context():
     db.create_all()
     app.logger.info('데이터베이스 테이블 생성 완료')
 
@@ -1152,11 +1150,6 @@ def page_not_found(e):
 def internal_error(e):
     app.logger.error(f'서버 오류: {str(e)}')
     return render_template('500.html'), 500
-
-@app.before_first_request
-def create_tables():
-    db.create_all()
-    app.logger.info('데이터베이스 테이블 생성 완료')
 
 @app.route('/health')
 def health():
