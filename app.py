@@ -106,6 +106,7 @@ def get_google_flow():
         },
         scopes=["openid", "email", "profile"]
     )
+    flow.redirect_uri = "https://shorts.ddns.net/login/callback"
     return flow
 
 # 로그인 페이지
@@ -116,9 +117,12 @@ def login():
         return redirect(url_for('index'))
     
     flow = get_google_flow()
+    
+    # 명시적으로 파라미터 추가
     authorization_url, state = flow.authorization_url(
         access_type='offline',
-        include_granted_scopes='true'
+        include_granted_scopes='true',
+        redirect_uri=flow.redirect_uri  # 명시적으로 redirect_uri 추가
     )
     
     session['state'] = state
