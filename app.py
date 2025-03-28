@@ -106,23 +106,21 @@ def get_google_flow():
         },
         scopes=["openid", "email", "profile"]
     )
-    flow.redirect_uri = "https://shorts.ddns.net/login/callback"
+
     return flow
 
 # 로그인 페이지
 @app.route('/login')
 def login():
-    # 이미 로그인한 사용자는 메인 페이지로 리디렉션
     if current_user.is_authenticated:
         return redirect(url_for('index'))
     
     flow = get_google_flow()
-    
-    # 명시적으로 파라미터 추가
+    # redirect_uri는 OAuth 구성에 이미 있으므로 여기서 다시 지정하지 마세요
     authorization_url, state = flow.authorization_url(
         access_type='offline',
-        include_granted_scopes='true',
-        redirect_uri=flow.redirect_uri  # 명시적으로 redirect_uri 추가
+        include_granted_scopes='true'
+        # redirect_uri 파라미터 제거
     )
     
     session['state'] = state
