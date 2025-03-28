@@ -101,7 +101,7 @@ def get_google_flow():
                 "client_secret": app.config['GOOGLE_CLIENT_SECRET'],
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [request.base_url + "/callback"]
+                "redirect_uris": ["https://shorts.ddns.net/login/callback"]
             }
         },
         scopes=["openid", "email", "profile"]
