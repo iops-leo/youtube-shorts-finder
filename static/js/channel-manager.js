@@ -73,28 +73,28 @@ function setupNavigationListeners() {
     // 메뉴 항목 클릭 처리
     document.querySelectorAll('.nav-link').forEach(navLink => {
         navLink.addEventListener('click', function(e) {
+            // 관리자 페이지 링크인 경우 기본 동작 허용 (URL로 이동)
+            if (this.getAttribute('href').startsWith('/admin/')) {
+                return;
+            }
+            
+            // 그 외의 메뉴 아이템 처리 (기존 방식대로)
             e.preventDefault();
             
             // 모든 메뉴 비활성화
             document.querySelectorAll('.nav-link').forEach(link => {
                 link.classList.remove('active');
             });
-    
+            
             // 클릭된 메뉴 활성화
             this.classList.add('active');
-    
+            
             // 해당 페이지 표시
             const targetId = this.getAttribute('href').substring(1);
             document.querySelectorAll('.page-content').forEach(page => {
                 page.style.display = 'none';
             });
-    
-            const targetElement = document.getElementById(targetId);
-            if (targetElement) {
-                targetElement.style.display = 'block';
-            } else {
-                console.warn(`ID '${targetId}' 요소를 찾을 수 없습니다.`);
-            }
+            document.getElementById(targetId).style.display = 'block';
         });
     });
 }

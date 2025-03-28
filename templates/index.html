@@ -534,6 +534,15 @@
                     `;
                 });
             };
+
+            const adminLinks = document.querySelectorAll('a[href^="/admin/"]');
+    
+            adminLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.stopPropagation(); // 이벤트 버블링 방지
+                // 기본 동작 허용 (URL로 이동)
+            });
+            });
         });
     </script>
 </body>
