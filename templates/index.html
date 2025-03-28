@@ -24,6 +24,13 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
+                    {% if current_user.is_admin() %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin/users">
+                            <i class="fas fa-user-cog me-1"></i>관리자 페이지
+                        </a>
+                    </li>
+                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link" href="#" id="historyButton" data-bs-toggle="modal" data-bs-target="#historyModal">
                             <i class="fas fa-history me-1"></i>검색 기록
