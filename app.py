@@ -20,11 +20,13 @@ import google.auth.transport.requests
 import logging
 from logging.handlers import RotatingFileHandler
 import requests
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key')  # 실제 배포 시 환경 변수로 설정해야 함
 app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID', '')  # Google OAuth 클라이언트 ID
 app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET', '')  # Google OAuth 클라이언트 시크릿
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # PostgreSQL 연결 설정
 # Railway는 DATABASE_URL 환경 변수를 자동으로 제공합니다
@@ -1099,12 +1101,12 @@ def favicon():
 # 에러 핸들러
 @app.errorhandler(404)
 def page_not_found(e):
-    return render_template('404.html'), 404
+    return render_template('/error/404.html'), 404
 
 @app.errorhandler(500)
 def internal_error(e):
     app.logger.error(f'서버 오류: {str(e)}')
-    return render_template('500.html'), 500
+    return render_template('/error/500.html'), 500
 
 @app.route('/health')
 def health():
