@@ -106,9 +106,12 @@ def get_google_flow():
                 "redirect_uris": ["https://shorts.ddns.net/login/callback"]
             }
         },
-        scopes=["openid", "email", "profile"]
+        scopes=[
+            "openid",
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/userinfo.profile"
+        ]
     )
-
     return flow
 
 # 로그인 페이지
