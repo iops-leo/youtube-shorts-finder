@@ -900,54 +900,6 @@ def perform_search(youtube, min_views, days_ago, max_results,
     print(f"필터링 후 최종 결과: {len(filtered_videos)}개 항목")
     return filtered_videos
 
-@app.route('/')
-def index():
-    # 카테고리, 국가, 언어 리스트
-    categories = [
-        {"id": "any", "name": "모든 카테고리"},
-        {"id": "1", "name": "영화 & 애니메이션"},
-        {"id": "2", "name": "자동차 & 차량"},
-        {"id": "10", "name": "음악"},
-        {"id": "15", "name": "애완동물 & 동물"},
-        {"id": "17", "name": "스포츠"},
-        {"id": "20", "name": "게임"},
-        {"id": "22", "name": "인물 & 블로그"},
-        {"id": "23", "name": "코미디"},
-        {"id": "24", "name": "엔터테인먼트"},
-        {"id": "25", "name": "뉴스 & 정치"},
-        {"id": "26", "name": "노하우 & 스타일"},
-        {"id": "27", "name": "교육"},
-        {"id": "28", "name": "과학 & 기술"}
-    ]
-    regions = [
-        {"code": "KR", "name": "대한민국"},
-        {"code": "US", "name": "미국"},
-        {"code": "JP", "name": "일본"},
-        {"code": "GB", "name": "영국"},
-        {"code": "FR", "name": "프랑스"},
-        {"code": "DE", "name": "독일"},
-        {"code": "CA", "name": "캐나다"},
-        {"code": "AU", "name": "호주"},
-        {"code": "CN", "name": "중국"}
-    ]
-    languages = [
-        {"code": "any", "name": "모든 언어"},
-        {"code": "ko", "name": "한국어"},
-        {"code": "en", "name": "영어"},
-        {"code": "ja", "name": "일본어"},
-        {"code": "zh", "name": "중국어"},
-        {"code": "es", "name": "스페인어"},
-        {"code": "fr", "name": "프랑스어"},
-        {"code": "de", "name": "독일어"}
-    ]
-
-    # 기본값 설정
-    selected_region = request.args.get('region', 'KR')
-    selected_language = request.args.get('language', 'ko')
-
-    return render_template('index.html', categories=categories, regions=regions, languages=languages,
-                           selected_region=selected_region, selected_language=selected_language)
-
 
 @app.route('/search', methods=['POST'])
 def search():
