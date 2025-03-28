@@ -29,12 +29,12 @@ document.addEventListener('DOMContentLoaded', function() {
     updateSelectedChannelsUI();
 
     // 이미 마이그레이션이 완료되었는지 확인
-    const migrationCompleted = localStorage.getItem('migration_completed');
+    // const migrationCompleted = localStorage.getItem('migration_completed');
 
-    if (!migrationCompleted) {
-        // 마이그레이션 실행
-        migrateLocalStorageToServer();
-    }
+    // if (!migrationCompleted) {
+    //     // 마이그레이션 실행
+    //     migrateLocalStorageToServer();
+    // }
     
     // 이벤트 리스너 설정
     setupEventListeners();
