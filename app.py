@@ -8,7 +8,6 @@ import json
 from functools import lru_cache
 import time
 import hashlib
-from deep_translator import GoogleTranslator
 import re
 import math
 
@@ -370,20 +369,10 @@ def perform_search(youtube, min_views, days_ago, max_results,
 
                     # 최소 조회수 체크
                     if view_count >= min_views and duration_seconds <= 60:
-                        video_title = item['snippet']['title']
-                        
-                        # 여기에 번역 로직 추가
-                        translated_title = None
-                        try:
-                            translated_title = translate_non_korean_title(video_title)
-                        except Exception as trans_e:
-                            print(f"제목 번역 중 오류: {str(trans_e)}")
-                        
-                        print(f"비디오 발견: {video_title} - 조회수: {view_count}, 지역: {region_code}")
+                        print(f"비디오 발견: {item['snippet']['title']} - 조회수: {view_count}, 지역: {region_code}")
                         filtered_videos.append({
                             'id': item['id'],
-                            'title': video_title,
-                            'translated_title': translated_title,  # 번역된 제목 추가
+                            'title': item['snippet']['title'],
                             'channelTitle': item['snippet']['channelTitle'],
                             'channelId': item['snippet']['channelId'],
                             'publishedAt': item['snippet']['publishedAt'],
@@ -408,39 +397,6 @@ def perform_search(youtube, min_views, days_ago, max_results,
     
     print(f"필터링 후 최종 결과: {len(filtered_videos)}개 항목")
     return filtered_videos
-
-
-# 2. 헬퍼 함수 추가
-def is_korean(text):
-    """텍스트가 한국어인지 확인하는 함수"""
-    # 한글 유니코드 범위: AC00-D7A3 (가-힣)
-    korean_regex = re.compile(r'[가-힣]')
-    # 텍스트에 한글이 전체 길이의 30% 이상 포함되어 있는지 확인
-    korean_chars = korean_regex.findall(text)
-    return len(korean_chars) / len(text) >= 0.3 if text and len(text) > 0 else False
-
-def translate_non_korean_title(title):
-    """한국어가 아닌 제목을 번역하는 함수"""
-    try:
-        # 이미 한국어인 경우 번역하지 않음
-        if is_korean(title):
-            return None
-        
-        # 제목이 너무 짧은 경우 (예: 3글자 이하) 번역하지 않음
-        if len(title.strip()) <= 3:
-            return None
-        
-        # 영어 등 다른 언어에서 한국어로 번역
-        translated = GoogleTranslator(source='auto', target='ko').translate(title)
-        
-        # 번역된 결과가 원본과 동일하거나 None인 경우 처리
-        if translated == title or translated is None or translated == "":
-            return None
-            
-        return translated
-    except Exception as e:
-        print(f"번역 중 오류 발생: {str(e)}")
-        return None
 
 @app.route('/')
 def index():
@@ -666,6 +622,20 @@ def channel_search():
 def serve_static(filename):
     return send_from_directory(app.static_folder, filename)
 
+@app.route('/static/js/<path:filename>')
+def serve_js(filename):
+    return send_from_directory(os.path.join(app.static_folder, 'js'), filename)
+
+@app.route('/static/css/<path:filename>')
+def serve_css(filename):
+    return send_from_directory(os.path.join(app.static_folder, 'css'), filename)
+
+@app.route('/favicon.ico')
+def favicon():
+    """Favicon 반환 라우트"""
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
 if __name__ == '__main__':
     if not api_keys:
         print("경고: YOUTUBE_API_KEY 환경 변수가 설정되지 않았습니다.")
@@ -675,9 +645,3 @@ if __name__ == '__main__':
 
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
-
-@app.route('/favicon.ico')
-def favicon():
-    """Favicon 반환 라우트"""
-    return send_from_directory(os.path.join(app.root_path, 'static'),
-                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
