@@ -189,7 +189,7 @@
                 {% endwith %}
                 
                 <div class="user-info">
-                    <img src="{{ current_user.picture }}" alt="프로필 이미지" class="user-avatar" onerror="this.src='https://via.placeholder.com/60'">
+                    <img src="{{ current_user.picture }}" alt="프로필 이미지" class="user-avatar" onerror="this.src='/static/img/default-profile.png'">
                     <div class="user-details">
                         <h5 class="mb-1">{{ current_user.name }}</h5>
                         <p class="text-muted mb-0">{{ current_user.email }}</p>

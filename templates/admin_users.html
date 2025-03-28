@@ -139,7 +139,7 @@
                             {% for user in users %}
                             <tr data-role="{{ user['role'] }}">
                                 <td>
-                                    <img src="{{ user['picture'] }}" alt="프로필" class="rounded-circle" style="width: 40px; height: 40px;" onerror="this.src='https://via.placeholder.com/40'">
+                                    <img src="{{ user['picture'] }}" alt="프로필" class="rounded-circle" style="width: 40px; height: 40px;" onerror="this.src='/static/img/default-profile.png'">
                                 </td>
                                 <td>{{ user['name'] }}</td>
                                 <td>{{ user['email'] }}</td>
