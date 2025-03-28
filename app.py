@@ -155,7 +155,7 @@ def login_callback():
     user_id = id_info['sub']
     email = id_info['email']
     name = id_info.get('name', 'Unknown')
-    picture = id_info.get('picture', '')
+    picture = id_info.get('picture', '').split(';')[0]
     
     # 데이터베이스에서 사용자 확인 또는 생성
     user = User.query.get(user_id)
