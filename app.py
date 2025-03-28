@@ -1,9 +1,11 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+import os
+from flask import Flask, render_template, request, jsonify, send_from_directory, redirect, url_for, session, flash
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 import googleapiclient.discovery
 import pytz
 import isodate
-import os
 import json
 from functools import lru_cache
 import time
@@ -11,8 +13,398 @@ import hashlib
 import re
 import math
 from deep_translator import GoogleTranslator
+import uuid
+from google.oauth2 import id_token
+from google_auth_oauthlib.flow import Flow
+import google.auth.transport.requests
+import logging
+from logging.handlers import RotatingFileHandler
+import requests
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key')  # 실제 배포 시 환경 변수로 설정해야 함
+app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID', '')  # Google OAuth 클라이언트 ID
+app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET', '')  # Google OAuth 클라이언트 시크릿
+
+# PostgreSQL 연결 설정
+# Railway는 DATABASE_URL 환경 변수를 자동으로 제공합니다
+db_url = os.environ.get('DATABASE_URL', '')
+# Heroku 호환성을 위해 'postgres://'를 'postgresql://'로 변경
+if db_url.startswith('postgres://'):
+    db_url = db_url.replace('postgres://', 'postgresql://')
+
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+# 로그 설정
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+file_handler = RotatingFileHandler('logs/app.log', maxBytes=10485760, backupCount=10)
+file_handler.setFormatter(logging.Formatter(
+    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+))
+file_handler.setLevel(logging.INFO)
+app.logger.addHandler(file_handler)
+app.logger.setLevel(logging.INFO)
+app.logger.info('애플리케이션 시작')
+
+# 로그인 매니저 설정
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+# 정적 파일 경로 설정
+app.static_folder = 'static'
+
+# 데이터베이스 모델 정의
+class User(db.Model, UserMixin):
+    id = db.Column(db.String(128), primary_key=True)
+    email = db.Column(db.String(128), unique=True, nullable=False)
+    name = db.Column(db.String(128), nullable=False)
+    picture = db.Column(db.String(256))
+    role = db.Column(db.String(20), default='pending')  # pending, approved, admin
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime)
+    api_calls = db.Column(db.Integer, default=0)
+
+    def is_admin(self):
+        return self.role == 'admin'
+    
+    def is_approved(self):
+        return self.role == 'approved' or self.role == 'admin'
+
+class ApiLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(128), db.ForeignKey('user.id'))
+    endpoint = db.Column(db.String(128), nullable=False)
+    params = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('api_logs', lazy=True))
+
+# 데이터베이스 초기화 함수
+@app.before_first_request
+def create_tables():
+    db.create_all()
+    app.logger.info('데이터베이스 테이블 생성 완료')
+
+# 사용자 로딩 콜백
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(user_id)
+
+# Google OAuth 클라이언트 설정
+def get_google_flow():
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": app.config['GOOGLE_CLIENT_ID'],
+                "client_secret": app.config['GOOGLE_CLIENT_SECRET'],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [request.base_url + "/callback"]
+            }
+        },
+        scopes=["openid", "email", "profile"]
+    )
+    return flow
+
+# 로그인 페이지
+@app.route('/login')
+def login():
+    # 이미 로그인한 사용자는 메인 페이지로 리디렉션
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    
+    flow = get_google_flow()
+    authorization_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true'
+    )
+    
+    session['state'] = state
+    return render_template('login.html', auth_url=authorization_url)
+
+# 로그인 콜백 처리
+@app.route('/login/callback')
+def login_callback():
+    if 'state' not in session:
+        return redirect(url_for('login'))
+    
+    flow = get_google_flow()
+    flow.fetch_token(authorization_response=request.url)
+    
+    credentials = flow.credentials
+    request_session = requests.session()
+    token_request = google.auth.transport.requests.Request(session=request_session)
+    
+    id_info = id_token.verify_oauth2_token(
+        id_token=credentials.id_token,
+        request=token_request,
+        audience=app.config['GOOGLE_CLIENT_ID']
+    )
+    
+    # 사용자 정보 가져오기
+    user_id = id_info['sub']
+    email = id_info['email']
+    name = id_info.get('name', 'Unknown')
+    picture = id_info.get('picture', '')
+    
+    # 데이터베이스에서 사용자 확인 또는 생성
+    user = User.query.get(user_id)
+    
+    if user:
+        # 기존 사용자 업데이트
+        user.last_login = datetime.utcnow()
+        user.name = name
+        user.picture = picture
+        user_role = user.role
+    else:
+        # 새 사용자 추가 (기본적으로 pending 상태)
+        user = User(
+            id=user_id,
+            email=email,
+            name=name,
+            picture=picture,
+            role='pending',
+            created_at=datetime.utcnow(),
+            last_login=datetime.utcnow()
+        )
+        db.session.add(user)
+        user_role = 'pending'
+        app.logger.info(f'새 사용자 등록: {email}')
+    
+    db.session.commit()
+    
+    # 사용자 로그인
+    login_user(user)
+    
+    app.logger.info(f'사용자 로그인: {email}')
+    
+    # pending 상태인 경우 대기 페이지로 리디렉션
+    if user_role == 'pending':
+        flash('계정이 승인 대기 중입니다. 관리자의 승인이 필요합니다.', 'warning')
+        return redirect(url_for('pending'))
+    
+    # 원래 접근하려던 페이지가 있으면 해당 페이지로, 없으면 인덱스로 리디렉션
+    next_page = session.get('next', url_for('index'))
+    session.pop('next', None)
+    return redirect(next_page)
+
+# 로그아웃
+@app.route('/logout')
+def logout():
+    if current_user.is_authenticated:
+        app.logger.info(f'사용자 로그아웃: {current_user.email}')
+    logout_user()
+    return redirect(url_for('index'))
+
+# 승인 대기 페이지
+@app.route('/pending')
+@login_required
+def pending():
+    if current_user.is_approved():
+        return redirect(url_for('index'))
+    return render_template('pending.html')
+
+# 관리자 페이지 - 사용자 관리
+@app.route('/admin/users')
+@login_required
+def admin_users():
+    if not current_user.is_admin():
+        flash('관리자 권한이 필요합니다.', 'danger')
+        return redirect(url_for('index'))
+    
+    users = User.query.order_by(User.created_at.desc()).all()
+    return render_template('admin_users.html', users=users)
+
+# 사용자 승인/거부
+@app.route('/admin/users/<user_id>/approve', methods=['POST'])
+@login_required
+def approve_user(user_id):
+    if not current_user.is_admin():
+        return jsonify({"status": "error", "message": "관리자 권한이 필요합니다."})
+    
+    action = request.form.get('action')
+    if action not in ['approve', 'reject', 'make_admin', 'remove_admin']:
+        return jsonify({"status": "error", "message": "유효하지 않은 작업입니다."})
+    
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"status": "error", "message": "사용자를 찾을 수 없습니다."})
+    
+    if action == 'approve':
+        user.role = 'approved'
+        message = "사용자가 승인되었습니다."
+    elif action == 'reject':
+        db.session.delete(user)
+        message = "사용자가 거부되었습니다."
+    elif action == 'make_admin':
+        user.role = 'admin'
+        message = "사용자가 관리자로 설정되었습니다."
+    else:  # remove_admin
+        user.role = 'approved'
+        message = "관리자 권한이 제거되었습니다."
+    
+    db.session.commit()
+    
+    app.logger.info(f'관리자 {current_user.email}가 사용자 {user_id}에 대해 {action} 작업 수행')
+    
+    return jsonify({"status": "success", "message": message})
+
+# API 호출 로깅 함수
+def log_api_call(endpoint, params=None):
+    if current_user.is_authenticated:
+        # API 호출 로그 저장
+        api_log = ApiLog(
+            user_id=current_user.id,
+            endpoint=endpoint,
+            params=json.dumps(params) if params else None
+        )
+        db.session.add(api_log)
+        
+        # 사용자의 API 호출 횟수 증가
+        current_user.api_calls += 1
+        db.session.commit()
+        
+        app.logger.info(f'API 호출: {endpoint} by {current_user.email}')
+
+# API 호출 제한 함수
+def check_api_limits():
+    if current_user.is_authenticated:
+        # 관리자는 제한 없음
+        if current_user.is_admin():
+            return True
+        
+        # 승인된 사용자는 일일 호출 제한 (예: 100회)
+        if current_user.is_approved():
+            # 오늘 API 호출 횟수 확인
+            today = datetime.utcnow().date()
+            daily_calls = ApiLog.query.filter(
+                ApiLog.user_id == current_user.id,
+                db.func.date(ApiLog.timestamp) == today
+            ).count()
+            
+            if daily_calls >= 100:  # 일일 API 호출 제한
+                return False
+        
+        return True
+    
+    return False  # 비인증 사용자는 제한
+
+# API 접근 권한 검사 래퍼 함수
+def api_login_required(f):
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_approved():
+            return jsonify({"status": "error", "message": "승인된 사용자만 API에 접근할 수 있습니다."})
+        
+        if not check_api_limits():
+            return jsonify({"status": "error", "message": "일일 API 호출 제한에 도달했습니다."})
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+# 메인 페이지에 로그인 상태 반영
+@app.route('/')
+def index():
+    # 로그인하지 않았거나 승인되지 않은 사용자는 로그인 페이지로 리디렉션
+    if not current_user.is_authenticated:
+        return redirect(url_for('login'))
+    
+    if not current_user.is_approved():
+        return redirect(url_for('pending'))
+    
+    # 오늘 API 호출 횟수 계산
+    today = datetime.utcnow().date()
+    daily_api_calls = ApiLog.query.filter(
+        ApiLog.user_id == current_user.id,
+        db.func.date(ApiLog.timestamp) == today
+    ).count()
+    
+    # 기존 index 함수 로직 유지 (카테고리, 국가, 언어 리스트 등)
+    categories = [
+        {"id": "any", "name": "모든 카테고리"},
+        {"id": "1", "name": "영화 & 애니메이션"},
+        {"id": "2", "name": "자동차 & 차량"},
+        {"id": "10", "name": "음악"},
+        {"id": "15", "name": "애완동물 & 동물"},
+        {"id": "17", "name": "스포츠"},
+        {"id": "20", "name": "게임"},
+        {"id": "22", "name": "인물 & 블로그"},
+        {"id": "23", "name": "코미디"},
+        {"id": "24", "name": "엔터테인먼트"},
+        {"id": "25", "name": "뉴스 & 정치"},
+        {"id": "26", "name": "노하우 & 스타일"},
+        {"id": "27", "name": "교육"},
+        {"id": "28", "name": "과학 & 기술"}
+    ]
+    regions = [
+        {"code": "all", "name": "모든 국가"},
+        {"code": "KR", "name": "대한민국"},
+        {"code": "US", "name": "미국"},
+        {"code": "JP", "name": "일본"},
+        {"code": "GB", "name": "영국"},
+        {"code": "FR", "name": "프랑스"},
+        {"code": "DE", "name": "독일"},
+        {"code": "CA", "name": "캐나다"},
+        {"code": "AU", "name": "호주"},
+        {"code": "CN", "name": "중국"}
+    ]
+    languages = [
+        {"code": "any", "name": "모든 언어"},
+        {"code": "ko", "name": "한국어"},
+        {"code": "en", "name": "영어"},
+        {"code": "ja", "name": "일본어"},
+        {"code": "zh", "name": "중국어"},
+        {"code": "es", "name": "스페인어"},
+        {"code": "fr", "name": "프랑스어"},
+        {"code": "de", "name": "독일어"}
+    ]
+
+    # 기본값 설정
+    selected_region = request.args.get('region', 'KR')
+    selected_language = request.args.get('language', 'ko')
+
+    return render_template('index.html', 
+                          categories=categories, 
+                          regions=regions, 
+                          languages=languages,
+                          selected_region=selected_region, 
+                          selected_language=selected_language,
+                          daily_api_calls=daily_api_calls)
+
+# 관리자 대시보드 - API 사용 통계
+@app.route('/admin/stats')
+@login_required
+def admin_stats():
+    if not current_user.is_admin():
+        flash('관리자 권한이 필요합니다.', 'danger')
+        return redirect(url_for('index'))
+    
+    # 일별 API 호출 통계
+    daily_stats = db.session.query(
+        db.func.date(ApiLog.timestamp).label('date'),
+        db.func.count().label('count')
+    ).group_by(db.func.date(ApiLog.timestamp)).order_by(db.func.date(ApiLog.timestamp).desc()).limit(30).all()
+    
+    # 사용자별 API 호출 통계
+    user_stats = db.session.query(
+        User.email,
+        db.func.count(ApiLog.id).label('call_count')
+    ).join(ApiLog, User.id == ApiLog.user_id).group_by(User.id).order_by(db.func.count(ApiLog.id).desc()).limit(20).all()
+    
+    # 엔드포인트별 API 호출 통계
+    endpoint_stats = db.session.query(
+        ApiLog.endpoint,
+        db.func.count().label('count')
+    ).group_by(ApiLog.endpoint).order_by(db.func.count().desc()).all()
+    
+    return render_template('admin_stats.html', 
+                         daily_stats=daily_stats,
+                         user_stats=user_stats,
+                         endpoint_stats=endpoint_stats)
 
 # 정적 파일 경로 설정
 app.static_folder = 'static'
@@ -563,7 +955,8 @@ def index():
 def search():
     try:
         data = request.form
-        print("검색 요청 파라미터:", data)
+        # API 호출 로깅
+        log_api_call('search', dict(data))
 
         # 필수 파라미터 설정
         min_views = int(data.get('min_views', '100000'))
@@ -628,6 +1021,8 @@ def search():
 
 @app.route('/channel-search', methods=['GET'])
 def channel_search():
+    # API 호출 로깅
+    log_api_call('channel-search', dict(request.args))
     """채널 검색 API 엔드포인트 - 다중 API 키 지원"""
     try:
         query = request.args.get('q', '')
@@ -747,6 +1142,16 @@ def favicon():
     """Favicon 반환 라우트"""
     return send_from_directory(os.path.join(app.root_path, 'static'),
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
+# 에러 핸들러
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
+
+@app.errorhandler(500)
+def internal_error(e):
+    app.logger.error(f'서버 오류: {str(e)}')
+    return render_template('500.html'), 500
 
 if __name__ == '__main__':
     if not api_keys:

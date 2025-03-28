@@ -6,3 +6,8 @@ gunicorn==21.2.0
 cachetools==5.3.1
 requests==2.31.0
 deep-translator==1.11.4
+flask-login==0.6.2
+google-auth==2.23.0
+google-auth-oauthlib==1.0.0
+flask-sqlalchemy==3.0.5
+psycopg2-binary==2.9.7
