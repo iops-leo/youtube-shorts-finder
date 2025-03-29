@@ -26,6 +26,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from common_utils.search import get_recent_popular_shorts
 from common_utils.search import get_cache_key, save_to_cache, get_from_cache
 
+cache = {}
+CACHE_TIMEOUT = 28800  # 캐시 유효시간 (초)
 
 # 동일한 브로커 URL 사용
 redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
