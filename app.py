@@ -547,7 +547,7 @@ def search():
             return jsonify({"status": "success", "results": cached_results, "fromCache": True})
 
         # Celery 작업 실행
-        from celery_worker import run_search_task
+        from celery_worker.celery_worker import run_search_task
         
         task = run_search_task.delay(params)
         task_result = task.get(timeout=30)  # Celery 작업에서 반환된 파라미터들
