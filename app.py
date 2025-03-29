@@ -1,7 +1,5 @@
 import os
-from celery_worker.celery_worker import run_search_task  # 최상단에 추가
 from celery import Celery
-from tasks import run_search_task
 from flask import Flask, render_template, request, jsonify, send_from_directory, redirect, url_for, session, flash
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_sqlalchemy import SQLAlchemy
@@ -1141,8 +1139,6 @@ def perform_search(youtube, min_views, days_ago, max_results,
     return filtered_videos
 
 
-from celery_worker.celery_worker import run_search_task  # 추가
-
 @app.route("/search", methods=["POST"])
 @api_login_required
 def search():
@@ -1167,6 +1163,8 @@ def search():
         cached_results = get_from_cache(cache_key)
         if cached_results:
             return jsonify({"status": "success", "results": cached_results, "fromCache": True})
+        
+        from celery_worker.celery_worker import run_search_task
 
         # 비동기 작업 실행
         task = run_search_task.delay(cache_params)
