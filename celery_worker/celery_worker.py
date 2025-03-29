@@ -1,6 +1,7 @@
 # celery_worker.py
 from celery import Celery
 import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 celery = Celery('app', broker=redis_url, backend=redis_url)
