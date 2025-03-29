@@ -23,10 +23,18 @@ from logging.handlers import RotatingFileHandler
 import requests
 from werkzeug.middleware.proxy_fix import ProxyFix
 # 공통 기능 임포트
-from core.search import (
+from common_utils.search import (
     get_recent_popular_shorts, get_cache_key, save_to_cache, get_from_cache,
     get_youtube_api_service, perform_search, switch_to_next_api_key, api_keys
 )
+
+cache = {}
+CACHE_TIMEOUT = 28800  # 캐시 유효시간 (초)
+
+# 동일한 브로커 URL 사용
+redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+celery_app = Celery('celery_worker', broker=redis_url, backend=redis_url)
+
 
 
 app = Flask(__name__)
@@ -520,7 +528,6 @@ def admin_stats():
 
 # 정적 파일 경로 설정
 app.static_folder = 'static'
-cache = {}
 
 @app.route("/search", methods=["POST"])
 @api_login_required
@@ -542,18 +549,13 @@ def search():
 
         # 캐시 체크
         cache_key = get_cache_key(params)
-        cached_results = get_from_cache(cache_key)
-        if cached_results:
-            return jsonify({"status": "success", "results": cached_results, "fromCache": True})
+        cached_data = get_from_cache(cache_key, cache, CACHE_TIMEOUT)
+        if cached_data:
+            return jsonify({"status": "success", "results": cached_data, "fromCache": True})
 
-        # Celery 작업 실행
-        from celery_worker.celery_worker import run_search_task
-        
-        task = run_search_task.delay(params)
-        task_result = task.get(timeout=30)  # Celery 작업에서 반환된 파라미터들
-        
-        # 실제 검색 수행 (앱 서버에서 직접)
-        results = get_recent_popular_shorts(**params)
+        # Celery 작업 실행 (태스크 이름 명시적 사용)
+        task = celery_app.send_task('celery_worker.run_search_task', args=[params])
+        results = task.get(timeout=30)  # 실제 결과 받아오기
         
         # 결과 캐싱
         save_to_cache(cache, cache_key, results)
