@@ -24,7 +24,7 @@ import requests
 from werkzeug.middleware.proxy_fix import ProxyFix
 # 공통 기능 임포트
 from core.search import (
-    get_recent_popular_shorts, get_cache_key, save_to_cache, 
+    get_recent_popular_shorts, get_cache_key, save_to_cache, get_from_cache,
     get_youtube_api_service, perform_search, switch_to_next_api_key, api_keys
 )
 
@@ -520,14 +520,14 @@ def admin_stats():
 
 # 정적 파일 경로 설정
 app.static_folder = 'static'
-
+cache = {}
 
 @app.route("/search", methods=["POST"])
 @api_login_required
 def search():
     try:
         data = request.form
-
+        
         # 파라미터 파싱
         params = {
             'min_views': int(data.get('min_views', '100000')),
@@ -540,19 +540,24 @@ def search():
             'channel_ids': data.get('channel_ids') or None
         }
 
-        user_id = current_user.id if current_user.is_authenticated else 'anonymous'
-        cache_params = {'user_id': user_id, 'date': datetime.utcnow().date().isoformat(), **params}
-        cache_key = get_cache_key(cache_params)
+        # 캐시 체크
+        cache_key = get_cache_key(params)
         cached_results = get_from_cache(cache_key)
         if cached_results:
             return jsonify({"status": "success", "results": cached_results, "fromCache": True})
+
+        # Celery 작업 실행
+        from celery_worker import run_search_task
         
-        from celery_worker.celery_worker import run_search_task
-
-        # 비동기 작업 실행
-        task = run_search_task.delay(cache_params)
-        results = task.get(timeout=30)  # 30초까지 기다림
-
+        task = run_search_task.delay(params)
+        task_result = task.get(timeout=30)  # Celery 작업에서 반환된 파라미터들
+        
+        # 실제 검색 수행 (앱 서버에서 직접)
+        results = get_recent_popular_shorts(**params)
+        
+        # 결과 캐싱
+        save_to_cache(cache, cache_key, results)
+        
         return jsonify({
             "status": "success",
             "results": results,
