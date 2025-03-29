@@ -639,7 +639,7 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
                     channelId=channel_id,
                     order='date',
                     type='video',
-                    maxResults=min(50, max_results)
+                    maxResults=min(50, max(1, max_results))
                 ).execute()
 
                 video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
