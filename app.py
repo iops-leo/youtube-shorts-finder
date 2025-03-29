@@ -25,6 +25,7 @@ from logging.handlers import RotatingFileHandler
 import requests
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key')  # 실제 배포 시 환경 변수로 설정해야 함
 app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID', '')  # Google OAuth 클라이언트 ID
