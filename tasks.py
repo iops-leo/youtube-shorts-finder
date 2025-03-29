@@ -1,6 +1,6 @@
 # tasks.py
-from flask_app.app import celery
-from flask_app.app import get_recent_popular_shorts
+from app import celery
+from app import get_recent_popular_shorts
 
 @celery.task()
 def run_search_task(params):
