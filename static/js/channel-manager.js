@@ -471,7 +471,7 @@ function enhanceChannelCategorySelection() {
     }
 }
 
-// 채널 추가 모달 관련 함수
+
 // 채널 추가 모달 열기
 function openAddChannelModal(categoryId) {
     // 해당 카테고리 찾기
