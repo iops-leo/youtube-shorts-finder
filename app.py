@@ -641,9 +641,10 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
                              category_id=None, region_code="KR", language=None,
                              channel_ids=None, keyword=None):
     """
-    채널 ID 기반 최신 쇼츠 수집 방식 (채널별 max_results 적용 & 필터링 누적)
+    채널 ID 기반 최신 쇼츠 수집 방식 - API 키 순환 로직 강화
     """
     all_filtered_videos = []
+    all_api_keys_exhausted = False  # 모든 API 키 소진 여부 플래그
 
     if isinstance(channel_ids, str):
         channel_id_list = [ch.strip() for ch in channel_ids.split(',') if ch.strip()]
@@ -654,80 +655,132 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
         print(f"총 {len(channel_id_list)}개 채널에서 직접 영상 수집 중...")
 
         for channel_id in channel_id_list:
-            try:
-                youtube = get_youtube_api_service()
+            # 모든 API 키가 소진되었으면 더 이상 처리하지 않음
+            if all_api_keys_exhausted:
+                break
+                
+            max_api_key_attempts = len(api_keys) if api_keys else 1
+            current_attempt = 0
+            channel_processed = False  # 현재 채널 처리 완료 여부
+            
+            while current_attempt < max_api_key_attempts and not channel_processed:
+                try:
+                    youtube = get_youtube_api_service()
 
-                # 각 채널당 최신 max_results개의 영상 검색
-                search_response = youtube.search().list(
-                    part='snippet',
-                    channelId=channel_id,
-                    order='date',
-                    type='video',
-                    maxResults=min(20, max(1, max_results))  # 유튜브 API 제한: 최대 50
-                ).execute()
+                    # 각 채널당 최신 영상 검색
+                    search_response = youtube.search().list(
+                        part='snippet',
+                        channelId=channel_id,
+                        order='date',
+                        type='video',
+                        maxResults=min(20, max(1, max_results))  # 유튜브 API 제한: 최대 50
+                    ).execute()
 
-                video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
+                    video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
 
-                if not video_ids:
-                    continue
-
-                # 비디오 상세 정보 조회
-                video_response = youtube.videos().list(
-                    part='snippet,statistics,contentDetails',
-                    id=','.join(video_ids)
-                ).execute()
-
-                for item in video_response.get('items', []):
-                    try:
-                        view_count = int(item['statistics'].get('viewCount', 0))
-                        duration = item['contentDetails']['duration']
-                        duration_seconds = isodate.parse_duration(duration).total_seconds()
-
-                        if view_count < min_views or duration_seconds > 60:
-                            continue
-
-                        title = item['snippet']['title']
-                        translated_title = None
-                        if not any('\uAC00' <= char <= '\uD7A3' for char in title):
-                            translated_title = translate_text(title, 'ko')
-
-                        thumbnail_url = item['snippet']['thumbnails'].get('high', {}).get('url', '')
-
-                        all_filtered_videos.append({
-                            'id': item['id'],
-                            'title': title,
-                            'translated_title': translated_title,
-                            'channelTitle': item['snippet']['channelTitle'],
-                            'channelId': item['snippet']['channelId'],
-                            'publishedAt': item['snippet']['publishedAt'],
-                            'description': item['snippet'].get('description', ''),
-                            'viewCount': view_count,
-                            'likeCount': int(item['statistics'].get('likeCount', 0)),
-                            'commentCount': int(item['statistics'].get('commentCount', 0)),
-                            'duration': round(duration_seconds),
-                            'url': f"https://www.youtube.com/shorts/{item['id']}",
-                            'thumbnail': thumbnail_url,
-                            'regionCode': region_code,
-                            'isVertical': True
-                        })
-
-                    except Exception as ve:
-                        print(f"[비디오 처리 오류] {str(ve)}")
+                    if not video_ids:
+                        channel_processed = True  # 영상이 없으면 처리 완료로 표시
                         continue
 
-            except Exception as e:
-                print(f"[채널 오류] {channel_id} → {str(e)}")
-                continue
+                    # 비디오 상세 정보 조회
+                    try:
+                        video_response = youtube.videos().list(
+                            part='snippet,statistics,contentDetails',
+                            id=','.join(video_ids)
+                        ).execute()
+                        
+                        for item in video_response.get('items', []):
+                            try:
+                                view_count = int(item['statistics'].get('viewCount', 0))
+                                duration = item['contentDetails']['duration']
+                                duration_seconds = isodate.parse_duration(duration).total_seconds()
+
+                                if view_count < min_views or duration_seconds > 60:
+                                    continue
+
+                                title = item['snippet']['title']
+                                translated_title = None
+                                if not any('\uAC00' <= char <= '\uD7A3' for char in title):
+                                    translated_title = translate_text(title, 'ko')
+
+                                thumbnail_url = item['snippet']['thumbnails'].get('high', {}).get('url', '')
+
+                                all_filtered_videos.append({
+                                    'id': item['id'],
+                                    'title': title,
+                                    'translated_title': translated_title,
+                                    'channelTitle': item['snippet']['channelTitle'],
+                                    'channelId': item['snippet']['channelId'],
+                                    'publishedAt': item['snippet']['publishedAt'],
+                                    'description': item['snippet'].get('description', ''),
+                                    'viewCount': view_count,
+                                    'likeCount': int(item['statistics'].get('likeCount', 0)),
+                                    'commentCount': int(item['statistics'].get('commentCount', 0)),
+                                    'duration': round(duration_seconds),
+                                    'url': f"https://www.youtube.com/shorts/{item['id']}",
+                                    'thumbnail': thumbnail_url,
+                                    'regionCode': region_code,
+                                    'isVertical': True
+                                })
+
+                            except Exception as ve:
+                                print(f"[비디오 개별 처리 오류] {str(ve)}")
+                                continue
+                        
+                        channel_processed = True  # 채널 처리 완료
+                        
+                    except Exception as e:
+                        # 비디오 목록 조회 중 오류
+                        error_str = str(e).lower()
+                        if 'quota' in error_str or 'exceeded' in error_str:
+                            next_key = switch_to_next_api_key()
+                            if next_key:
+                                print(f"[비디오 조회 중 할당량 초과] 채널 {channel_id} - 다음 API 키({next_key[:8]}...)로 전환")
+                                current_attempt += 1
+                                continue
+                            else:
+                                print("[모든 API 키 소진] 더 이상 사용 가능한 API 키가 없습니다.")
+                                all_api_keys_exhausted = True
+                                break
+                        else:
+                            # 할당량 외 다른 오류는 이 채널 건너뛰기
+                            print(f"[비디오 조회 오류] 채널 {channel_id} - {str(e)}")
+                            channel_processed = True
+                            break
+
+                except Exception as e:
+                    # 채널 검색 중 오류
+                    error_str = str(e).lower()
+                    if 'quota' in error_str or 'exceeded' in error_str:
+                        next_key = switch_to_next_api_key()
+                        if next_key:
+                            print(f"[채널 검색 중 할당량 초과] 채널 {channel_id} - 다음 API 키({next_key[:8]}...)로 전환")
+                            current_attempt += 1
+                            continue
+                        else:
+                            print("[모든 API 키 소진] 더 이상 사용 가능한 API 키가 없습니다.")
+                            all_api_keys_exhausted = True
+                            break
+                    else:
+                        # 할당량 외 다른 오류는 그대로 전파
+                        print(f"[채널 검색 오류] {channel_id} → {str(e)}")
+                        channel_processed = True
+                        break
 
         # 조회수 기준 정렬 후 전체에서 max_results개 자르기
         all_filtered_videos.sort(key=lambda x: x['viewCount'], reverse=True)
         return all_filtered_videos[:max_results]
 
     else:
-        # 키워드 기반 검색으로 fallback
+        # 키워드 기반 검색으로 fallback (여기도 API 키 소진 관리 필요)
+        # 모든 API 키가 이미 소진된 경우 빈 결과 반환
+        if all_api_keys_exhausted:
+            print("모든 API 키가 소진되어 키워드 검색을 건너뜁니다.")
+            return []
+            
         return search_by_keyword_based_shorts(min_views, days_ago, max_results,
-                                              category_id, region_code, language,
-                                              keyword)
+                                             category_id, region_code, language,
+                                             keyword)
 
 def search_by_keyword_based_shorts(min_views, days_ago, max_results,
                                    category_id, region_code, language, keyword):
