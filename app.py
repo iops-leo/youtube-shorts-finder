@@ -673,7 +673,7 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
                         channelId=channel_id,
                         order='date',
                         type='video',
-                        maxResults=min(20, max(1, max_results))  # 유튜브 API 제한: 최대 50
+                        maxResults=min(5, max(1, max_results))  # 유튜브 API 제한: 최대 5
                     ).execute()
 
                     video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
