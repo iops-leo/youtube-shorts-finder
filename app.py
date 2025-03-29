@@ -547,7 +547,7 @@ def search():
 
         # 캐시 체크
         cache_key = get_cache_key(params)
-        cached_data = get_from_cache(cache_key, cache, CACHE_TIMEOUT)
+        cached_data = get_from_cache(cache_key)
         if cached_data:
             return jsonify({"status": "success", "results": cached_data, "fromCache": True})
 
