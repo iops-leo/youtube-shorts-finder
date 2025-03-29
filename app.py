@@ -147,8 +147,20 @@ with app.app_context():
 def load_user(user_id):
     return User.query.get(user_id)
 
-# Google OAuth 클라이언트 설정
+# OAuth 클라이언트 설정 부분 수정
 def get_google_flow():
+    # 로컬 개발 환경인지 확인
+    is_local_dev = os.environ.get('FLASK_ENV') == 'dev'
+    
+    # 리디렉션 URI 목록에 로컬과 운영 모두 포함
+    redirect_uris = ["https://shorts.ddns.net/login/callback"]
+    
+    # 로컬 개발 환경이면 로컬 URI도 추가
+    if is_local_dev:
+        port = os.environ.get('PORT', '8080')
+        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+        redirect_uris.append(f"http://localhost:{port}/login/callback")
+    
     flow = Flow.from_client_config(
         {
             "web": {
@@ -156,7 +168,7 @@ def get_google_flow():
                 "client_secret": app.config['GOOGLE_CLIENT_SECRET'],
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": ["https://shorts.ddns.net/login/callback"]
+                "redirect_uris": redirect_uris
             }
         },
         scopes=[
@@ -167,6 +179,7 @@ def get_google_flow():
     )
     return flow
 
+
 # 로그인 페이지
 @app.route('/login')
 def login():
@@ -174,11 +187,16 @@ def login():
         return redirect(url_for('index'))
     
     flow = get_google_flow()
-    flow.redirect_uri = "https://shorts.ddns.net/login/callback"
+    # 환경에 따라 리디렉션 URI 설정
+    is_local_dev = os.environ.get('FLASK_ENV') == 'dev'
+    if is_local_dev:
+        flow.redirect_uri = f"http://localhost:{os.environ.get('PORT', '8080')}/login/callback"
+    else:
+        flow.redirect_uri = "https://shorts.ddns.net/login/callback"
+    
     authorization_url, state = flow.authorization_url(
         access_type='offline',
         include_granted_scopes='true'
-        # redirect_uri 파라미터 제거
     )
     
     session['state'] = state
@@ -191,7 +209,13 @@ def login_callback():
         return redirect(url_for('login'))
     
     flow = get_google_flow()
-    flow.redirect_uri = "https://shorts.ddns.net/login/callback"
+    # 환경에 따라 리디렉션 URI 설정
+    is_local_dev = os.environ.get('FLASK_ENV') == 'dev'
+    if is_local_dev:
+        flow.redirect_uri = f"http://localhost:{os.environ.get('PORT', '8080')}/login/callback"
+    else:
+        flow.redirect_uri = "https://shorts.ddns.net/login/callback"
+        
     flow.fetch_token(authorization_response=request.url)
     
     credentials = flow.credentials
@@ -617,9 +641,9 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
                              category_id=None, region_code="KR", language=None,
                              channel_ids=None, keyword=None):
     """
-    채널 ID 기반 최신 쇼츠 수집 방식으로 리팩토링된 함수
+    채널 ID 기반 최신 쇼츠 수집 방식 (채널별 max_results 적용 & 필터링 누적)
     """
-    filtered_videos = []
+    all_filtered_videos = []
 
     if isinstance(channel_ids, str):
         channel_id_list = [ch.strip() for ch in channel_ids.split(',') if ch.strip()]
@@ -633,13 +657,13 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
             try:
                 youtube = get_youtube_api_service()
 
-                # 최신 영상 검색
+                # 각 채널당 최신 max_results개의 영상 검색
                 search_response = youtube.search().list(
                     part='snippet',
                     channelId=channel_id,
                     order='date',
                     type='video',
-                    maxResults=min(15, max(1, max_results))
+                    maxResults=min(20, max(1, max_results))  # 유튜브 API 제한: 최대 50
                 ).execute()
 
                 video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
@@ -664,14 +688,12 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
 
                         title = item['snippet']['title']
                         translated_title = None
-
-                        # 제목 번역 (한글이 아니면)
                         if not any('\uAC00' <= char <= '\uD7A3' for char in title):
                             translated_title = translate_text(title, 'ko')
 
                         thumbnail_url = item['snippet']['thumbnails'].get('high', {}).get('url', '')
 
-                        filtered_videos.append({
+                        all_filtered_videos.append({
                             'id': item['id'],
                             'title': title,
                             'translated_title': translated_title,
@@ -697,12 +719,12 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
                 print(f"[채널 오류] {channel_id} → {str(e)}")
                 continue
 
-        # 정렬 및 제한
-        filtered_videos.sort(key=lambda x: x['viewCount'], reverse=True)
-        return filtered_videos[:max_results]
+        # 조회수 기준 정렬 후 전체에서 max_results개 자르기
+        all_filtered_videos.sort(key=lambda x: x['viewCount'], reverse=True)
+        return all_filtered_videos[:max_results]
 
     else:
-        # 기존 방식 유지 (검색 기반)
+        # 키워드 기반 검색으로 fallback
         return search_by_keyword_based_shorts(min_views, days_ago, max_results,
                                               category_id, region_code, language,
                                               keyword)
@@ -1633,5 +1655,5 @@ def health():
     return jsonify({"status": "ok"})
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=True)  # 디버그 모드 활성화
