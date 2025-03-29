@@ -9,9 +9,6 @@ import pytz
 from datetime import datetime, timedelta
 from deep_translator import GoogleTranslator
 
-
-app.static_folder = 'static'
-
 # 콤마로 구분된 API 키들을 리스트로 변환
 api_keys = []
 api_key_str = os.environ.get('YOUTUBE_API_KEY', '')
