@@ -4,6 +4,6 @@
       "builder": "NIXPACKS"
     },
     "deploy": {
-      "startCommand": "celery -A celery_worker.celery_worker worker --loglevel=info"
+      "startCommand": "celery -A celery_worker worker --loglevel=info"
     }
   }
