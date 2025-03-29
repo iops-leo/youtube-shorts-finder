@@ -519,7 +519,7 @@ api_keys = []
 api_key_str = os.environ.get('YOUTUBE_API_KEY', '')
 
 # 캐시 설정 (API 호출 결과를 메모리에 저장)
-CACHE_TIMEOUT = 600  # 캐시 유효시간 (초)
+CACHE_TIMEOUT = 28800  # 캐시 유효시간 (초)
 cache = {}
 
 # 번역 캐시 설정
@@ -1022,62 +1022,64 @@ def search():
         # API 호출 로깅
         log_api_call('search', dict(data))
 
-        # 필수 파라미터 설정
+        # 파라미터 설정
         min_views = int(data.get('min_views', '100000'))
         days_ago = int(data.get('days_ago', 5))
         max_results = int(data.get('max_results', 300))
-        
-        # 최대 500개 제한
-        if max_results > 500:
-            max_results = 500
-        
         category_id = data.get('category_id', 'any')
         region_code = data.get('region_code', 'KR')
         language = data.get('language', 'any')
         keyword = data.get('keyword', '')
-        
-        # 채널 ID 처리
         channel_ids = data.get('channel_ids', '')
-
-        # API 키 확인
-        if not api_keys:
-            print("경고: API 키가 설정되지 않았습니다.")
-            return jsonify({"status": "error", "message": "YouTube API 키가 설정되지 않았습니다."})
-
-        try:
-            results = get_recent_popular_shorts(
-                min_views=min_views,
-                days_ago=days_ago,
-                max_results=max_results,
-                category_id=category_id if category_id != 'any' else None,
-                region_code=region_code,
-                language=language if language != 'any' else None,
-                channel_ids=channel_ids if channel_ids else None,
-                keyword=keyword
-            )
-
-            print(f"API 검색 결과: {len(results)}개 항목 찾음")
+        
+        # 캐시 키 생성용 파라미터 (사용자 ID + 현재 날짜 + 검색 조건)
+        cache_params = {
+            'user_id': current_user.id if current_user.is_authenticated else 'anonymous',
+            'date': datetime.utcnow().date().isoformat(),
+            'min_views': min_views,
+            'days_ago': days_ago,
+            'category_id': category_id,
+            'region_code': region_code,
+            'language': language,
+            'keyword': keyword,
+            'channel_ids': channel_ids
+        }
+        
+        cache_key = get_cache_key(cache_params)
+        cached_results = get_from_cache(cache_key)
+        
+        if cached_results:
+            print(f"캐시 히트: {len(cached_results)}개 결과 반환")
             return jsonify({
                 "status": "success", 
-                "results": results,
-                "count": len(results),
-                "displayCount": len(results)
+                "results": cached_results,
+                "count": len(cached_results),
+                "displayCount": len(cached_results),
+                "fromCache": True
             })
-            
-        except Exception as e:
-            error_msg = str(e)
-            print(f"검색 중 오류 발생: {error_msg}")
-            
-            # 쿼터 초과 오류 확인
-            if 'quota' in error_msg.lower() or 'exceeded' in error_msg.lower():
-                return jsonify({
-                    "status": "quota_exceeded", 
-                    "message": "모든 YouTube API 키의 일일 할당량이 초과되었습니다. 내일 다시 시도해주세요.",
-                    "details": error_msg
-                })
-            else:
-                return jsonify({"status": "error", "message": error_msg})
 
+        # 캐시에 없는 경우 YouTube API 호출
+        results = get_recent_popular_shorts(
+            min_views=min_views,
+            days_ago=days_ago,
+            max_results=max_results,
+            category_id=category_id if category_id != 'any' else None,
+            region_code=region_code,
+            language=language if language != 'any' else None,
+            channel_ids=channel_ids if channel_ids else None,
+            keyword=keyword
+        )
+        
+        # 결과 캐싱
+        save_to_cache(cache_key, results)
+        
+        return jsonify({
+            "status": "success", 
+            "results": results,
+            "count": len(results),
+            "displayCount": len(results)
+        })
+        
     except Exception as e:
         print(f"검색 중 오류 발생: {str(e)}")
         return jsonify({"status": "error", "message": str(e)})
