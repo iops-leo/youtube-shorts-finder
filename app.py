@@ -784,9 +784,13 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
 
 def search_by_keyword_based_shorts(min_views, days_ago, max_results,
                                    category_id, region_code, language, keyword):
+    """
+    키워드 기반 영상 검색 - API 키 순환 로직 강화
+    """
     filtered_videos = []
+    all_api_keys_exhausted = False  # 모든 API 키 소진 여부 플래그
+    
     try:
-        youtube = get_youtube_api_service()
         published_after = (datetime.utcnow() - timedelta(days=days_ago)).isoformat("T") + "Z"
 
         search_params = {
@@ -810,64 +814,129 @@ def search_by_keyword_based_shorts(min_views, days_ago, max_results,
         all_video_ids = []
         next_page_token = None
 
-        while len(all_video_ids) < max_results:
+        # 페이지네이션으로 영상 ID 수집
+        while len(all_video_ids) < max_results and not all_api_keys_exhausted:
             if next_page_token:
                 search_params['pageToken'] = next_page_token
-
-            search_response = youtube.search().list(**search_params).execute()
-            items = search_response.get('items', [])
-            video_ids = [item['id']['videoId'] for item in items]
-            all_video_ids.extend(video_ids)
-
-            next_page_token = search_response.get('nextPageToken')
-            if not next_page_token or len(items) == 0:
+            
+            # API 키 순환을 위한 최대 시도 횟수
+            max_api_key_attempts = len(api_keys) if api_keys else 1
+            current_attempt = 0
+            page_processed = False
+            
+            while current_attempt < max_api_key_attempts and not page_processed:
+                try:
+                    youtube = get_youtube_api_service()
+                    search_response = youtube.search().list(**search_params).execute()
+                    items = search_response.get('items', [])
+                    video_ids = [item['id']['videoId'] for item in items]
+                    all_video_ids.extend(video_ids)
+                    
+                    print(f"페이지 결과: {len(items)}개 항목 발견 (총 {len(all_video_ids)}개)")
+                    next_page_token = search_response.get('nextPageToken')
+                    page_processed = True
+                    
+                    if not next_page_token or len(items) == 0:
+                        break  # 더 이상 페이지가 없거나 결과가 없으면 종료
+                        
+                except Exception as e:
+                    error_str = str(e).lower()
+                    if 'quota' in error_str or 'exceeded' in error_str:
+                        next_key = switch_to_next_api_key()
+                        if next_key:
+                            print(f"[검색 중 할당량 초과] 다음 API 키({next_key[:8]}...)로 전환")
+                            current_attempt += 1
+                        else:
+                            print("[모든 API 키 소진] 더 이상 사용 가능한 API 키가 없습니다.")
+                            all_api_keys_exhausted = True
+                            break
+                    else:
+                        # 할당량 외 다른 오류
+                        print(f"[검색 오류] {str(e)}")
+                        page_processed = True
+                        break
+            
+            # 이 페이지 처리가 실패했고 모든 API 키가 소진되었으면 루프 종료
+            if not page_processed and all_api_keys_exhausted:
                 break
 
-        # 영상 상세 정보 가져오기
+        # 최대 결과 수 제한
+        if len(all_video_ids) > max_results:
+            all_video_ids = all_video_ids[:max_results]
+
+        # 영상 상세 정보 가져오기 (50개씩 배치 처리)
         for i in range(0, len(all_video_ids), 50):
+            if all_api_keys_exhausted:
+                break
+                
             batch_ids = all_video_ids[i:i+50]
-            video_response = youtube.videos().list(
-                part='snippet,statistics,contentDetails',
-                id=','.join(batch_ids)
-            ).execute()
-
-            for item in video_response.get('items', []):
+            batch_processed = False
+            current_attempt = 0
+            
+            while current_attempt < max_api_key_attempts and not batch_processed:
                 try:
-                    view_count = int(item['statistics'].get('viewCount', 0))
-                    duration = item['contentDetails']['duration']
-                    duration_seconds = isodate.parse_duration(duration).total_seconds()
+                    youtube = get_youtube_api_service()
+                    video_response = youtube.videos().list(
+                        part='snippet,statistics,contentDetails',
+                        id=','.join(batch_ids)
+                    ).execute()
 
-                    if view_count < min_views or duration_seconds > 60:
-                        continue
+                    for item in video_response.get('items', []):
+                        try:
+                            view_count = int(item['statistics'].get('viewCount', 0))
+                            duration = item['contentDetails']['duration']
+                            duration_seconds = isodate.parse_duration(duration).total_seconds()
 
-                    title = item['snippet']['title']
-                    translated_title = None
-                    if not any('\uAC00' <= c <= '\uD7A3' for c in title):
-                        translated_title = translate_text(title, 'ko')
+                            if view_count < min_views or duration_seconds > 60:
+                                continue
 
-                    thumbnail_url = item['snippet']['thumbnails'].get('high', {}).get('url', '')
+                            title = item['snippet']['title']
+                            translated_title = None
+                            if not any('\uAC00' <= c <= '\uD7A3' for c in title):
+                                translated_title = translate_text(title, 'ko')
 
-                    filtered_videos.append({
-                        'id': item['id'],
-                        'title': title,
-                        'translated_title': translated_title,
-                        'channelTitle': item['snippet']['channelTitle'],
-                        'channelId': item['snippet']['channelId'],
-                        'publishedAt': item['snippet']['publishedAt'],
-                        'description': item['snippet'].get('description', ''),
-                        'viewCount': view_count,
-                        'likeCount': int(item['statistics'].get('likeCount', 0)),
-                        'commentCount': int(item['statistics'].get('commentCount', 0)),
-                        'duration': round(duration_seconds),
-                        'url': f"https://www.youtube.com/shorts/{item['id']}",
-                        'thumbnail': thumbnail_url,
-                        'regionCode': region_code,
-                        'isVertical': True
-                    })
+                            thumbnail_url = item['snippet']['thumbnails'].get('high', {}).get('url', '')
 
-                except Exception as ve:
-                    print(f"[상세 처리 오류] {str(ve)}")
-                    continue
+                            filtered_videos.append({
+                                'id': item['id'],
+                                'title': title,
+                                'translated_title': translated_title,
+                                'channelTitle': item['snippet']['channelTitle'],
+                                'channelId': item['snippet']['channelId'],
+                                'publishedAt': item['snippet']['publishedAt'],
+                                'description': item['snippet'].get('description', ''),
+                                'viewCount': view_count,
+                                'likeCount': int(item['statistics'].get('likeCount', 0)),
+                                'commentCount': int(item['statistics'].get('commentCount', 0)),
+                                'duration': round(duration_seconds),
+                                'url': f"https://www.youtube.com/shorts/{item['id']}",
+                                'thumbnail': thumbnail_url,
+                                'regionCode': region_code,
+                                'isVertical': True
+                            })
+
+                        except Exception as ve:
+                            print(f"[상세 처리 오류] {str(ve)}")
+                            continue
+                            
+                    batch_processed = True
+
+                except Exception as e:
+                    error_str = str(e).lower()
+                    if 'quota' in error_str or 'exceeded' in error_str:
+                        next_key = switch_to_next_api_key()
+                        if next_key:
+                            print(f"[상세 조회 중 할당량 초과] 다음 API 키({next_key[:8]}...)로 전환")
+                            current_attempt += 1
+                        else:
+                            print("[모든 API 키 소진] 더 이상 사용 가능한 API 키가 없습니다.")
+                            all_api_keys_exhausted = True
+                            break
+                    else:
+                        # 할당량 외 다른 오류
+                        print(f"[상세 조회 오류] {str(e)}")
+                        batch_processed = True
+                        break
 
         # 정렬 및 제한
         filtered_videos.sort(key=lambda x: x['viewCount'], reverse=True)
