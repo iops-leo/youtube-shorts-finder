@@ -1,4 +1,7 @@
 import os
+from celery_worker.celery_worker import run_search_task  # 최상단에 추가
+from celery import Celery
+from tasks import run_search_task
 from flask import Flask, render_template, request, jsonify, send_from_directory, redirect, url_for, session, flash
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_sqlalchemy import SQLAlchemy
@@ -1137,73 +1140,44 @@ def perform_search(youtube, min_views, days_ago, max_results,
     return filtered_videos
 
 
-@app.route('/search', methods=['POST'])
+from celery_worker.celery_worker import run_search_task  # 추가
+
+@app.route("/search", methods=["POST"])
+@api_login_required
 def search():
     try:
         data = request.form
-        # API 호출 로깅
-        log_api_call('search', dict(data))
 
-        # 파라미터 설정
-        min_views = int(data.get('min_views', '100000'))
-        days_ago = int(data.get('days_ago', 5))
-        max_results = int(data.get('max_results', 300))
-        category_id = data.get('category_id', 'any')
-        region_code = data.get('region_code', 'KR')
-        language = data.get('language', 'any')
-        keyword = data.get('keyword', '')
-        channel_ids = data.get('channel_ids', '')
-        
-        # 캐시 키 생성용 파라미터 (사용자 ID + 현재 날짜 + 검색 조건)
-        cache_params = {
-            'user_id': current_user.id if current_user.is_authenticated else 'anonymous',
-            'date': datetime.utcnow().date().isoformat(),
-            'min_views': min_views,
-            'days_ago': days_ago,
-            'category_id': category_id,
-            'region_code': region_code,
-            'language': language,
-            'keyword': keyword,
-            'channel_ids': channel_ids
+        # 파라미터 파싱
+        params = {
+            'min_views': int(data.get('min_views', '100000')),
+            'days_ago': int(data.get('days_ago', 5)),
+            'max_results': int(data.get('max_results', 300)),
+            'category_id': data.get('category_id') if data.get('category_id') != 'any' else None,
+            'region_code': data.get('region_code'),
+            'language': data.get('language') if data.get('language') != 'any' else None,
+            'keyword': data.get('keyword'),
+            'channel_ids': data.get('channel_ids') or None
         }
-        
+
+        user_id = current_user.id if current_user.is_authenticated else 'anonymous'
+        cache_params = {'user_id': user_id, 'date': datetime.utcnow().date().isoformat(), **params}
         cache_key = get_cache_key(cache_params)
         cached_results = get_from_cache(cache_key)
-        
         if cached_results:
-            print(f"캐시 히트: {len(cached_results)}개 결과 반환")
-            return jsonify({
-                "status": "success", 
-                "results": cached_results,
-                "count": len(cached_results),
-                "displayCount": len(cached_results),
-                "fromCache": True
-            })
+            return jsonify({"status": "success", "results": cached_results, "fromCache": True})
 
-        # 캐시에 없는 경우 YouTube API 호출
-        results = get_recent_popular_shorts(
-            min_views=min_views,
-            days_ago=days_ago,
-            max_results=max_results,
-            category_id=category_id if category_id != 'any' else None,
-            region_code=region_code,
-            language=language if language != 'any' else None,
-            channel_ids=channel_ids if channel_ids else None,
-            keyword=keyword
-        )
-        
-        # 결과 캐싱
-        save_to_cache(cache_key, results)
-        
+        # 비동기 작업 실행
+        task = run_search_task.delay(cache_params)
+        results = task.get(timeout=30)  # 30초까지 기다림
+
         return jsonify({
-            "status": "success", 
+            "status": "success",
             "results": results,
-            "count": len(results),
-            "displayCount": len(results)
+            "fromCache": False
         })
-        
     except Exception as e:
-        print(f"검색 중 오류 발생: {str(e)}")
+        print(f"오류 발생: {e}")
         return jsonify({"status": "error", "message": str(e)})
     
 
@@ -1777,6 +1751,24 @@ def internal_error(e):
 @app.route('/health')
 def health():
     return jsonify({"status": "ok"})
+
+def make_celery(app):
+    celery = Celery(
+        app.import_name,
+        broker=os.environ.get("REDIS_URL"),  # Railway Redis URL
+        backend=os.environ.get("REDIS_URL")
+    )
+    celery.conf.update(app.config)
+    TaskBase = celery.Task
+
+    class ContextTask(TaskBase):
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return TaskBase.__call__(self, *args, **kwargs)
+    celery.Task = ContextTask
+    return celery
+
+celery = make_celery(app)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
