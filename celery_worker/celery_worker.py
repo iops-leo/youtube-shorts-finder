@@ -4,7 +4,7 @@ import sys
 import os
 
 # 프로젝트 루트를 sys.path에 추가
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # core 모듈에서 함수 임포트
 from core.search import (
