@@ -5,7 +5,7 @@ import hashlib
 import time
 
 from common_utils.search import get_recent_popular_shorts
-from common_utils.cache import get_cache_key
+from common_utils.search import get_cache_key
 
 # Redis 설정
 redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")

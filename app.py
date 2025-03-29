@@ -23,13 +23,9 @@ from logging.handlers import RotatingFileHandler
 import requests
 from werkzeug.middleware.proxy_fix import ProxyFix
 # 공통 기능 임포트
-from common_utils.search import (
-    get_recent_popular_shorts, get_cache_key, save_to_cache, get_from_cache,
-    get_youtube_api_service, perform_search, switch_to_next_api_key, api_keys
-)
+from common_utils.search import get_recent_popular_shorts
+from common_utils.search import get_cache_key, save_to_cache, get_from_cache
 
-cache = {}
-CACHE_TIMEOUT = 28800  # 캐시 유효시간 (초)
 
 # 동일한 브로커 URL 사용
 redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
