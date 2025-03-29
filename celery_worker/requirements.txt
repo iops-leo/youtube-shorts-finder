@@ -1,0 +1,14 @@
+flask==2.2.5
+google-api-python-client==2.95.0
+pytz==2023.3
+isodate==0.6.1
+gunicorn==21.2.0
+cachetools==5.3.1
+requests==2.31.0
+deep-translator==1.11.4
+google-auth==2.23.0
+google-auth-oauthlib==1.0.0
+flask-sqlalchemy==3.0.5
+psycopg2-binary==2.9.7
+werkzeug==2.2.3
+flask-login==0.6.2
