@@ -1,0 +1,15 @@
+# 가상환경 폴더
+venv/
+
+# 로그 폴더
+logs/
+
+# 실행 스크립트
+start.command
+
+# Python 컴파일 캐시
+__pycache__/
+*.pyc
+
+# 환경 설정 파일 (예: 환경변수)
+.env
