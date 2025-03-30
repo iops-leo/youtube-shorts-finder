@@ -22,12 +22,17 @@ import logging
 from logging.handlers import RotatingFileHandler
 import requests
 from werkzeug.middleware.proxy_fix import ProxyFix
+from concurrent.futures import ThreadPoolExecutor
+
 # 공통 기능 임포트
 from common_utils.search import get_recent_popular_shorts
 from common_utils.search import get_cache_key, save_to_cache, get_from_cache
 
 cache = {}
 CACHE_TIMEOUT = 28800  # 캐시 유효시간 (초)
+
+# 스레드풀 생성
+executor = ThreadPoolExecutor(max_workers=10)
 
 # 동일한 브로커 URL 사용
 redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
@@ -545,18 +550,21 @@ def search():
             'channel_ids': data.get('channel_ids') or None
         }
 
+        # API 호출 로깅
+        log_api_call('search', params)
+
         # 캐시 체크
         cache_key = get_cache_key(params)
-        cached_data = get_from_cache(cache_key)
-        if cached_data:
-            return jsonify({"status": "success", "results": cached_data, "fromCache": True})
+        cached_results = get_from_cache(cache_key)
+        if cached_results:
+            return jsonify({"status": "success", "results": cached_results, "fromCache": True})
 
-        # Celery 작업 실행 (태스크 이름 명시적 사용)
-        task = celery_app.send_task('celery_worker.run_search_task', args=[params])
-        results = task.get(timeout=30)  # 실제 결과 받아오기
+        # 비동기 작업 시작
+        future = executor.submit(get_recent_popular_shorts, **params)
+        results = future.result(timeout=30)  # 최대 30초 대기
         
         # 결과 캐싱
-        save_to_cache(cache, cache_key, results)
+        save_to_cache(cache_key, results)
         
         return jsonify({
             "status": "success",
