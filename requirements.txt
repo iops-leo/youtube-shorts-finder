@@ -1,6 +1,6 @@
 flask==2.2.5
 google-api-python-client==2.95.0
-pytz==2.23.3
+pytz==2023.3
 isodate==0.6.1
 gunicorn==21.2.0
 cachetools==5.3.1
