@@ -33,10 +33,6 @@ CACHE_TIMEOUT = 28800  # 캐시 유효시간 (초)
 # 스레드풀 생성
 executor = ThreadPoolExecutor(max_workers=10)
 
-# 동일한 브로커 URL 사용
-redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-celery_app = Celery('celery_worker', broker=redis_url, backend=redis_url)
-
 
 
 app = Flask(__name__)
@@ -1145,24 +1141,6 @@ def internal_error(e):
 @app.route('/health')
 def health():
     return jsonify({"status": "ok"})
-
-def make_celery(app):
-    celery = Celery(
-        app.import_name,
-        broker=os.environ.get("REDIS_URL"),  # Railway Redis URL
-        backend=os.environ.get("REDIS_URL")
-    )
-    celery.conf.update(app.config)
-    TaskBase = celery.Task
-
-    class ContextTask(TaskBase):
-        def __call__(self, *args, **kwargs):
-            with app.app_context():
-                return TaskBase.__call__(self, *args, **kwargs)
-    celery.Task = ContextTask
-    return celery
-
-celery = make_celery(app)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
