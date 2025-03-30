@@ -332,7 +332,7 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
                         channelId=channel_id,
                         order='date',
                         type='video',
-                        maxResults=min(5, max(1, max_results))  # 유튜브 API 제한: 최대 5
+                        maxResults=min(10, max(1, max_results))  # 유튜브 API 제한: 최대 10
                     ).execute()
 
                     video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
@@ -428,7 +428,7 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
 
         # 조회수 기준 정렬 후 전체에서 max_results개 자르기
         all_filtered_videos.sort(key=lambda x: x['viewCount'], reverse=True)
-        return all_filtered_videos[:max_results]
+        return all_filtered_videos
 
     else:
         # 키워드 기반 검색으로 fallback (여기도 API 키 소진 관리 필요)

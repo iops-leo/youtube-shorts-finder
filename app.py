@@ -901,7 +901,7 @@ def channel_search():
                         part="snippet",
                         type="channel",
                         q=query.replace('@', ''),  # @ 기호 제거하고 검색
-                        maxResults=10  # 더 많은 결과를 가져와서 필터링
+                        maxResults=5  # 더 많은 결과를 가져와서 필터링
                     ).execute()
                     
                     # 결과에서 정확히 일치하거나 유사한 핸들을 가진 채널 필터링
