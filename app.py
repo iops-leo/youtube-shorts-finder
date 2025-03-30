@@ -24,8 +24,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from concurrent.futures import ThreadPoolExecutor
 
 # 공통 기능 임포트
-from common_utils.search import get_recent_popular_shorts
-from common_utils.search import get_cache_key, save_to_cache, get_from_cache
+from common_utils.search import get_recent_popular_shorts, get_cache_key, save_to_cache, get_from_cache
+from common_utils.search import api_keys, switch_to_next_api_key, get_youtube_api_service
 
 cache = {}
 CACHE_TIMEOUT = 28800  # 캐시 유효시간 (초)
