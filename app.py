@@ -564,6 +564,7 @@ def search():
         return jsonify({
             "status": "success",
             "results": results,
+            "count": len(results), 
             "fromCache": False
         })
     except Exception as e:
