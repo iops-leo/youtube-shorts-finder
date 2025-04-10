@@ -545,6 +545,7 @@ def search():
             'channel_ids': data.get('channel_ids') or None
         }
 
+        
         # API 호출 로깅
         log_api_call('search', params)
 
@@ -1109,6 +1110,306 @@ def merge_categories():
         "newCategoriesCount": new_categories_count,
         "updatedCategoriesCount": updated_categories_count
     })
+
+# app.py에 추가할 라우트
+
+@app.route('/scripts')
+@login_required
+def scripts_page():
+    """스크립트 추출 페이지"""
+    if not current_user.is_approved():
+        return redirect(url_for('pending'))
+    
+    # 오늘 API 호출 횟수 계산
+    today = datetime.utcnow().date()
+    daily_api_calls = ApiLog.query.filter(
+        ApiLog.user_id == current_user.id,
+        db.func.date(ApiLog.timestamp) == today
+    ).count()
+    
+    return render_template('scripts.html', daily_api_calls=daily_api_calls)
+
+@app.route('/api/scripts/extract', methods=['POST'])
+@api_login_required
+def extract_scripts():
+    """
+    채널 URL을 기반으로 영상 스크립트 추출
+    """
+    try:
+        # 요청 데이터 가져오기
+        channel_url = request.form.get('channel_url', '').strip()
+        video_count = int(request.form.get('video_count', 10))
+        auto_translate = request.form.get('auto_translate') == 'true'
+        
+        # 유효성 검사
+        if not channel_url:
+            return jsonify({"status": "error", "message": "채널 URL을 입력해주세요."})
+        
+        if video_count < 1 or video_count > 50:
+            return jsonify({"status": "error", "message": "가져올 영상 수는 1~50 사이여야 합니다."})
+        
+        # API 호출 로깅
+        log_api_call('extract_scripts', {
+            'channel_url': channel_url,
+            'video_count': video_count,
+            'auto_translate': auto_translate
+        })
+        
+        # 채널 ID 추출
+        channel_id = extract_channel_id(channel_url)
+        if not channel_id:
+            return jsonify({"status": "error", "message": "유효한 채널 URL이 아닙니다."})
+        
+        # 채널의 최근 영상 목록 가져오기
+        recent_videos = get_channel_videos(channel_id, video_count)
+        if not recent_videos:
+            return jsonify({"status": "error", "message": "해당 채널의 영상을 가져올 수 없습니다."})
+        
+        # 각 영상의 자막 추출
+        results = []
+        for video in recent_videos:
+            try:
+                script = get_video_script(video['id'], auto_translate)
+                if script:
+                    video['text'] = script
+                    results.append(video)
+            except Exception as e:
+                app.logger.error(f"영상 {video['id']} 자막 추출 오류: {str(e)}")
+                continue
+        
+        return jsonify({
+            "status": "success",
+            "scripts": results,
+            "count": len(results)
+        })
+        
+    except Exception as e:
+        app.logger.error(f"스크립트 추출 오류: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)})
+
+def extract_channel_id(channel_url):
+    """
+    채널 URL에서 채널 ID 또는 핸들을 추출
+    """
+    try:
+        # 입력값이 '@username' 형식인 경우
+        if channel_url.startswith('@'):
+            return channel_url
+        
+        # URL 형식인 경우
+        if 'youtube.com/' in channel_url:
+            # 채널 페이지 URL
+            if '/channel/' in channel_url:
+                parts = channel_url.split('/channel/')
+                if len(parts) > 1:
+                    return parts[1].split('/')[0].split('?')[0]
+            
+            # 사용자 페이지 URL
+            elif '/user/' in channel_url:
+                parts = channel_url.split('/user/')
+                if len(parts) > 1:
+                    return '@' + parts[1].split('/')[0].split('?')[0]
+            
+            # 핸들(@) 형식 URL
+            elif '/@' in channel_url:
+                parts = channel_url.split('/@')
+                if len(parts) > 1:
+                    return '@' + parts[1].split('/')[0].split('?')[0]
+        
+        # 추출 실패 시 원본 반환 (API에서 처리 시도)
+        return channel_url
+        
+    except Exception as e:
+        app.logger.error(f"채널 ID 추출 오류: {str(e)}")
+        return None
+
+def get_channel_videos(channel_id, max_results=10):
+    """
+    채널 ID를 기반으로 채널의 최근 영상 목록 가져오기
+    """
+    try:
+        # YouTube API 서비스 가져오기 (자동 키 순환)
+        youtube = get_youtube_api_service()
+        
+        # 채널 검색 (핸들 형식일 경우)
+        if channel_id.startswith('@'):
+            search_response = youtube.search().list(
+                part="snippet",
+                q=channel_id,
+                type="channel",
+                maxResults=1
+            ).execute()
+            
+            if not search_response.get('items'):
+                return []
+            
+            channel_id = search_response['items'][0]['id']['channelId']
+        
+        # 채널 정보 가져오기
+        channel_response = youtube.channels().list(
+            part="snippet",
+            id=channel_id
+        ).execute()
+        
+        if not channel_response.get('items'):
+            return []
+            
+        channel_title = channel_response['items'][0]['snippet']['title']
+        
+        # 채널의 최근 영상 검색
+        search_response = youtube.search().list(
+            part="snippet",
+            channelId=channel_id,
+            order="date",
+            type="video",
+            maxResults=max_results
+        ).execute()
+        
+        videos = []
+        for item in search_response.get('items', []):
+            # 'Shorts' 항목 필터링 (선택 사항)
+            # if "shorts" in item['snippet']['title'].lower() or "#shorts" in item['snippet']['description'].lower():
+            video_id = item['id']['videoId']
+            
+            # 비디오 상세 정보 가져오기
+            video_response = youtube.videos().list(
+                part="snippet,contentDetails,statistics",
+                id=video_id
+            ).execute()
+            
+            if video_response.get('items'):
+                video_info = video_response['items'][0]
+                
+                # 재생 시간 변환
+                duration_str = video_info['contentDetails']['duration']
+                duration_seconds = isodate.parse_duration(duration_str).total_seconds()
+                
+                # 썸네일 이미지 URL
+                thumbnail_url = video_info['snippet']['thumbnails'].get('high', {}).get('url', '')
+                if not thumbnail_url:
+                    thumbnail_url = video_info['snippet']['thumbnails'].get('default', {}).get('url', '')
+                
+                videos.append({
+                    'id': video_id,
+                    'title': video_info['snippet']['title'],
+                    'channelTitle': channel_title,
+                    'publishedAt': video_info['snippet']['publishedAt'],
+                    'thumbnail': thumbnail_url,
+                    'duration': duration_seconds,
+                    'viewCount': int(video_info['statistics'].get('viewCount', 0)),
+                    'likeCount': int(video_info['statistics'].get('likeCount', 0)),
+                    'videoUrl': f"https://www.youtube.com/watch?v={video_id}"
+                })
+        
+        return videos
+        
+    except Exception as e:
+        app.logger.error(f"채널 영상 가져오기 오류: {str(e)}")
+        # 할당량 초과 확인 및 키 교체
+        error_str = str(e).lower()
+        if 'quota' in error_str or 'exceeded' in error_str:
+            next_key = switch_to_next_api_key()
+            if next_key:
+                # 새 키로 재시도
+                return get_channel_videos(channel_id, max_results)
+        
+        return []
+
+def get_video_script(video_id, auto_translate=False):
+    """
+    특정 영상의 자막(스크립트) 가져오기
+    """
+    try:
+        # YouTube API 서비스 가져오기 (자동 키 순환)
+        youtube = get_youtube_api_service()
+        
+        # 영상의 자막 목록 가져오기
+        caption_response = youtube.captions().list(
+            part="snippet",
+            videoId=video_id
+        ).execute()
+        
+        # 자막이 없을 경우
+        if not caption_response.get('items'):
+            return None
+        
+        # 적절한 자막 선택 (우선순위: 한국어 > 영어 > 첫 번째 자막)
+        caption_id = None
+        captions = caption_response['items']
+        
+        # 한국어 자막 찾기
+        for caption in captions:
+            if 'ko' in caption['snippet']['language'].lower():
+                caption_id = caption['id']
+                break
+        
+        # 한국어 자막이 없으면 영어 자막 찾기
+        if not caption_id:
+            for caption in captions:
+                if 'en' in caption['snippet']['language'].lower():
+                    caption_id = caption['id']
+                    is_english = True
+                    break
+        
+        # 적절한 자막이 없으면 첫 번째 자막 사용
+        if not caption_id and captions:
+            caption_id = captions[0]['id']
+        
+        # 자막 다운로드 시도
+        if caption_id:
+            # 자막 다운로드
+            subtitle_response = youtube.captions().download(
+                id=caption_id,
+                tfmt='srt'
+            ).execute()
+            
+            # 자막 파싱
+            srt_content = subtitle_response.decode('utf-8')
+            script_text = parse_srt_to_plain_text(srt_content)
+            
+            # 영어 자막을 한국어로 번역 (선택 사항)
+            if auto_translate and is_english:
+                try:
+                    script_text = translate_text(script_text, 'ko')
+                except Exception as e:
+                    app.logger.error(f"자막 번역 오류: {str(e)}")
+            
+            return script_text
+        
+        return None
+        
+    except Exception as e:
+        app.logger.error(f"자막 가져오기 오류: {str(e)}")
+        # 할당량 초과 확인 및 키 교체
+        error_str = str(e).lower()
+        if 'quota' in error_str or 'exceeded' in error_str:
+            next_key = switch_to_next_api_key()
+            if next_key:
+                # 새 키로 재시도
+                return get_video_script(video_id, auto_translate)
+        
+        return None
+
+def parse_srt_to_plain_text(srt_content):
+    """
+    SRT 형식의 자막을 일반 텍스트로 변환
+    """
+    if not srt_content:
+        return ""
+    
+    # 정규식을 사용하여 SRT 포맷에서 텍스트만 추출
+    import re
+    
+    # 타임코드와 인덱스 제거
+    cleaned_text = re.sub(r'\d+\s*\n\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}\s*\n', '\n', srt_content)
+    
+    # 빈 줄 정리
+    cleaned_text = re.sub(r'\n{3,}', '\n\n', cleaned_text)
+    
+    # 앞뒤 공백 제거
+    cleaned_text = cleaned_text.strip()
+    
+    return cleaned_text
 
 # 정적 파일 제공 라우트
 @app.route('/static/<path:filename>')
