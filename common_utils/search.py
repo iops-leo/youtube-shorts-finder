@@ -426,8 +426,11 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
                         channel_processed = True
                         break
 
-        # 조회수 기준 정렬 후 전체에서 max_results개 자르기
-        all_filtered_videos.sort(key=lambda x: x['viewCount'], reverse=True)
+        # 최신순 기준 정렬 후 전체에서 max_results개 자르기
+        all_filtered_videos.sort(
+            key=lambda x: datetime.strptime(x['publishedAt'], "%Y-%m-%dT%H:%M:%SZ"),
+            reverse=True
+        )
         return all_filtered_videos
 
     else:
