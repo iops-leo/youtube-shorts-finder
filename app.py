@@ -7,7 +7,7 @@ import googleapiclient.discovery
 import pytz
 import isodate
 import json
-from functools import lru_cache
+from functools import lru_cache, wraps
 import time
 import hashlib
 import re
@@ -413,14 +413,13 @@ def check_api_limits():
 
 # API 접근 권한 검사 래퍼 함수
 def api_login_required(f):
+    @wraps(f)
     @login_required
     def decorated_function(*args, **kwargs):
         if not current_user.is_approved():
             return jsonify({"status": "error", "message": "승인된 사용자만 API에 접근할 수 있습니다."})
-        
         if not check_api_limits():
             return jsonify({"status": "error", "message": "일일 API 호출 제한에 도달했습니다."})
-        
         return f(*args, **kwargs)
     return decorated_function
 
