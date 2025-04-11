@@ -19,6 +19,11 @@
             <a class="navbar-brand" href="/">
                 <i class="fab fa-youtube text-danger me-2"></i>YouTube Shorts 도구
             </a>
+            <!-- 사이드바 토글 버튼 추가 -->
+            <button class="navbar-toggler me-2" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
+                <i class="fas fa-bars"></i>
+            </button>
+            <!-- 상단 네비게이션 토글 버튼 -->
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -67,7 +72,7 @@
     <div class="container-fluid mt-5 pt-3">
         <div class="row">
             <!-- 사이드바 메뉴 -->
-            <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse" id="sidebarMenu">
+            <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse show" id="sidebarMenu">
                 <div class="position-sticky pt-3">
                     <ul class="nav flex-column">
                         <li class="nav-item">
@@ -545,9 +550,50 @@
             }
             return true;
         }
-        
         // 검색 폼 제출 이벤트 오버라이드
         document.addEventListener('DOMContentLoaded', function() {
+
+            const sidebarMenu = document.getElementById('sidebarMenu');
+            if (sidebarMenu) {
+                const bsCollapse = new bootstrap.Collapse(sidebarMenu, {
+                    toggle: false
+                });
+                
+                // 모바일 환경에서 사이드바 토글시 body 클래스 조정
+                sidebarMenu.addEventListener('show.bs.collapse', function () {
+                    document.body.classList.add('sidebar-open');
+                });
+                
+                sidebarMenu.addEventListener('hide.bs.collapse', function () {
+                    document.body.classList.remove('sidebar-open');
+                });
+                
+                // 모바일에서 메뉴 항목 클릭 시 자동으로 사이드바 닫기
+                const navLinks = document.querySelectorAll('.sidebar .nav-link');
+                navLinks.forEach(link => {
+                    link.addEventListener('click', function() {
+                        if (window.innerWidth < 768) {
+                            bsCollapse.hide();
+                        }
+                    });
+                });
+                
+                // 창 크기 변경 시 처리
+                window.addEventListener('resize', function() {
+                    if (window.innerWidth >= 768) {
+                        bsCollapse.show(); // 데스크톱에서는 항상 표시
+                        document.body.classList.remove('sidebar-open');
+                    }
+                });
+                
+                // 초기 화면 크기에 따라 설정
+                if (window.innerWidth < 768) {
+                    bsCollapse.hide(); // 모바일에서는 기본적으로 닫힘
+                } else {
+                    bsCollapse.show(); // 데스크톱에서는 기본적으로 열림
+                }
+            }
+
             const originalFormSubmit = searchForm.onsubmit;
             searchForm.onsubmit = function(e) {
                 e.preventDefault();
