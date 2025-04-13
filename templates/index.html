@@ -85,11 +85,6 @@
                                 <i class="fas fa-users me-2"></i>채널 관리
                             </a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/scripts">
-                                <i class="fas fa-file-alt me-2"></i>스크립트 추출
-                            </a>
-                        </li>
                         {% if current_user.is_admin() %}
                         <li class="nav-item">
                             <a class="nav-link" href="/admin/users">
@@ -535,7 +530,6 @@
     <!-- 커스텀 자바스크립트 -->
     <script src="/static/js/main.js"></script>
     <script src="/static/js/channel-manager.js"></script>
-    <script src="/static/js/script-extractor.js"></script>
 
     <!-- API 제한 처리를 위한 스크립트 -->
     <script>
