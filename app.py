@@ -3,6 +3,7 @@ from flask import Flask, render_template, request, jsonify, send_from_directory,
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
+from sqlalchemy.orm import joinedload
 import googleapiclient.discovery
 import pytz
 import isodate
@@ -587,7 +588,9 @@ def search():
 @login_required
 def get_categories():
     """사용자의 모든 채널 카테고리 가져오기"""
-    categories = ChannelCategory.query.filter_by(user_id=current_user.id).all()
+    categories = ChannelCategory.query.options(
+    joinedload(ChannelCategory.category_channels).joinedload(CategoryChannel.channel)
+    ).filter_by(user_id=current_user.id).all()
     result = []
     
     for category in categories:
