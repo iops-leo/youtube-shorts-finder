@@ -588,6 +588,7 @@ def search():
 def get_categories():
     """사용자의 모든 채널 카테고리 가져오기"""
     categories = ChannelCategory.query.filter_by(user_id=current_user.id).all()
+    
     result = []
     
     for category in categories:
