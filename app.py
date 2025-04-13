@@ -22,6 +22,10 @@ from logging.handlers import RotatingFileHandler
 import requests
 from werkzeug.middleware.proxy_fix import ProxyFix
 from concurrent.futures import ThreadPoolExecutor
+from pytube import YouTube
+import speech_recognition as sr
+import moviepy.editor as mp
+import tempfile
 
 # 공통 기능 임포트
 from common_utils.search import get_recent_popular_shorts, get_cache_key, save_to_cache, get_from_cache
@@ -36,6 +40,12 @@ executor = ThreadPoolExecutor(max_workers=10)
 
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_size': 5,
+    'max_overflow': 10,
+    'pool_timeout': 30,
+    'pool_pre_ping': True
+}
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key')  # 실제 배포 시 환경 변수로 설정해야 함
 app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID', '')  # Google OAuth 클라이언트 ID
 app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET', '')  # Google OAuth 클라이언트 시크릿
@@ -1128,11 +1138,11 @@ def scripts_page():
     
     return render_template('scripts.html', daily_api_calls=daily_api_calls)
 
-@app.route('/api/scripts/extract', methods=['POST'])
+@app.route('/api/scripts/extract', methods=['POST'], endpoint='extract_scripts_api')
 @api_login_required
 def extract_scripts():
     """
-    채널 URL을 기반으로 영상 스크립트 추출
+    채널 URL을 기반으로 영상 스크립트 추출 (음성 인식 방식)
     """
     try:
         # 요청 데이터 가져오기
@@ -1164,16 +1174,21 @@ def extract_scripts():
         if not recent_videos:
             return jsonify({"status": "error", "message": "해당 채널의 영상을 가져올 수 없습니다."})
         
-        # 각 영상의 자막 추출
+        # 각 영상의 음성을 텍스트로 변환
         results = []
         for video in recent_videos:
             try:
-                script = get_video_script(video['id'], auto_translate)
+                # 음성 인식으로 스크립트 추출
+                script = extract_audio_to_text(video['videoUrl'], auto_translate)
                 if script:
                     video['text'] = script
                     results.append(video)
+                else:
+                    # 영상 정보는 유지하고 텍스트가 없음을 표시
+                    video['text'] = "음성 인식을 통한 텍스트 추출에 실패했습니다."
+                    results.append(video)
             except Exception as e:
-                app.logger.error(f"영상 {video['id']} 자막 추출 오류: {str(e)}")
+                app.logger.error(f"영상 {video['id']} 처리 오류: {str(e)}")
                 continue
         
         return jsonify({
@@ -1185,6 +1200,49 @@ def extract_scripts():
     except Exception as e:
         app.logger.error(f"스크립트 추출 오류: {str(e)}")
         return jsonify({"status": "error", "message": str(e)})
+
+def extract_audio_to_text(video_url, translate=False):
+    """
+    YouTube 영상의 오디오를 추출하여 텍스트로 변환
+    """
+    try:
+        # 임시 디렉토리 생성
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # YouTube 영상 다운로드
+            yt = YouTube(video_url)
+            audio_stream = yt.streams.filter(only_audio=True).first()
+            
+            # 오디오 다운로드
+            audio_file = os.path.join(temp_dir, "audio.mp4")
+            audio_stream.download(output_path=temp_dir, filename="audio.mp4")
+            
+            # MP4를 WAV로 변환
+            wav_file = os.path.join(temp_dir, "audio.wav")
+            clip = mp.AudioFileClip(audio_file)
+            clip.write_audiofile(wav_file, fps=16000)
+            clip.close()
+            
+            # 음성 인식
+            recognizer = sr.Recognizer()
+            with sr.AudioFile(wav_file) as source:
+                audio_data = recognizer.record(source)
+                if len(audio_data.frame_data) == 0:
+                    app.logger.error("🛑 인식할 오디오 데이터가 비어 있습니다.")
+                    return None
+                text = recognizer.recognize_google(audio_data, language='ko-KR')
+                
+                # 영어로 인식이 잘 안된 경우 영어로 다시 시도
+                if not text:
+                    text = recognizer.recognize_google(audio_data, language='en-US')
+                
+                # 번역 요청이 있고 영어로 인식된 경우
+                if translate and text and 'a' in text.lower():  # 간단한 영어 감지
+                    text = translate_text(text, 'ko')
+                
+                return text
+    except Exception as e:
+        app.logger.error(f"음성 인식 오류: {str(e)}")
+        return None
 
 def extract_channel_id(channel_url):
     """
