@@ -1149,27 +1149,47 @@ def merge_categories():
         "updatedCategoriesCount": updated_categories_count
     })
 
-def send_shorts_email(user_email, time_slot='오전'):
-    # 인기 쇼츠 불러오기
-    videos = get_recent_popular_shorts(min_views=1000000, days_ago=3, max_results=30)
-    
-    # HTML 본문 구성
-    html = f"""
-    <h3>[{time_slot}] 인기 Shorts 추천</h3>
-    <ul style="font-family: sans-serif;">
-    """
-    for v in videos:
-        html += f"<li><a href='{v['url']}' target='_blank'>{v['title']}</a> - 조회수 {v['viewCount']:,}</li>"
-    html += "</ul>"
 
-    # 메일 객체 생성
+def send_shorts_email(user_email, time_slot='오전'):
+    user = User.query.filter_by(email=user_email).first()
+    if not user:
+        return
+
+    html = f"<h2>[{time_slot}] 등록 카테고리별 Shorts 추천</h2>"
+
+    # 유저가 등록한 카테고리만 가져옴
+    categories = ChannelCategory.query.filter_by(user_id=user.id).all()
+
+    for category in categories:
+        channel_ids = [cc.channel_id for cc in category.category_channels]
+        if not channel_ids:
+            continue
+
+        params = {
+            'channel_ids': ','.join(channel_ids),
+            'min_views': 500000,
+            'days_ago': 3,
+            'max_results': 15  # 적당한 수로 조절
+        }
+
+        videos = get_recent_popular_shorts(**params)
+        if not videos:
+            continue
+
+        html += f"<h4>📂 {category.name}</h4><ul>"
+        for v in videos:
+            html += f"<li><a href='{v['url']}' target='_blank'>{v['title']}</a> - 조회수 {v['viewCount']:,}</li>"
+        html += "</ul>"
+
+    if "<ul>" not in html:
+        return  # 추천 영상 없으면 전송하지 않음
+
     msg = Message(
-        subject=f"[Shorts 추천] {time_slot} 모음",
+        subject=f"[Shorts 추천] {time_slot} 카테고리별 모음",
         sender=app.config['MAIL_USERNAME'],
         recipients=[user_email],
         html=html
     )
-    
     mail.send(msg)
 
 # 정적 파일 제공 라우트
@@ -1188,8 +1208,7 @@ def serve_css(filename):
 @app.route('/favicon.ico')
 def favicon():
     """Favicon 반환 라우트"""
-    return send_from_directory(os.path.join(app.root_path, 'static'),
-                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
+    return send_from_directory(os.path.join(app.root_path, 'static'),'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 # 에러 핸들러
 @app.errorhandler(404)
