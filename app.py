@@ -3,6 +3,7 @@ from flask import Flask, render_template, request, jsonify, send_from_directory,
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
+from flask_mail import Mail, Message
 import googleapiclient.discovery
 import pytz
 import isodate
@@ -26,6 +27,9 @@ from pytube import YouTube
 import speech_recognition as sr
 import moviepy.editor as mp
 import tempfile
+from apscheduler.schedulers.background import BackgroundScheduler
+import atexit
+
 
 # 공통 기능 임포트
 from common_utils.search import get_recent_popular_shorts, get_cache_key, save_to_cache, get_from_cache
@@ -37,6 +41,19 @@ CACHE_TIMEOUT = 28800  # 캐시 유효시간 (초)
 # 스레드풀 생성
 executor = ThreadPoolExecutor(max_workers=10)
 
+scheduler = BackgroundScheduler()
+
+# 아침 8시
+scheduler.add_job(lambda: send_shorts_email('leaflife84@gmail.com', '아침'), 'cron', hour=8)
+
+# 오후 2시
+scheduler.add_job(lambda: send_shorts_email('leaflife84@gmail.com', '오후'), 'cron', hour=14)
+
+# 저녁 8시
+scheduler.add_job(lambda: send_shorts_email('leaflife84@gmail.com', '저녁'), 'cron', hour=20)
+
+scheduler.start()
+atexit.register(lambda: scheduler.shutdown())
 
 
 app = Flask(__name__)
@@ -46,6 +63,17 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_timeout': 30,
     'pool_pre_ping': True
 }
+mail = Mail(app)
+
+
+app.config.update(
+    MAIL_SERVER=os.environ.get('MAIL_SERVER', 'smtp.gmail.com'),
+    MAIL_PORT=int(os.environ.get('MAIL_PORT', 587)),
+    MAIL_USE_TLS=True,
+    MAIL_USERNAME=os.environ.get('MAIL_USERNAME'),
+    MAIL_PASSWORD=os.environ.get('MAIL_PASSWORD'),
+)
+
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key')  # 실제 배포 시 환경 변수로 설정해야 함
 app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID', '')  # Google OAuth 클라이언트 ID
 app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET', '')  # Google OAuth 클라이언트 시크릿
@@ -1120,6 +1148,29 @@ def merge_categories():
         "newCategoriesCount": new_categories_count,
         "updatedCategoriesCount": updated_categories_count
     })
+
+def send_shorts_email(user_email, time_slot='오전'):
+    # 인기 쇼츠 불러오기
+    videos = get_recent_popular_shorts(min_views=1000000, days_ago=3, max_results=30)
+    
+    # HTML 본문 구성
+    html = f"""
+    <h3>[{time_slot}] 인기 Shorts 추천</h3>
+    <ul style="font-family: sans-serif;">
+    """
+    for v in videos:
+        html += f"<li><a href='{v['url']}' target='_blank'>{v['title']}</a> - 조회수 {v['viewCount']:,}</li>"
+    html += "</ul>"
+
+    # 메일 객체 생성
+    msg = Message(
+        subject=f"[Shorts 추천] {time_slot} 모음",
+        sender=app.config['MAIL_USERNAME'],
+        recipients=[user_email],
+        html=html
+    )
+    
+    mail.send(msg)
 
 # 정적 파일 제공 라우트
 @app.route('/static/<path:filename>')
