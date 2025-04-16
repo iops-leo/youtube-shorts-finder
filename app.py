@@ -27,8 +27,8 @@ from pytube import YouTube
 import speech_recognition as sr
 import moviepy.editor as mp
 import tempfile
-from apscheduler.schedulers.background import BackgroundScheduler
-import atexit
+from services.email_service import EmailService
+from services.notification_scheduler import NotificationScheduler
 
 
 # 공통 기능 임포트
@@ -40,20 +40,6 @@ CACHE_TIMEOUT = 28800  # 캐시 유효시간 (초)
 
 # 스레드풀 생성
 executor = ThreadPoolExecutor(max_workers=10)
-
-scheduler = BackgroundScheduler()
-
-# 아침 8시
-scheduler.add_job(lambda: send_shorts_email('leaflife84@gmail.com', '아침'), 'cron', hour=8)
-
-# 오후 2시
-scheduler.add_job(lambda: send_shorts_email('leaflife84@gmail.com', '오후'), 'cron', hour=14)
-
-# 저녁 8시
-scheduler.add_job(lambda: send_shorts_email('leaflife84@gmail.com', '저녁'), 'cron', hour=20)
-
-scheduler.start()
-atexit.register(lambda: scheduler.shutdown())
 
 
 app = Flask(__name__)
@@ -188,6 +174,28 @@ class SearchHistory(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     user = db.relationship('User', backref=db.backref('search_history', lazy=True))
+
+class EmailNotification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(128), db.ForeignKey('user.id'), nullable=False)
+    active = db.Column(db.Boolean, default=True)
+    frequency = db.Column(db.Integer, default=3)  # 하루 발송 횟수 (기본값: 3)
+    preferred_times = db.Column(db.String(128))  # 이메일 발송 시간 (쉼표로 구분, 예: "9,13,18")
+    last_sent = db.Column(db.DateTime)  # 마지막 발송 시간
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('email_notifications', lazy=True))
+
+class NotificationSearch(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    notification_id = db.Column(db.Integer, db.ForeignKey('email_notification.id', ondelete='CASCADE'), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey('channel_category.id'), nullable=False)
+    min_views = db.Column(db.Integer, default=100000)
+    days_ago = db.Column(db.Integer, default=1)  # 더 최신 콘텐츠 위주로 설정
+    max_results = db.Column(db.Integer, default=5)  # 카테고리별 최대 결과 수
+    
+    notification = db.relationship('EmailNotification', backref=db.backref('searches', lazy=True, cascade='all, delete-orphan'))
+    category = db.relationship('ChannelCategory', backref=db.backref('notification_searches', lazy=True))
 
 with app.app_context():
     db.create_all()
@@ -1150,48 +1158,137 @@ def merge_categories():
     })
 
 
-def send_shorts_email(user_email, time_slot='오전'):
-    user = User.query.filter_by(email=user_email).first()
-    if not user:
-        return
-
-    html = f"<h2>[{time_slot}] 등록 카테고리별 Shorts 추천</h2>"
-
-    # 유저가 등록한 카테고리만 가져옴
-    categories = ChannelCategory.query.filter_by(user_id=user.id).all()
-
-    for category in categories:
-        channel_ids = [cc.channel_id for cc in category.category_channels]
-        if not channel_ids:
-            continue
-
-        params = {
-            'channel_ids': ','.join(channel_ids),
-            'min_views': 500000,
-            'days_ago': 3,
-            'max_results': 15  # 적당한 수로 조절
+@app.route('/notifications')
+@login_required
+def notifications_page():
+    """알림 설정 페이지"""
+    if not current_user.is_approved():
+        return redirect(url_for('pending'))
+    
+    # 사용자의 알림 설정 가져오기
+    notification = EmailNotification.query.filter_by(user_id=current_user.id).first()
+    
+    # 사용자의 카테고리 목록 가져오기
+    categories = ChannelCategory.query.filter_by(user_id=current_user.id).all()
+    
+    # 알림 설정이 없으면 기본값으로 생성
+    if not notification:
+        notification = EmailNotification(
+            user_id=current_user.id,
+            active=False,
+            frequency=3,
+            preferred_times="9,13,18"  # 기본값: 오전 9시, 오후 1시, 오후 6시
+        )
+        db.session.add(notification)
+        db.session.commit()
+    
+    # 카테고리별 검색 설정 정보
+    notification_searches = {}
+    for search in notification.searches:
+        notification_searches[search.category_id] = {
+            'min_views': search.min_views,
+            'days_ago': search.days_ago,
+            'max_results': search.max_results
         }
-
-        videos = get_recent_popular_shorts(**params)
-        if not videos:
-            continue
-
-        html += f"<h4>📂 {category.name}</h4><ul>"
-        for v in videos:
-            html += f"<li><a href='{v['url']}' target='_blank'>{v['title']}</a> - 조회수 {v['viewCount']:,}</li>"
-        html += "</ul>"
-
-    if "<ul>" not in html:
-        return  # 추천 영상 없으면 전송하지 않음
-
-    msg = Message(
-        subject=f"[Shorts 추천] {time_slot} 카테고리별 모음",
-        sender=app.config['MAIL_USERNAME'],
-        recipients=[user_email],
-        html=html
+    
+    return render_template(
+        'notifications.html',
+        notification=notification,
+        categories=categories,
+        notification_searches=notification_searches
     )
-    mail.send(msg)
 
+@app.route('/api/notifications/save', methods=['POST'])
+@login_required
+def save_notification_settings():
+    """알림 설정 저장 API"""
+    data = request.json
+    
+    if not data:
+        return jsonify({"status": "error", "message": "유효하지 않은 데이터입니다."})
+    
+    # 기존 알림 설정 가져오기 또는 새로 생성
+    notification = EmailNotification.query.filter_by(user_id=current_user.id).first()
+    if not notification:
+        notification = EmailNotification(user_id=current_user.id)
+        db.session.add(notification)
+    
+    # 기본 설정 업데이트
+    notification.active = data.get('active', False)
+    notification.frequency = data.get('frequency', 3)
+    notification.preferred_times = data.get('preferred_times', "9,13,18")
+    
+    # 기존 검색 설정 삭제
+    NotificationSearch.query.filter_by(notification_id=notification.id).delete()
+    
+    # 새로운 검색 설정 추가
+    categories = data.get('categories', [])
+    for category_data in categories:
+        if not category_data.get('id'):
+            continue
+            
+        # 카테고리 존재 확인
+        category = ChannelCategory.query.filter_by(
+            id=category_data['id'],
+            user_id=current_user.id
+        ).first()
+        
+        if category:
+            search = NotificationSearch(
+                notification_id=notification.id,
+                category_id=category.id,
+                min_views=category_data.get('min_views', 100000),
+                days_ago=category_data.get('days_ago', 1),
+                max_results=category_data.get('max_results', 5)
+            )
+            db.session.add(search)
+    
+    db.session.commit()
+    
+    return jsonify({
+        "status": "success",
+        "message": "알림 설정이 저장되었습니다."
+    })
+
+@app.route('/api/notifications/test', methods=['POST'])
+@login_required
+def test_notification_email():
+    """테스트 알림 이메일 발송"""
+    # 이메일 서비스 인스턴스 생성
+    email_service = EmailService(app)
+    
+    # 사용자의 알림 설정 가져오기
+    notification = EmailNotification.query.filter_by(user_id=current_user.id).first()
+    if not notification:
+        return jsonify({"status": "error", "message": "저장된 알림 설정이 없습니다."})
+    
+    # 검색 결과 수집
+    scheduler = NotificationScheduler(app, db, email_service)
+    search_results = scheduler.collect_search_results(notification)
+    
+    # 테스트 이메일 발송
+    email_html = email_service.format_shorts_email(
+        current_user,
+        search_results,
+        datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+    )
+    
+    success = email_service.send_email(
+        current_user.email,
+        f"YouTube Shorts 인기 영상 알림 (테스트)",
+        email_html
+    )
+    
+    if success:
+        return jsonify({
+            "status": "success",
+            "message": f"{current_user.email} 주소로 테스트 이메일이 발송되었습니다."
+        })
+    else:
+        return jsonify({
+            "status": "error",
+            "message": "이메일 발송 중 오류가 발생했습니다."
+        })
 # 정적 파일 제공 라우트
 @app.route('/static/<path:filename>')
 def serve_static(filename):
@@ -1225,5 +1322,10 @@ def health():
     return jsonify({"status": "ok"})
 
 if __name__ == '__main__':
+        # 이메일 서비스 및 스케줄러 설정
+    email_service = EmailService(app)
+    scheduler = NotificationScheduler(app, db, email_service)
+    scheduler.start()
+
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=True)  # 디버그 모드 활성화
