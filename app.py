@@ -1266,16 +1266,23 @@ def test_notification_email():
     scheduler = NotificationScheduler(app, db, email_service)
     search_results = scheduler.collect_search_results(notification)
     
+    # KST 시간대로 변환
+    import pytz
+    from datetime import datetime
+    kst = pytz.timezone('Asia/Seoul')
+    kst_now = datetime.utcnow().replace(tzinfo=pytz.UTC).astimezone(kst)
+    kst_timestamp = kst_now.strftime('%Y-%m-%d %H:%M:%S KST')
+    
     # 테스트 이메일 발송
     email_html = email_service.format_shorts_email(
         current_user,
         search_results,
-        datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+        kst_timestamp
     )
     
     success = email_service.send_email(
         current_user.email,
-        f"YouTube Shorts 인기 영상 알림 (테스트)",
+        f"YouTube Shorts 인기 영상 알림 (테스트 - {kst_now.strftime('%Y-%m-%d %H:%M')})",
         email_html
     )
     

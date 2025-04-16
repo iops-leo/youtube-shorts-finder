@@ -4,6 +4,7 @@ from apscheduler.triggers.cron import CronTrigger
 from flask_sqlalchemy import SQLAlchemy
 import datetime
 import pytz
+from app import EmailNotification, User
 
 class NotificationScheduler:
     def __init__(self, app, db, email_service):
@@ -45,7 +46,12 @@ class NotificationScheduler:
             try:
                 # 현재 시간 (UTC)
                 now = datetime.datetime.utcnow()
-                current_hour = now.hour
+                
+                # KST로 변환
+                import pytz
+                kst = pytz.timezone('Asia/Seoul')
+                kst_now = now.replace(tzinfo=pytz.UTC).astimezone(kst)
+                current_hour = kst_now.hour  # KST 기준 시간
                 
                 # 현재 시간에 발송해야 할 알림 검색
                 notifications = EmailNotification.query.filter(
@@ -56,7 +62,7 @@ class NotificationScheduler:
                     # 선호 시간 확인
                     preferred_times = [int(t) for t in notification.preferred_times.split(',')]
                     
-                    # 현재 시간이 선호 시간에 포함되는지 확인
+                    # 현재 시간이 선호 시간에 포함되는지 확인 (KST 기준)
                     if current_hour in preferred_times:
                         # 마지막 발송 시간 확인 (같은 시간에 중복 발송 방지)
                         if (notification.last_sent is None or 
@@ -70,16 +76,19 @@ class NotificationScheduler:
                             # 검색 결과 수집
                             search_results = self.collect_search_results(notification)
                             
+                            # KST 시간대 문자열
+                            kst_timestamp = kst_now.strftime('%Y-%m-%d %H:%M:%S KST')
+                            
                             # 이메일 발송
                             email_html = self.email_service.format_shorts_email(
                                 user,
                                 search_results,
-                                now.strftime('%Y-%m-%d %H:%M:%S UTC')
+                                kst_timestamp
                             )
                             
                             success = self.email_service.send_email(
                                 user.email,
-                                f"YouTube Shorts 인기 영상 알림 ({now.strftime('%Y-%m-%d %H:%M')})",
+                                f"YouTube Shorts 인기 영상 알림 ({kst_now.strftime('%Y-%m-%d %H:%M')})",
                                 email_html
                             )
                             

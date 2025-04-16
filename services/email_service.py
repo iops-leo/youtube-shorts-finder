@@ -40,6 +40,32 @@ class EmailService:
     def format_shorts_email(self, user, search_results, timestamp):
         """쇼츠 이메일 포맷팅 - 깔끔한 디자인"""
         try:
+            from datetime import datetime
+            import pytz
+
+            # timestamp가 문자열이면 datetime으로 파싱
+            if isinstance(timestamp, str):
+                try:
+                    # UTC 시간 파싱 (여러 형식 시도)
+                    for fmt in ('%Y-%m-%d %H:%M:%S UTC', '%Y-%m-%d %H:%M:%S'):
+                        try:
+                            dt = datetime.strptime(timestamp, fmt)
+                            dt = dt.replace(tzinfo=pytz.UTC)
+                            break
+                        except ValueError:
+                            continue
+                except:
+                    # 파싱 실패 시 현재 시간 사용
+                    dt = datetime.now(pytz.UTC)
+            else:
+                # datetime 객체이면 UTC 시간대 설정
+                dt = timestamp.replace(tzinfo=pytz.UTC) if timestamp.tzinfo is None else timestamp
+            
+            # KST로 변환
+            kst = pytz.timezone('Asia/Seoul')
+            kst_time = dt.astimezone(kst)
+            formatted_time = kst_time.strftime('%Y-%m-%d %H:%M:%S KST')
+            
             # 개선된 이메일 템플릿
             template_str = """
             <!DOCTYPE html>
