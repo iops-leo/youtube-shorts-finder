@@ -38,35 +38,57 @@ class EmailService:
             return False
         
     def format_shorts_email(self, user, search_results, timestamp):
-        """쇼츠 이메일 포맷팅 - 깔끔한 디자인"""
+        """쇼츠 이메일 포맷팅 - 한국 시간대로 표시"""
         try:
+            # UTC 시간을 KST로 변환
             from datetime import datetime
             import pytz
-
+            
+            # 기본값으로 현재 시간 설정
+            dt = datetime.now(pytz.UTC)
+            
             # timestamp가 문자열이면 datetime으로 파싱
             if isinstance(timestamp, str):
                 try:
-                    # UTC 시간 파싱 (여러 형식 시도)
-                    for fmt in ('%Y-%m-%d %H:%M:%S UTC', '%Y-%m-%d %H:%M:%S'):
-                        try:
-                            dt = datetime.strptime(timestamp, fmt)
-                            dt = dt.replace(tzinfo=pytz.UTC)
-                            break
-                        except ValueError:
-                            continue
-                except:
-                    # 파싱 실패 시 현재 시간 사용
-                    dt = datetime.now(pytz.UTC)
+                    # 이미 KST 형식으로 되어 있는지 확인
+                    if 'KST' in timestamp:
+                        # 이미 KST 형식이면 그대로 사용
+                        formatted_time = timestamp
+                    else:
+                        # UTC 시간 파싱 (여러 형식 시도)
+                        formats = ['%Y-%m-%d %H:%M:%S UTC', '%Y-%m-%d %H:%M:%S']
+                        for fmt in formats:
+                            try:
+                                dt = datetime.strptime(timestamp, fmt)
+                                dt = dt.replace(tzinfo=pytz.UTC)
+                                # KST로 변환
+                                kst = pytz.timezone('Asia/Seoul')
+                                kst_time = dt.astimezone(kst)
+                                formatted_time = kst_time.strftime('%Y-%m-%d %H:%M:%S KST')
+                                break
+                            except ValueError:
+                                continue
+                        else:
+                            # 어떤 형식으로도 파싱되지 않으면 그대로 사용
+                            formatted_time = timestamp
+                except Exception as e:
+                    self.app.logger.error(f"시간 파싱 오류: {str(e)}")
+                    formatted_time = timestamp  # 오류 시 원본 그대로 사용
             else:
-                # datetime 객체이면 UTC 시간대 설정
-                dt = timestamp.replace(tzinfo=pytz.UTC) if timestamp.tzinfo is None else timestamp
+                # datetime 객체이면 UTC 시간대 설정 후 KST로 변환
+                if hasattr(timestamp, 'tzinfo'):
+                    dt = timestamp if timestamp.tzinfo else timestamp.replace(tzinfo=pytz.UTC)
+                    kst = pytz.timezone('Asia/Seoul')
+                    kst_time = dt.astimezone(kst)
+                    formatted_time = kst_time.strftime('%Y-%m-%d %H:%M:%S KST')
+                else:
+                    # tzinfo가 없는 경우 UTC로 가정하고 변환
+                    dt = timestamp.replace(tzinfo=pytz.UTC)
+                    kst = pytz.timezone('Asia/Seoul')
+                    kst_time = dt.astimezone(kst)
+                    formatted_time = kst_time.strftime('%Y-%m-%d %H:%M:%S KST')
             
-            # KST로 변환
-            kst = pytz.timezone('Asia/Seoul')
-            kst_time = dt.astimezone(kst)
-            formatted_time = kst_time.strftime('%Y-%m-%d %H:%M:%S KST')
-            
-            # 개선된 이메일 템플릿
+            # 이메일 템플릿 (기존 템플릿 유지)
             template_str = """
             <!DOCTYPE html>
             <html>
@@ -178,7 +200,7 @@ class EmailService:
             """
             
             template = Template(template_str)
-            return template.render(user=user, results=search_results, timestamp=timestamp)
+            return template.render(user=user, results=search_results, timestamp=formatted_time)
         except Exception as e:
             self.app.logger.error(f"이메일 포맷팅 오류: {str(e)}")
             return "<p>이메일 생성 중 오류가 발생했습니다.</p>"
