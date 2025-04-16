@@ -49,6 +49,8 @@ def switch_to_next_api_key():
 
 def translate_text(text, target_lang='ko'):
     """텍스트를 대상 언어로 번역"""
+    """텍스트 번역 기능 비활성화 (리소스 절약)"""
+    return None  # 번역하지 않고 None 반환
     if not text or text.strip() == "":
         return ""
         

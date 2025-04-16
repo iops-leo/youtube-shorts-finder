@@ -73,9 +73,10 @@ function setupNavigationListeners() {
     // 메뉴 항목 클릭 처리
     document.querySelectorAll('.nav-link').forEach(navLink => {
         navLink.addEventListener('click', function(e) {
-            // 관리자 페이지 링크인 경우 기본 동작 허용 (URL로 이동)
-            if (this.getAttribute('href').startsWith('/admin/')) {
-                return;
+            // 관리자 페이지 링크 또는 notifications 페이지로 이동하는 경우 기본 동작 허용
+            if (this.getAttribute('href').startsWith('/admin/') || 
+                this.getAttribute('href') === '/notifications') {
+                return; // 기본 링크 동작 유지
             }
             
             // 그 외의 메뉴 아이템 처리 (기존 방식대로)
