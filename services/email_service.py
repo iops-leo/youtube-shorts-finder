@@ -13,7 +13,7 @@ class EmailService:
         self.smtp_port = int(os.environ.get('SMTP_PORT', 587))
         self.smtp_username = os.environ.get('SMTP_USERNAME', '')
         self.smtp_password = os.environ.get('SMTP_PASSWORD', '')
-        self.sender_email = os.environ.get('SENDER_EMAIL', 'youtubeshortstool@gmail.com')
+        self.sender_email = os.environ.get('SENDER_EMAIL', 'leaflife84@gmail.com')
     
     def send_email(self, recipient, subject, html_content):
         """이메일 발송 함수"""
