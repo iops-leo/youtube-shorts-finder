@@ -4,6 +4,15 @@ from apscheduler.triggers.cron import CronTrigger
 from flask_sqlalchemy import SQLAlchemy
 import datetime
 import pytz
+from models import (
+    db,
+    EmailNotification,
+    NotificationSearch,
+    User,
+    ChannelCategory,
+    CategoryChannel,
+    Channel
+)
 
 class NotificationScheduler:
     def __init__(self, app, db, email_service):
