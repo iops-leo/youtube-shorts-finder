@@ -38,6 +38,15 @@ from common_utils.search import api_keys, switch_to_next_api_key, get_youtube_ap
 cache = {}
 CACHE_TIMEOUT = 28800  # 캐시 유효시간 (초)
 
+if os.environ.get('FLASK_ENV') == 'production':
+    # 운영 환경 설정
+    # 환경변수는 클라우드 서비스에서 설정됨
+    pass  # 필요한 경우 여기에 운영 환경 특정 코드 추가
+else:
+    # 개발 환경 설정
+    from dotenv import load_dotenv
+    load_dotenv()  # .env 파일에서 환경변수 로드
+
 # 스레드풀 생성
 executor = ThreadPoolExecutor(max_workers=10)
 
@@ -616,29 +625,27 @@ def search():
     except Exception as e:
         print(f"오류 발생: {e}")
         return jsonify({"status": "error", "message": str(e)})
-    
 
 
 @app.route('/api/categories', methods=['GET'])
 @login_required
 def get_categories():
     """사용자의 모든 채널 카테고리 가져오기"""
-    categories = ChannelCategory.query.filter_by(user_id=current_user.id).all()
+    # eager loading을 사용하여 관련 테이블을 한 번에 조회
+    categories = ChannelCategory.query.options(
+        db.joinedload(ChannelCategory.category_channels).joinedload(CategoryChannel.channel)
+    ).filter_by(user_id=current_user.id).all()
 
     result = []
-    
+
     for category in categories:
-        # 카테고리에 속한 채널 가져오기
-        channels = []
-        for cat_channel in category.category_channels:
-            channel = cat_channel.channel
-            channels.append({
-                'id': channel.id,
-                'title': channel.title,
-                'description': channel.description,
-                'thumbnail': channel.thumbnail
-            })
-        
+        channels = [{
+            'id': cat_channel.channel.id,
+            'title': cat_channel.channel.title,
+            'description': cat_channel.channel.description,
+            'thumbnail': cat_channel.channel.thumbnail
+        } for cat_channel in category.category_channels]
+
         result.append({
             'id': str(category.id),
             'name': category.name,
@@ -646,7 +653,7 @@ def get_categories():
             'createdAt': category.created_at.isoformat(),
             'channels': channels
         })
-    
+
     return jsonify({"status": "success", "categories": result})
 
 @app.route('/api/categories', methods=['POST'])
