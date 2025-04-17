@@ -1,21 +1,22 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from flask_login import UserMixin
 
 db = SQLAlchemy()
 
-class User(db.Model):
+class User(db.Model, UserMixin):
     id = db.Column(db.String(128), primary_key=True)
     email = db.Column(db.String(128), unique=True, nullable=False)
     name = db.Column(db.String(128), nullable=False)
     picture = db.Column(db.String(256))
-    role = db.Column(db.String(20), default='pending')
+    role = db.Column(db.String(20), default='pending')  # pending, approved, admin
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
     api_calls = db.Column(db.Integer, default=0)
 
     def is_admin(self):
         return self.role == 'admin'
-
+    
     def is_approved(self):
         return self.role == 'approved' or self.role == 'admin'
 
