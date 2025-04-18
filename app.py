@@ -29,6 +29,7 @@ import moviepy.editor as mp
 import tempfile
 from services.email_service import EmailService
 from services.notification_scheduler import NotificationScheduler
+import fcntl
 
 
 # 공통 기능 임포트
@@ -1231,6 +1232,42 @@ def page_not_found(e):
 def internal_error(e):
     app.logger.error(f'서버 오류: {str(e)}')
     return render_template('error/500.html'), 500
+
+
+# 이메일 서비스 및 스케줄러 설정
+app.logger.info("이메일 서비스 초기화...")
+email_service = EmailService(app)
+
+# 파일 락을 사용하여 하나의 프로세스만 스케줄러 실행
+app.logger.info("스케줄러 초기화 시도...")
+lock_file_path = '/tmp/scheduler.lock'
+
+try:
+    lock_file = open(lock_file_path, 'w')
+    fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    
+    # 잠금을 획득한 프로세스만 스케줄러 시작
+    app.logger.info(f"프로세스 {os.getpid()}에서 스케줄러 락 획득, 스케줄러 시작...")
+    scheduler = NotificationScheduler(app, db, email_service)
+    scheduler.start()
+    
+    # 종료 시 정리
+    def shutdown_scheduler():
+        app.logger.info("애플리케이션 종료: 스케줄러 종료 중...")
+        if hasattr(scheduler, 'scheduler') and scheduler.scheduler.running:
+            scheduler.scheduler.shutdown()
+        # 잠금 해제
+        fcntl.lockf(lock_file, fcntl.LOCK_UN)
+        lock_file.close()
+        app.logger.info("스케줄러가 성공적으로 종료되었습니다.")
+    
+    import atexit
+    atexit.register(shutdown_scheduler)
+    app.logger.info("스케줄러 초기화 완료")
+    
+except IOError:
+    # 다른 프로세스가 이미 잠금을 획득함
+    app.logger.info(f"프로세스 {os.getpid()}에서 스케줄러 락 획득 실패, 스케줄러 초기화 건너뜀")
 
 @app.route('/health')
 def health():
