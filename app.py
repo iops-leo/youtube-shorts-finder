@@ -1218,7 +1218,7 @@ def test_notification_email():
             "message": "이메일 발송 중 오류가 발생했습니다."
         })
     
-@app.route('/admin/reset-sequence', methods=['POST'])
+@app.route('/admin/reset-sequence', methods=['GET'])
 @login_required
 def reset_sequence():
     if not current_user.is_admin():
