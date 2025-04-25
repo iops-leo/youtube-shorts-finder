@@ -646,14 +646,29 @@ def add_channels_to_category(category_id):
         
         if not existing:
             # 카테고리에 채널 연결
-            cat_channel = CategoryChannel(
-                category_id=category.id,
-                channel_id=channel.id
-            )
-            db.session.add(cat_channel)
-            added_count += 1
+            try:
+                cat_channel = CategoryChannel(
+                    category_id=category.id,
+                    channel_id=channel.id
+                )
+                db.session.add(cat_channel)
+                db.session.flush()  # ID를 커밋하지 않고 가져오기 시도
+                added_count += 1
+            except Exception as e:
+                # 오류 기록 후 다른 채널로 계속 진행
+                app.logger.error(f"채널 추가 중 오류: {str(e)}")
+                db.session.rollback()
+                continue
     
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"트랜잭션 커밋 중 오류: {str(e)}")
+        return jsonify({
+            "status": "error", 
+            "message": f"일부 채널 추가 중 오류가 발생했습니다: {str(e)}"
+        })
     
     return jsonify({
         "status": "success", 
