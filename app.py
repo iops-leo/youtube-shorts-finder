@@ -622,53 +622,50 @@ def add_channels_to_category(category_id):
         return jsonify({"status": "error", "message": "채널 목록이 유효하지 않습니다."})
     
     added_count = 0
-    for channel_data in data['channels']:
-        # 채널 ID가 없으면 스킵
-        if not channel_data.get('id'):
-            continue
+    errors = []
+    
+    try:
+        for channel_data in data['channels']:
+            # 채널 ID가 없으면 스킵
+            if not channel_data.get('id'):
+                continue
+                
+            # 채널이 이미 데이터베이스에 있는지 확인
+            channel = Channel.query.get(channel_data['id'])
+            if not channel:
+                # 새 채널 추가
+                channel = Channel(
+                    id=channel_data['id'],
+                    title=channel_data.get('title', ''),
+                    description=channel_data.get('description', ''),
+                    thumbnail=channel_data.get('thumbnail', '')
+                )
+                db.session.add(channel)
             
-        # 채널이 이미 데이터베이스에 있는지 확인
-        channel = Channel.query.get(channel_data['id'])
-        if not channel:
-            # 새 채널 추가
-            channel = Channel(
-                id=channel_data['id'],
-                title=channel_data.get('title', ''),
-                description=channel_data.get('description', ''),
-                thumbnail=channel_data.get('thumbnail', '')
-            )
-            db.session.add(channel)
-        
-        # 이미 카테고리에 추가되어 있는지 확인
-        existing = CategoryChannel.query.filter_by(
-            category_id=category.id, 
-            channel_id=channel.id
-        ).first()
-        
-        if not existing:
-            # 카테고리에 채널 연결
-            try:
+            # 이미 카테고리에 추가되어 있는지 확인
+            existing = CategoryChannel.query.filter_by(
+                category_id=category.id, 
+                channel_id=channel.id
+            ).first()
+            
+            if not existing:
+                # 카테고리에 채널 연결 (id는 자동 생성되도록 지정하지 않음)
                 cat_channel = CategoryChannel(
                     category_id=category.id,
                     channel_id=channel.id
                 )
                 db.session.add(cat_channel)
-                db.session.flush()  # ID를 커밋하지 않고 가져오기 시도
                 added_count += 1
-            except Exception as e:
-                # 오류 기록 후 다른 채널로 계속 진행
-                app.logger.error(f"채널 추가 중 오류: {str(e)}")
-                db.session.rollback()
-                continue
-    
-    try:
+        
+        # 모든 처리가 끝난 후 한 번에 커밋
         db.session.commit()
+        
     except Exception as e:
         db.session.rollback()
-        app.logger.error(f"트랜잭션 커밋 중 오류: {str(e)}")
+        app.logger.error(f"채널 추가 중 오류: {str(e)}")
         return jsonify({
             "status": "error", 
-            "message": f"일부 채널 추가 중 오류가 발생했습니다: {str(e)}"
+            "message": f"채널 추가 중 오류가 발생했습니다: {str(e)}"
         })
     
     return jsonify({
@@ -1220,6 +1217,34 @@ def test_notification_email():
             "status": "error",
             "message": "이메일 발송 중 오류가 발생했습니다."
         })
+    
+@app.route('/admin/reset-sequence', methods=['POST'])
+@login_required
+def reset_sequence():
+    if not current_user.is_admin():
+        return jsonify({"status": "error", "message": "관리자 권한이 필요합니다."})
+    
+    try:
+        # 최대 ID 값 찾기
+        max_id_result = db.session.execute("SELECT MAX(id) FROM category_channel").scalar()
+        max_id = max_id_result if max_id_result is not None else 0
+        
+        # 시퀀스 재설정 (PostgreSQL용)
+        db.session.execute(f"ALTER SEQUENCE category_channel_id_seq RESTART WITH {max_id + 1}")
+        db.session.commit()
+        
+        return jsonify({
+            "status": "success", 
+            "message": f"시퀀스가 성공적으로 재설정되었습니다. 다음 ID: {max_id + 1}"
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"시퀀스 재설정 중 오류: {str(e)}")
+        return jsonify({
+            "status": "error", 
+            "message": f"시퀀스 재설정 중 오류가 발생했습니다: {str(e)}"
+        })
+        
 # 정적 파일 제공 라우트
 @app.route('/static/<path:filename>')
 def serve_static(filename):
