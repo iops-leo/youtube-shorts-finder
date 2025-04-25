@@ -1,4 +1,3 @@
-# notification_scheduler.py 수정
 from common_utils.search import get_recent_popular_shorts
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -200,6 +199,12 @@ class NotificationScheduler:
                         max_results=search.max_results,
                         channel_ids=','.join(channels)
                     )
+                    
+                    # 수정: 결과를 최대 10개로 제한
+                    max_videos_per_category = 10
+                    if len(videos) > max_videos_per_category:
+                        self.app.logger.info(f"카테고리 {category.name}의 결과를 {max_videos_per_category}개로 제한 (원래: {len(videos)}개)")
+                        videos = videos[:max_videos_per_category]
                     
                     self.app.logger.info(f"카테고리 {category.name}에서 {len(videos)}개 영상 찾음")
                     
