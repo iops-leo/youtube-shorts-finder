@@ -30,6 +30,7 @@ import tempfile
 from services.email_service import EmailService
 from services.notification_scheduler import NotificationScheduler
 import fcntl
+from sqlalchemy import text
 
 
 # 공통 기능 임포트
@@ -1217,7 +1218,7 @@ def test_notification_email():
             "status": "error",
             "message": "이메일 발송 중 오류가 발생했습니다."
         })
-    
+
 @app.route('/admin/reset-sequence', methods=['GET'])
 @login_required
 def reset_sequence():
@@ -1225,12 +1226,12 @@ def reset_sequence():
         return jsonify({"status": "error", "message": "관리자 권한이 필요합니다."})
     
     try:
-        # 최대 ID 값 찾기
-        max_id_result = db.session.execute("SELECT MAX(id) FROM category_channel").scalar()
+        # 최대 ID 값 찾기 - text() 함수로 감싸기
+        max_id_result = db.session.execute(text("SELECT MAX(id) FROM category_channel")).scalar()
         max_id = max_id_result if max_id_result is not None else 0
         
-        # 시퀀스 재설정 (PostgreSQL용)
-        db.session.execute(f"ALTER SEQUENCE category_channel_id_seq RESTART WITH {max_id + 1}")
+        # 시퀀스 재설정 (PostgreSQL용) - text() 함수로 감싸기
+        db.session.execute(text(f"ALTER SEQUENCE category_channel_id_seq RESTART WITH {max_id + 1}"))
         db.session.commit()
         
         return jsonify({
