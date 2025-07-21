@@ -29,6 +29,7 @@ import moviepy.editor as mp
 import tempfile
 from services.email_service import EmailService
 from services.notification_scheduler import NotificationScheduler
+from youtube_management import youtube_management
 import fcntl
 from sqlalchemy import text
 

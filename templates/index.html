@@ -90,6 +90,11 @@
                                 <i class="fas fa-bell me-2"></i>이메일 알림 설정
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="nav-youtube-management" href="/youtube-management">
+                                <i class="fas fa-video me-2"></i>YouTube 관리
+                            </a>
+                        </li>
                         {% if current_user.is_admin() %}
                         <li class="nav-item">
                             <a class="nav-link" href="/admin/users">
@@ -143,7 +148,6 @@
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
 
-                <!-- 기존 페이지 콘텐츠 유지 -->
                 <!-- 검색 페이지 -->
                 <div id="page-search" class="page-content">
                     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -419,7 +423,6 @@
                 </div>
             </div>
         </div>
-
     </div>
 
     <!-- 채널 추가 모달 -->
@@ -550,9 +553,10 @@
             }
             return true;
         }
+
         // 검색 폼 제출 이벤트 오버라이드
         document.addEventListener('DOMContentLoaded', function() {
-
+            // 사이드바 관리
             const sidebarMenu = document.getElementById('sidebarMenu');
             if (sidebarMenu) {
                 const bsCollapse = new bootstrap.Collapse(sidebarMenu, {
@@ -594,102 +598,146 @@
                 }
             }
 
-            const originalFormSubmit = searchForm.onsubmit;
-            searchForm.onsubmit = function(e) {
-                e.preventDefault();
-                
-                // 폼 데이터 가져오기
-                const formData = new FormData(this);
-                
-                // API 요청
-                fetch('/search', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (handleApiResponse(data)) {
-                        // 원래 처리 로직 실행
-                        // 여기서는 원래 코드를 직접 실행하지 않고, 
-                        // 대신 특정 부분만 재구현합니다.
-                        
-                        // 로딩 표시
+            // 검색 폼 제출 이벤트 처리
+            const searchForm = document.getElementById('searchForm');
+            if (searchForm) {
+                searchForm.onsubmit = function(e) {
+                    e.preventDefault();
+                    
+                    // 폼 데이터 가져오기
+                    const formData = new FormData(this);
+                    
+                    // 로딩 표시
+                    document.getElementById('loader').style.display = 'block';
+                    document.getElementById('results').innerHTML = '';
+                    document.getElementById('resultsHeader').style.display = 'none';
+                    document.getElementById('sortingControl').style.display = 'none';
+                    
+                    // API 요청
+                    fetch('/search', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        // 로딩 숨기기
                         document.getElementById('loader').style.display = 'none';
                         
-                        if (data.status === 'success') {
-                            // 전체 결과 저장
-                            allResults = data.results;
-                            
-                            // 결과 헤더 표시
-                            document.getElementById('resultsHeader').style.display = 'block';
-                            document.getElementById('resultCount').textContent = data.count;
-                            
-                            // 결과가 없으면 메시지 표시
-                            if (data.results.length === 0) {
+                        if (handleApiResponse(data)) {
+                            if (data.status === 'success') {
+                                // 전체 결과 저장
+                                allResults = data.results;
+                                
+                                // 결과 헤더 표시
+                                document.getElementById('resultsHeader').style.display = 'block';
+                                document.getElementById('resultCount').textContent = data.count;
+                                
+                                // 결과가 없으면 메시지 표시
+                                if (data.results.length === 0) {
+                                    document.getElementById('results').innerHTML = `
+                                        <div class="col-12">
+                                            <div class="alert alert-warning">
+                                                <i class="fas fa-exclamation-triangle me-2"></i>검색 조건에 맞는 결과가 없습니다.
+                                                <p class="mt-2 mb-0">
+                                                    <small>
+                                                        <i class="fas fa-info-circle me-1"></i>다른 검색 조건을 시도해 보세요.
+                                                    </small>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    `;
+                                    return;
+                                }
+                                
+                                // 정렬/필터 컨트롤 표시
+                                document.getElementById('sortingControl').style.display = 'block';
+                                
+                                // 첫 페이지 렌더링
+                                currentPage = 1;
+                                renderResults();
+                            }
+                            else {
+                                // 오류 메시지 표시
+                                document.getElementById('resultsHeader').style.display = 'block';
+                                document.getElementById('resultCount').textContent = '0';
                                 document.getElementById('results').innerHTML = `
                                     <div class="col-12">
-                                        <div class="alert alert-warning">
-                                            <i class="fas fa-exclamation-triangle me-2"></i>검색 조건에 맞는 결과가 없습니다.
-                                            <p class="mt-2 mb-0">
-                                                <small>
-                                                    <i class="fas fa-info-circle me-1"></i>다른 검색 조건을 시도해 보세요.
-                                                </small>
-                                            </p>
+                                        <div class="alert alert-danger">
+                                            <h5 class="mb-0"><i class="fas fa-exclamation-circle me-2"></i>오류가 발생했습니다</h5>
+                                            <p class="mb-0">${data.message}</p>
                                         </div>
                                     </div>
                                 `;
-                                return;
                             }
-                            
-                            // 정렬/필터 컨트롤 표시
-                            document.getElementById('sortingControl').style.display = 'block';
-                            
-                            // 첫 페이지 렌더링
-                            currentPage = 1;
-                            renderResults();
                         }
-                        else {
-                            // 오류 메시지 표시
-                            document.getElementById('resultsHeader').style.display = 'block';
-                            document.getElementById('resultCount').textContent = '0';
-                            document.getElementById('results').innerHTML = `
-                                <div class="col-12">
-                                    <div class="alert alert-danger">
-                                        <h5 class="mb-0"><i class="fas fa-exclamation-circle me-2"></i>오류가 발생했습니다</h5>
-                                        <p class="mb-0">${data.message}</p>
-                                    </div>
+                    })
+                    .catch(error => {
+                        // 로딩 숨기기
+                        document.getElementById('loader').style.display = 'none';
+                        
+                        // 오류 표시
+                        document.getElementById('resultsHeader').style.display = 'block';
+                        document.getElementById('resultCount').textContent = '0';
+                        document.getElementById('results').innerHTML = `
+                            <div class="col-12">
+                                <div class="alert alert-danger">
+                                    <h5 class="mb-0"><i class="fas fa-wifi me-2"></i>네트워크 오류가 발생했습니다</h5>
+                                    <p class="mb-0">${error.message}</p>
                                 </div>
-                            `;
-                        }
-                    }
-                })
-                .catch(error => {
-                    // 로딩 숨기기
-                    document.getElementById('loader').style.display = 'none';
-                    
-                    // 오류 표시
-                    document.getElementById('resultsHeader').style.display = 'block';
-                    document.getElementById('resultCount').textContent = '0';
-                    document.getElementById('results').innerHTML = `
-                        <div class="col-12">
-                            <div class="alert alert-danger">
-                                <h5 class="mb-0"><i class="fas fa-wifi me-2"></i>네트워크 오류가 발생했습니다</h5>
-                                <p class="mb-0">${error.message}</p>
                             </div>
-                        </div>
-                    `;
-                });
-            };
+                        `;
+                    });
+                };
+            }
 
+            // 관리자 링크는 기본 동작 허용
             const adminLinks = document.querySelectorAll('a[href^="/admin/"]');
-    
             adminLinks.forEach(link => {
-            link.addEventListener('click', function(e) {
-                e.stopPropagation(); // 이벤트 버블링 방지
-                // 기본 동작 허용 (URL로 이동)
+                link.addEventListener('click', function(e) {
+                    e.stopPropagation(); // 이벤트 버블링 방지
+                    // 기본 동작 허용 (URL로 이동)
+                });
             });
-            });
+
+            // 메뉴 이벤트 리스너 설정
+            setupNavigationListeners();
         });
+
+        // 메뉴 이벤트 리스너 설정
+        function setupNavigationListeners() {
+            // 메뉴 항목 클릭 처리
+            document.querySelectorAll('.nav-link').forEach(navLink => {
+                navLink.addEventListener('click', function(e) {
+                    // 관리자 페이지 링크인 경우 기본 동작 허용 (URL로 이동)
+                    if (this.getAttribute('href').startsWith('/admin/') || 
+                        this.getAttribute('href').startsWith('/notifications') ||
+                        this.getAttribute('href').startsWith('/youtube-management')) {
+                        return;
+                    }
+                    
+                    // 그 외의 메뉴 아이템 처리 (기존 방식대로)
+                    e.preventDefault();
+                    
+                    // 모든 메뉴 비활성화
+                    document.querySelectorAll('.nav-link').forEach(link => {
+                        link.classList.remove('active');
+                    });
+                    
+                    // 클릭된 메뉴 활성화
+                    this.classList.add('active');
+                    
+                    // 해당 페이지 표시
+                    const targetId = this.getAttribute('href').substring(1);
+                    document.querySelectorAll('.page-content').forEach(page => {
+                        page.style.display = 'none';
+                    });
+                    const targetPage = document.getElementById(targetId);
+                    if (targetPage) {
+                        targetPage.style.display = 'block';
+                    }
+                });
+            });
+        }
     </script>
 </body>
 </html>
