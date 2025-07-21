@@ -29,7 +29,7 @@ import moviepy.editor as mp
 import tempfile
 from services.email_service import EmailService
 from services.notification_scheduler import NotificationScheduler
-from youtube_management import youtube_management
+from youtube_management import register_youtube_routes
 import fcntl
 from sqlalchemy import text
 
@@ -113,6 +113,9 @@ app.static_folder = 'static'
 with app.app_context():
     db.create_all()
     app.logger.info('데이터베이스 테이블 생성 완료')
+    
+# YouTube 관리 라우트 등록
+register_youtube_routes(app)
 
 # 사용자 로딩 콜백
 @login_manager.user_loader
