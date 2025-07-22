@@ -541,11 +541,171 @@
 
     <!-- API 제한 처리를 위한 스크립트 -->
     <script>
+        
+    document.addEventListener('DOMContentLoaded', function() {
+        // 모바일 사이드바 관리 개선
+        const sidebarMenu = document.getElementById('sidebarMenu');
+        const sidebarToggler = document.querySelector('.navbar-toggler[data-bs-target="#sidebarMenu"]');
+        
+        // 오버레이 요소 생성
+        let sidebarOverlay = document.querySelector('.sidebar-overlay');
+        if (!sidebarOverlay) {
+            sidebarOverlay = document.createElement('div');
+            sidebarOverlay.className = 'sidebar-overlay';
+            document.body.appendChild(sidebarOverlay);
+        }
+        
+        // 사이드바 토글 함수
+        function toggleSidebar() {
+            const isOpen = sidebarMenu.classList.contains('show');
+            
+            if (isOpen) {
+                closeSidebar();
+            } else {
+                openSidebar();
+            }
+        }
+        
+        // 사이드바 열기
+        function openSidebar() {
+            sidebarMenu.classList.add('show');
+            sidebarOverlay.classList.add('show');
+            document.body.classList.add('sidebar-open');
+            
+            // 토글 버튼 아이콘 변경
+            const icon = sidebarToggler.querySelector('i');
+            if (icon) {
+                icon.className = 'fas fa-times';
+            }
+        }
+        
+        // 사이드바 닫기
+        function closeSidebar() {
+            sidebarMenu.classList.remove('show');
+            sidebarOverlay.classList.remove('show');
+            document.body.classList.remove('sidebar-open');
+            
+            // 토글 버튼 아이콘 변경
+            const icon = sidebarToggler.querySelector('i');
+            if (icon) {
+                icon.className = 'fas fa-bars';
+            }
+        }
+        
+        // 사이드바 토글 버튼 이벤트
+        if (sidebarToggler) {
+            sidebarToggler.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleSidebar();
+            });
+        }
+        
+        // 오버레이 클릭 시 사이드바 닫기
+        sidebarOverlay.addEventListener('click', function() {
+            closeSidebar();
+        });
+        
+        // ESC 키로 사이드바 닫기
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && sidebarMenu.classList.contains('show')) {
+                closeSidebar();
+            }
+        });
+        
+        // 메뉴 링크 클릭 시 모바일에서 사이드바 닫기
+        const navLinks = document.querySelectorAll('.sidebar .nav-link');
+        navLinks.forEach(link => {
+            link.addEventListener('click', function() {
+                if (window.innerWidth < 768) {
+                    setTimeout(closeSidebar, 200); // 약간의 지연
+                }
+            });
+        });
+        
+        // 창 크기 변경 시 처리
+        let resizeTimeout;
+        window.addEventListener('resize', function() {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(function() {
+                if (window.innerWidth >= 768) {
+                    // 데스크톱에서는 사이드바 항상 표시, 오버레이 제거
+                    sidebarMenu.classList.remove('show');
+                    sidebarOverlay.classList.remove('show');
+                    document.body.classList.remove('sidebar-open');
+                    
+                    // 토글 버튼 아이콘 초기화
+                    const icon = sidebarToggler.querySelector('i');
+                    if (icon) {
+                        icon.className = 'fas fa-bars';
+                    }
+                }
+            }, 250);
+        });
+        
+        // 터치 스와이프 지원
+        let touchStartX = null;
+        let touchStartY = null;
+        let touchStartTime = null;
+        
+        document.addEventListener('touchstart', function(e) {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            touchStartTime = Date.now();
+        }, { passive: true });
+        
+        document.addEventListener('touchend', function(e) {
+            if (touchStartX === null || touchStartY === null || touchStartTime === null) {
+                return;
+            }
+            
+            const touchEndX = e.changedTouches[0].clientX;
+            const touchEndY = e.changedTouches[0].clientY;
+            const touchEndTime = Date.now();
+            
+            const deltaX = touchEndX - touchStartX;
+            const deltaY = touchEndY - touchStartY;
+            const deltaTime = touchEndTime - touchStartTime;
+            
+            // 빠른 스와이프이고 수평 움직임이 수직 움직임보다 클 때만 처리
+            if (deltaTime < 300 && Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
+                const isOpen = sidebarMenu.classList.contains('show');
+                
+                // 왼쪽에서 오른쪽으로 스와이프: 메뉴 열기 (화면 왼쪽 가장자리에서 시작)
+                if (deltaX > 0 && touchStartX < 50 && !isOpen && window.innerWidth < 768) {
+                    openSidebar();
+                }
+                // 오른쪽에서 왼쪽으로 스와이프: 메뉴 닫기
+                else if (deltaX < -50 && isOpen && window.innerWidth < 768) {
+                    closeSidebar();
+                }
+            }
+            
+            touchStartX = null;
+            touchStartY = null;
+            touchStartTime = null;
+        }, { passive: true });
+        
+        // 초기 설정
+        if (window.innerWidth < 768) {
+            closeSidebar();
+        }
+        
+        // 기존 Bootstrap Collapse 이벤트 리스너 제거 (충돌 방지)
+        sidebarMenu.addEventListener('show.bs.collapse', function(e) {
+            e.preventDefault();
+        });
+        
+        sidebarMenu.addEventListener('hide.bs.collapse', function(e) {
+            e.preventDefault();
+        });
+        
+        // 나머지 기존 코드들 (API 처리, 폼 제출 등)은 그대로 유지...
+        
         // API 오류 응답 처리
         function handleApiResponse(response) {
             if (response.status === 'error') {
                 if (response.message.includes('API 호출 제한')) {
-                    // API 제한 모달 표시
                     const apiLimitModal = new bootstrap.Modal(document.getElementById('apiLimitModal'));
                     apiLimitModal.show();
                     return false;
@@ -554,190 +714,128 @@
             return true;
         }
 
-        // 검색 폼 제출 이벤트 오버라이드
-        document.addEventListener('DOMContentLoaded', function() {
-            // 사이드바 관리
-            const sidebarMenu = document.getElementById('sidebarMenu');
-            if (sidebarMenu) {
-                const bsCollapse = new bootstrap.Collapse(sidebarMenu, {
-                    toggle: false
-                });
+        // 검색 폼 제출 이벤트 처리
+        const searchForm = document.getElementById('searchForm');
+        if (searchForm) {
+            searchForm.onsubmit = function(e) {
+                e.preventDefault();
                 
-                // 모바일 환경에서 사이드바 토글시 body 클래스 조정
-                sidebarMenu.addEventListener('show.bs.collapse', function () {
-                    document.body.classList.add('sidebar-open');
-                });
+                const formData = new FormData(this);
                 
-                sidebarMenu.addEventListener('hide.bs.collapse', function () {
-                    document.body.classList.remove('sidebar-open');
-                });
+                document.getElementById('loader').style.display = 'block';
+                document.getElementById('results').innerHTML = '';
+                document.getElementById('resultsHeader').style.display = 'none';
+                document.getElementById('sortingControl').style.display = 'none';
                 
-                // 모바일에서 메뉴 항목 클릭 시 자동으로 사이드바 닫기
-                const navLinks = document.querySelectorAll('.sidebar .nav-link');
-                navLinks.forEach(link => {
-                    link.addEventListener('click', function() {
-                        if (window.innerWidth < 768) {
-                            bsCollapse.hide();
-                        }
-                    });
-                });
-                
-                // 창 크기 변경 시 처리
-                window.addEventListener('resize', function() {
-                    if (window.innerWidth >= 768) {
-                        bsCollapse.show(); // 데스크톱에서는 항상 표시
-                        document.body.classList.remove('sidebar-open');
-                    }
-                });
-                
-                // 초기 화면 크기에 따라 설정
-                if (window.innerWidth < 768) {
-                    bsCollapse.hide(); // 모바일에서는 기본적으로 닫힘
-                } else {
-                    bsCollapse.show(); // 데스크톱에서는 기본적으로 열림
-                }
-            }
-
-            // 검색 폼 제출 이벤트 처리
-            const searchForm = document.getElementById('searchForm');
-            if (searchForm) {
-                searchForm.onsubmit = function(e) {
-                    e.preventDefault();
+                fetch('/search', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('loader').style.display = 'none';
                     
-                    // 폼 데이터 가져오기
-                    const formData = new FormData(this);
-                    
-                    // 로딩 표시
-                    document.getElementById('loader').style.display = 'block';
-                    document.getElementById('results').innerHTML = '';
-                    document.getElementById('resultsHeader').style.display = 'none';
-                    document.getElementById('sortingControl').style.display = 'none';
-                    
-                    // API 요청
-                    fetch('/search', {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        // 로딩 숨기기
-                        document.getElementById('loader').style.display = 'none';
-                        
-                        if (handleApiResponse(data)) {
-                            if (data.status === 'success') {
-                                // 전체 결과 저장
-                                allResults = data.results;
-                                
-                                // 결과 헤더 표시
-                                document.getElementById('resultsHeader').style.display = 'block';
-                                document.getElementById('resultCount').textContent = data.count;
-                                
-                                // 결과가 없으면 메시지 표시
-                                if (data.results.length === 0) {
-                                    document.getElementById('results').innerHTML = `
-                                        <div class="col-12">
-                                            <div class="alert alert-warning">
-                                                <i class="fas fa-exclamation-triangle me-2"></i>검색 조건에 맞는 결과가 없습니다.
-                                                <p class="mt-2 mb-0">
-                                                    <small>
-                                                        <i class="fas fa-info-circle me-1"></i>다른 검색 조건을 시도해 보세요.
-                                                    </small>
-                                                </p>
-                                            </div>
-                                        </div>
-                                    `;
-                                    return;
-                                }
-                                
-                                // 정렬/필터 컨트롤 표시
-                                document.getElementById('sortingControl').style.display = 'block';
-                                
-                                // 첫 페이지 렌더링
-                                currentPage = 1;
-                                renderResults();
-                            }
-                            else {
-                                // 오류 메시지 표시
-                                document.getElementById('resultsHeader').style.display = 'block';
-                                document.getElementById('resultCount').textContent = '0';
+                    if (handleApiResponse(data)) {
+                        if (data.status === 'success') {
+                            allResults = data.results;
+                            
+                            document.getElementById('resultsHeader').style.display = 'block';
+                            document.getElementById('resultCount').textContent = data.count;
+                            
+                            if (data.results.length === 0) {
                                 document.getElementById('results').innerHTML = `
                                     <div class="col-12">
-                                        <div class="alert alert-danger">
-                                            <h5 class="mb-0"><i class="fas fa-exclamation-circle me-2"></i>오류가 발생했습니다</h5>
-                                            <p class="mb-0">${data.message}</p>
+                                        <div class="alert alert-warning">
+                                            <i class="fas fa-exclamation-triangle me-2"></i>검색 조건에 맞는 결과가 없습니다.
+                                            <p class="mt-2 mb-0">
+                                                <small>
+                                                    <i class="fas fa-info-circle me-1"></i>다른 검색 조건을 시도해 보세요.
+                                                </small>
+                                            </p>
                                         </div>
                                     </div>
                                 `;
+                                return;
                             }
-                        }
-                    })
-                    .catch(error => {
-                        // 로딩 숨기기
-                        document.getElementById('loader').style.display = 'none';
-                        
-                        // 오류 표시
-                        document.getElementById('resultsHeader').style.display = 'block';
-                        document.getElementById('resultCount').textContent = '0';
-                        document.getElementById('results').innerHTML = `
-                            <div class="col-12">
-                                <div class="alert alert-danger">
-                                    <h5 class="mb-0"><i class="fas fa-wifi me-2"></i>네트워크 오류가 발생했습니다</h5>
-                                    <p class="mb-0">${error.message}</p>
+                            
+                            document.getElementById('sortingControl').style.display = 'block';
+                            
+                            currentPage = 1;
+                            if (typeof renderResults === 'function') {
+                                renderResults();
+                            }
+                        } else {
+                            document.getElementById('resultsHeader').style.display = 'block';
+                            document.getElementById('resultCount').textContent = '0';
+                            document.getElementById('results').innerHTML = `
+                                <div class="col-12">
+                                    <div class="alert alert-danger">
+                                        <h5 class="mb-0"><i class="fas fa-exclamation-circle me-2"></i>오류가 발생했습니다</h5>
+                                        <p class="mb-0">${data.message}</p>
+                                    </div>
                                 </div>
+                            `;
+                        }
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('loader').style.display = 'none';
+                    
+                    document.getElementById('resultsHeader').style.display = 'block';
+                    document.getElementById('resultCount').textContent = '0';
+                    document.getElementById('results').innerHTML = `
+                        <div class="col-12">
+                            <div class="alert alert-danger">
+                                <h5 class="mb-0"><i class="fas fa-wifi me-2"></i>네트워크 오류가 발생했습니다</h5>
+                                <p class="mb-0">${error.message}</p>
                             </div>
-                        `;
-                    });
-                };
-            }
-
-            // 관리자 링크는 기본 동작 허용
-            const adminLinks = document.querySelectorAll('a[href^="/admin/"]');
-            adminLinks.forEach(link => {
-                link.addEventListener('click', function(e) {
-                    e.stopPropagation(); // 이벤트 버블링 방지
-                    // 기본 동작 허용 (URL로 이동)
+                        </div>
+                    `;
                 });
-            });
+            };
+        }
 
-            // 메뉴 이벤트 리스너 설정
-            setupNavigationListeners();
+        // 관리자 링크는 기본 동작 허용
+        const adminLinks = document.querySelectorAll('a[href^="/admin/"]');
+        adminLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
         });
 
         // 메뉴 이벤트 리스너 설정
-        function setupNavigationListeners() {
-            // 메뉴 항목 클릭 처리
-            document.querySelectorAll('.nav-link').forEach(navLink => {
-                navLink.addEventListener('click', function(e) {
-                    // 관리자 페이지 링크인 경우 기본 동작 허용 (URL로 이동)
-                    if (this.getAttribute('href').startsWith('/admin/') || 
-                        this.getAttribute('href').startsWith('/notifications') ||
-                        this.getAttribute('href').startsWith('/youtube-management')) {
-                        return;
-                    }
-                    
-                    // 그 외의 메뉴 아이템 처리 (기존 방식대로)
-                    e.preventDefault();
-                    
-                    // 모든 메뉴 비활성화
-                    document.querySelectorAll('.nav-link').forEach(link => {
-                        link.classList.remove('active');
-                    });
-                    
-                    // 클릭된 메뉴 활성화
-                    this.classList.add('active');
-                    
-                    // 해당 페이지 표시
-                    const targetId = this.getAttribute('href').substring(1);
-                    document.querySelectorAll('.page-content').forEach(page => {
-                        page.style.display = 'none';
-                    });
-                    const targetPage = document.getElementById(targetId);
-                    if (targetPage) {
-                        targetPage.style.display = 'block';
-                    }
+        setupNavigationListeners();
+    });
+
+    // 메뉴 이벤트 리스너 설정
+    function setupNavigationListeners() {
+        document.querySelectorAll('.nav-link').forEach(navLink => {
+            navLink.addEventListener('click', function(e) {
+                if (this.getAttribute('href').startsWith('/admin/') || 
+                    this.getAttribute('href').startsWith('/notifications') ||
+                    this.getAttribute('href').startsWith('/youtube-management')) {
+                    return;
+                }
+                
+                e.preventDefault();
+                
+                document.querySelectorAll('.nav-link').forEach(link => {
+                    link.classList.remove('active');
                 });
+                
+                this.classList.add('active');
+                
+                const targetId = this.getAttribute('href').substring(1);
+                document.querySelectorAll('.page-content').forEach(page => {
+                    page.style.display = 'none';
+                });
+                const targetPage = document.getElementById(targetId);
+                if (targetPage) {
+                    targetPage.style.display = 'block';
+                }
             });
-        }
+        });
+    }
     </script>
 </body>
 </html>
