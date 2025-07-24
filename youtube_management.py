@@ -8,7 +8,7 @@ from sqlalchemy import func, and_, extract
 # from app import app, db
 
 # ✅ 수정된 코드: app 대신 current_app 사용, db는 models에서 import
-from models import db, Editor, Work, Revenue
+from models import db, Editor, Work, Revenue, EditorRateHistory
 
 def register_youtube_routes(app):
     """YouTube 관리 라우트들을 앱에 등록하는 함수"""
@@ -68,7 +68,7 @@ def register_youtube_routes(app):
     @app.route('/api/youtube/editors/<int:editor_id>', methods=['PUT'])
     @login_required
     def update_editor(editor_id):
-        """편집자 정보 수정"""
+        """편집자 정보 수정 (단가 변경 이력 기록 포함)"""
         editor = Editor.query.filter_by(id=editor_id, user_id=current_user.id).first()
         
         if not editor:
@@ -76,21 +76,48 @@ def register_youtube_routes(app):
         
         data = request.json
         try:
+            # 단가 변경 확인 및 이력 기록
+            old_basic_rate = editor.basic_rate
+            old_japanese_rate = editor.japanese_rate
+            new_basic_rate = data.get('basic_rate', editor.basic_rate)
+            new_japanese_rate = data.get('japanese_rate', editor.japanese_rate)
+            
+            rate_changed = (old_basic_rate != new_basic_rate or old_japanese_rate != new_japanese_rate)
+            
+            # 편집자 정보 업데이트
             editor.name = data.get('name', editor.name)
             editor.contact = data.get('contact', editor.contact)
             editor.email = data.get('email', editor.email)
-            editor.basic_rate = data.get('basic_rate', editor.basic_rate)
-            editor.japanese_rate = data.get('japanese_rate', editor.japanese_rate)
+            editor.basic_rate = new_basic_rate
+            editor.japanese_rate = new_japanese_rate
             editor.status = data.get('status', editor.status)
             editor.notes = data.get('notes', editor.notes)
             editor.updated_at = datetime.utcnow()
+            
+            # 단가 변경 이력 기록
+            if rate_changed:
+                effective_date_str = data.get('effective_date')
+                effective_date = datetime.strptime(effective_date_str, '%Y-%m-%d').date() if effective_date_str else date.today()
+                
+                rate_history = EditorRateHistory(
+                    editor_id=editor.id,
+                    user_id=current_user.id,
+                    old_basic_rate=old_basic_rate,
+                    new_basic_rate=new_basic_rate,
+                    old_japanese_rate=old_japanese_rate,
+                    new_japanese_rate=new_japanese_rate,
+                    change_reason=data.get('change_reason', ''),
+                    effective_date=effective_date
+                )
+                db.session.add(rate_history)
             
             db.session.commit()
             
             return jsonify({
                 "status": "success",
-                "message": "편집자 정보가 수정되었습니다.",
-                "editor": editor.to_dict()
+                "message": "편집자 정보가 수정되었습니다." + (" (단가 변경 이력 기록됨)" if rate_changed else ""),
+                "editor": editor.to_dict(),
+                "rate_changed": rate_changed
             })
         except Exception as e:
             db.session.rollback()
@@ -124,6 +151,27 @@ def register_youtube_routes(app):
         except Exception as e:
             db.session.rollback()
             return jsonify({"status": "error", "message": str(e)})
+
+    @app.route('/api/youtube/editors/<int:editor_id>/rate-history', methods=['GET'])
+    @login_required
+    def get_editor_rate_history(editor_id):
+        """편집자 단가 변경 이력 조회"""
+        editor = Editor.query.filter_by(id=editor_id, user_id=current_user.id).first()
+        
+        if not editor:
+            return jsonify({"status": "error", "message": "편집자를 찾을 수 없습니다."})
+        
+        rate_history = EditorRateHistory.query.filter_by(editor_id=editor_id).order_by(EditorRateHistory.created_at.desc()).all()
+        
+        return jsonify({
+            "status": "success",
+            "editor_name": editor.name,
+            "current_rates": {
+                "basic_rate": editor.basic_rate,
+                "japanese_rate": editor.japanese_rate
+            },
+            "history": [history.to_dict() for history in rate_history]
+        })
 
     # 작업 관리 API
     @app.route('/api/youtube/works', methods=['GET'])
@@ -197,10 +245,60 @@ def register_youtube_routes(app):
             db.session.rollback()
             return jsonify({"status": "error", "message": str(e)})
 
+    @app.route('/api/youtube/works/<int:work_id>', methods=['PUT'])
+    @login_required
+    def update_work(work_id):
+        """작업 정보 전체 수정"""
+        work = Work.query.filter_by(id=work_id, user_id=current_user.id).first()
+        
+        if not work:
+            return jsonify({"status": "error", "message": "작업을 찾을 수 없습니다."})
+        
+        data = request.json
+        try:
+            # 편집자 변경 시 확인
+            if 'editor_id' in data and data['editor_id'] != work.editor_id:
+                editor = Editor.query.filter_by(
+                    id=data['editor_id'], 
+                    user_id=current_user.id
+                ).first()
+                if not editor:
+                    return jsonify({"status": "error", "message": "편집자를 찾을 수 없습니다."})
+                work.editor_id = data['editor_id']
+            
+            # 작업 정보 업데이트
+            if 'title' in data:
+                work.title = data['title']
+            if 'work_type' in data:
+                work.work_type = data['work_type']
+            if 'work_date' in data:
+                work.work_date = datetime.strptime(data['work_date'], '%Y-%m-%d').date()
+            if 'deadline' in data:
+                work.deadline = datetime.strptime(data['deadline'], '%Y-%m-%d').date() if data['deadline'] else None
+            if 'rate' in data:
+                work.rate = data['rate']
+            if 'status' in data:
+                work.status = data['status']
+            if 'notes' in data:
+                work.notes = data['notes']
+            
+            work.updated_at = datetime.utcnow()
+            
+            db.session.commit()
+            
+            return jsonify({
+                "status": "success",
+                "message": "작업 정보가 수정되었습니다.",
+                "work": work.to_dict()
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"status": "error", "message": str(e)})
+
     @app.route('/api/youtube/works/<int:work_id>/status', methods=['PUT'])
     @login_required
     def update_work_status(work_id):
-        """작업 상태 변경"""
+        """작업 상태 변경 (기존 호환성 유지)"""
         work = Work.query.filter_by(id=work_id, user_id=current_user.id).first()
         
         if not work:

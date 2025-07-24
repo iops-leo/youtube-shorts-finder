@@ -139,6 +139,40 @@ class Editor(db.Model):
             'updated_at': self.updated_at.isoformat()
         }
 
+class EditorRateHistory(db.Model):
+    """편집자 단가 변경 이력 모델"""
+    __tablename__ = 'editor_rate_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    editor_id = db.Column(db.Integer, db.ForeignKey('editors.id'), nullable=False)
+    user_id = db.Column(db.String(128), db.ForeignKey('user.id'), nullable=False)  # 변경한 사용자
+    old_basic_rate = db.Column(db.Integer)
+    new_basic_rate = db.Column(db.Integer)
+    old_japanese_rate = db.Column(db.Integer)
+    new_japanese_rate = db.Column(db.Integer)
+    change_reason = db.Column(db.String(200))  # 변경 사유
+    effective_date = db.Column(db.Date, nullable=False)  # 적용일
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # 관계 설정
+    editor = db.relationship('Editor', backref='rate_history')
+    changed_by_user = db.relationship('User', backref='rate_changes')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'editor_id': self.editor_id,
+            'editor_name': self.editor.name if self.editor else None,
+            'changed_by': self.changed_by_user.name if self.changed_by_user else None,
+            'old_basic_rate': self.old_basic_rate,
+            'new_basic_rate': self.new_basic_rate,
+            'old_japanese_rate': self.old_japanese_rate,
+            'new_japanese_rate': self.new_japanese_rate,
+            'change_reason': self.change_reason,
+            'effective_date': self.effective_date.isoformat(),
+            'created_at': self.created_at.isoformat()
+        }
+
 class Work(db.Model):
     """작업 모델"""
     __tablename__ = 'works'
