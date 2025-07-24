@@ -141,7 +141,7 @@ function addChannel(channel) {
     
     // 기본 이미지 URL 설정 (썸네일이 없을 경우)
     if (!channel.thumbnail || channel.thumbnail.trim() === '') {
-        channel.thumbnail = 'https://via.placeholder.com/40';
+        channel.thumbnail = '/static/img/placeholder-40.svg';
     }
     
     // 채널 추가
@@ -197,12 +197,12 @@ function updateSelectedChannelsUI() {
     // 각 채널 항목 생성 및 추가
     selectedChannels.forEach(channel => {
         // 기본 이미지 URL 설정 (썸네일이 없을 경우)
-        const thumbnailUrl = channel.thumbnail || 'https://via.placeholder.com/24';
+        const thumbnailUrl = channel.thumbnail || '/static/img/placeholder-24.svg';
         
         const channelItem = document.createElement('div');
         channelItem.className = 'selected-channel-item';
         channelItem.innerHTML = `
-            <img src="${thumbnailUrl}" alt="${channel.title}" onerror="this.src='https://via.placeholder.com/24'">
+            <img src="${thumbnailUrl}" alt="${channel.title}" onerror="this.src='/static/img/placeholder-24.svg'">
             <span class="channel-name" title="${channel.title}">${channel.title}</span>
             <button type="button" class="remove-channel" data-channel-id="${channel.id}">
                 <i class="fas fa-times"></i>
@@ -321,12 +321,12 @@ const searchChannel = debounce(function(query) {
                 channelSearchResults.innerHTML = '';
                 data.channels.forEach(channel => {
                     // 기본 이미지 URL 설정 (채널 썸네일이 없을 경우)
-                    const thumbnailUrl = channel.thumbnail || 'https://via.placeholder.com/40';
+                    const thumbnailUrl = channel.thumbnail || '/static/img/placeholder-40.svg';
                     
                     const channelItem = document.createElement('div');
                     channelItem.className = 'channel-item';
                     channelItem.innerHTML = `
-                        <img src="${thumbnailUrl}" class="channel-thumbnail" alt="${channel.title}" onerror="this.src='https://via.placeholder.com/40'">
+                        <img src="${thumbnailUrl}" class="channel-thumbnail" alt="${channel.title}" onerror="this.src='/static/img/placeholder-40.svg'">
                         <div class="channel-info">
                             <div class="channel-title">${channel.title}</div>
                             <div class="channel-description">${channel.description || '설명 없음'}</div>
