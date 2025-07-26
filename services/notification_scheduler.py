@@ -10,6 +10,7 @@ from models import (
     db,
     EmailNotification,
     NotificationSearch,
+    EmailSentVideo,
     User,
     ChannelCategory,
     CategoryChannel,
@@ -51,6 +52,14 @@ class NotificationScheduler:
                 self.test_scheduler_running,
                 CronTrigger(minute='*/1'),  # 매 1분마다 실행
                 id='test_job',
+                replace_existing=True
+            )
+            
+            # 매일 자정 2시에 오래된 발송 이력 정리
+            self.scheduler.add_job(
+                self.cleanup_old_sent_records,
+                CronTrigger(hour=2, minute=0),
+                id='cleanup_sent_records_job',
                 replace_existing=True
             )
             
@@ -151,6 +160,10 @@ class NotificationScheduler:
                                 # 마지막 발송 시간 업데이트
                                 notification.last_sent = now
                                 self.db.session.commit()
+                                
+                                # 발송된 영상들을 이력에 기록
+                                self.record_sent_videos(user.id, search_results)
+                                
                                 self.app.logger.info(f"사용자 {user.email}에게 알림 이메일 발송 성공")
                             else:
                                 self.app.logger.error(f"사용자 {user.email}에게 이메일 발송 실패")
@@ -200,6 +213,9 @@ class NotificationScheduler:
                         channel_ids=','.join(channels)
                     )
                     
+                    # 이미 발송된 영상 제외
+                    videos = self.filter_already_sent_videos(notification.user_id, videos)
+                    
                     # 수정: 결과를 최대 10개로 제한
                     max_videos_per_category = 10
                     if len(videos) > max_videos_per_category:
@@ -225,3 +241,82 @@ class NotificationScheduler:
             self.app.logger.error(f"검색 결과 수집 중 오류 발생: {str(e)}")
             self.app.logger.error(traceback.format_exc())
             return []
+    
+    def filter_already_sent_videos(self, user_id, videos):
+        """이미 발송된 영상을 제외하고 새로운 영상만 반환"""
+        try:
+            if not videos:
+                return videos
+            
+            # 영상 ID 목록 추출
+            video_ids = [video.get('id') for video in videos if video.get('id')]
+            
+            if not video_ids:
+                return videos
+            
+            # 이미 발송된 영상 ID 조회
+            sent_video_ids = db.session.query(EmailSentVideo.video_id).filter(
+                EmailSentVideo.user_id == user_id,
+                EmailSentVideo.video_id.in_(video_ids)
+            ).all()
+            
+            sent_ids_set = {row[0] for row in sent_video_ids}
+            
+            # 새로운 영상만 필터링
+            new_videos = [video for video in videos if video.get('id') not in sent_ids_set]
+            
+            if len(sent_ids_set) > 0:
+                self.app.logger.info(f"사용자 {user_id}: {len(sent_ids_set)}개 영상은 이미 발송됨, {len(new_videos)}개 새로운 영상 발송 예정")
+            
+            return new_videos
+            
+        except Exception as e:
+            self.app.logger.error(f"이미 발송된 영상 필터링 중 오류: {str(e)}")
+            # 오류 발생 시 원본 영상 목록 반환 (안전하게 처리)
+            return videos
+    
+    def record_sent_videos(self, user_id, search_results):
+        """발송된 영상들을 데이터베이스에 기록"""
+        try:
+            sent_videos = []
+            
+            for category_result in search_results:
+                for video in category_result.get('videos', []):
+                    video_id = video.get('id')
+                    if not video_id:
+                        continue
+                    
+                    sent_video = EmailSentVideo(
+                        user_id=user_id,
+                        video_id=video_id,
+                        video_title=video.get('title', '')[:255],  # 길이 제한
+                        channel_title=video.get('channelTitle', '')[:255]  # 길이 제한
+                    )
+                    sent_videos.append(sent_video)
+            
+            if sent_videos:
+                db.session.add_all(sent_videos)
+                db.session.commit()
+                self.app.logger.info(f"사용자 {user_id}: {len(sent_videos)}개 영상 발송 이력 저장 완료")
+            
+        except Exception as e:
+            self.app.logger.error(f"발송 이력 저장 중 오류: {str(e)}")
+            db.session.rollback()
+    
+    def cleanup_old_sent_records(self, days_to_keep=30):
+        """오래된 발송 이력 정리 (30일 이상 된 기록 삭제)"""
+        try:
+            cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days_to_keep)
+            
+            deleted_count = db.session.query(EmailSentVideo).filter(
+                EmailSentVideo.sent_at < cutoff_date
+            ).delete()
+            
+            db.session.commit()
+            
+            if deleted_count > 0:
+                self.app.logger.info(f"오래된 발송 이력 {deleted_count}개 정리 완료")
+                
+        except Exception as e:
+            self.app.logger.error(f"발송 이력 정리 중 오류: {str(e)}")
+            db.session.rollback()

@@ -1213,6 +1213,9 @@ def test_notification_email():
     )
     
     if success:
+        # 테스트 이메일 발송 시에도 이력 기록 (선택적)
+        # notification_scheduler.record_sent_videos(current_user.id, search_results)
+        
         return jsonify({
             "status": "success",
             "message": f"{current_user.email} 주소로 테스트 이메일이 발송되었습니다."

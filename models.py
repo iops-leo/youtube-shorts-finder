@@ -240,6 +240,26 @@ class Revenue(db.Model):
             'updated_at': self.updated_at.isoformat()
         }
 
+class EmailSentVideo(db.Model):
+    """이메일 발송 영상 이력 모델"""
+    __tablename__ = 'email_sent_videos'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(128), db.ForeignKey('user.id'), nullable=False)
+    video_id = db.Column(db.String(50), nullable=False)  # YouTube 영상 ID
+    video_title = db.Column(db.String(255), nullable=False)  # 영상 제목
+    channel_title = db.Column(db.String(255), nullable=False)  # 채널명
+    sent_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # 발송 일시
+    
+    # 관계 설정
+    user = db.relationship('User', backref='sent_videos')
+    
+    # 복합 인덱스 설정 (사용자별 영상 ID 조회 최적화)
+    __table_args__ = (
+        db.Index('idx_user_video', 'user_id', 'video_id'),
+        db.Index('idx_user_sent_at', 'user_id', 'sent_at'),
+    )
+
 class YoutubeDashboard(db.Model):
     """대시보드 통계 캐시 모델"""
     __tablename__ = 'youtube_dashboard'

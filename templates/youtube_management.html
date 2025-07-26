@@ -1098,7 +1098,7 @@
                         <td class="amount">${parseInt(revenue.sub_channel2 || 0).toLocaleString()}원</td>
                         <td class="amount"><strong>${parseInt(revenue.total_revenue || 0).toLocaleString()}원</strong></td>
                         <td class="amount">${parseInt(monthlyCosts || 0).toLocaleString()}원</td>
-                        <td class="${profitClass}"><strong>${parseInt(profit || 0).toLocaleString()}원</strong></td>
+                        <td class="${profitClass}"><strong>${(profit || 0).toLocaleString()}원</strong></td>
                         <td>
                             <button class="btn btn-sm btn-outline-danger" onclick="deleteRevenue(${revenue.id})">
                                 <i class="fas fa-trash"></i>
@@ -1185,7 +1185,7 @@
             
             document.getElementById('totalRevenue').textContent = parseInt(totalRev || 0).toLocaleString() + '원';
             document.getElementById('totalCosts').textContent = parseInt(totalCost || 0).toLocaleString() + '원';
-            document.getElementById('totalProfit').textContent = parseInt(profit || 0).toLocaleString() + '원';
+            document.getElementById('totalProfit').textContent = (profit || 0).toLocaleString() + '원';
             document.getElementById('profitMargin').textContent = margin + '%';
             
             const profitElement = document.getElementById('totalProfit');
