@@ -436,3 +436,272 @@ body {
         font-size: 0.875rem;
     }
 }
+
+/* 채널 검색 결과 스타일 개선 */
+.channel-search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.channel-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f8f9fa;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.channel-item:last-child {
+    border-bottom: none;
+}
+
+.channel-item:hover {
+    background-color: #f8f9fa;
+}
+
+.channel-thumbnail {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 12px;
+    flex-shrink: 0;
+    object-fit: cover;
+}
+
+.channel-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.channel-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #212529;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.channel-description {
+    font-size: 0.8rem;
+    color: #6c757d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+}
+
+/* 선택된 채널 컨테이너 스타일 */
+.selected-channels-container {
+    min-height: 100px;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 12px;
+    background-color: #f8f9fa;
+}
+
+.selected-channel-item {
+    display: flex;
+    align-items: center;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 20px;
+    padding: 6px 12px;
+    margin: 4px;
+    display: inline-flex;
+    max-width: 100%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.selected-channel-item img {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    margin-right: 8px;
+    flex-shrink: 0;
+    object-fit: cover;
+}
+
+.channel-name {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #495057;
+    margin-right: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+
+.remove-channel {
+    background: none;
+    border: none;
+    color: #6c757d;
+    font-size: 0.75rem;
+    padding: 2px;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.remove-channel:hover {
+    background-color: #dc3545;
+    color: white;
+}
+
+.empty-channels-message {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6c757d;
+    font-style: italic;
+}
+
+/* 비디오 그리드 레이아웃 수정 */
+.video-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+/* 모바일에서는 2열, 태블릿에서는 3열, 데스크톱에서는 4열 */
+@media (min-width: 576px) {
+    .video-container {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 768px) {
+    .video-container {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (min-width: 1200px) {
+    .video-container {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+/* 비디오 카드 스타일 개선 */
+.video-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.video-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.video-card .card-img-top {
+    height: 160px;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.video-card:hover .card-img-top {
+    transform: scale(1.05);
+}
+
+.video-card .card-body {
+    padding: 12px;
+}
+
+.video-card .card-title {
+    font-size: 0.9rem;
+    line-height: 1.3;
+    margin-bottom: 8px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.video-card .card-text {
+    font-size: 0.8rem;
+    margin-bottom: 8px;
+}
+
+.description-content {
+    font-size: 0.75rem !important;
+    line-height: 1.3;
+    max-height: 3.9rem;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+
+.video-card .card-footer {
+    padding: 8px 12px;
+    background-color: #f8f9fa;
+}
+
+/* 로딩 스피너 스타일 */
+.loader {
+    display: none;
+    text-align: center;
+    padding: 40px;
+}
+
+.loader::after {
+    content: "";
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 프로그레스 바 스타일 */
+.search-progress {
+    margin: 20px 0;
+}
+
+.progress {
+    height: 8px;
+    border-radius: 4px;
+    background-color: #e9ecef;
+    overflow: hidden;
+}
+
+.progress-bar {
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    transition: width 0.3s ease;
+    border-radius: 4px;
+}
+
+.search-status {
+    text-align: center;
+    margin: 10px 0;
+    font-size: 0.9rem;
+    color: #6c757d;
+}

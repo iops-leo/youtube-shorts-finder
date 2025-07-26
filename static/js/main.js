@@ -361,8 +361,8 @@ const searchChannel = debounce(function(query) {
 
 // 검색 및 결과 처리 함수
 function performSearch(form) {
-    // 로딩 표시
-    document.getElementById('loader').style.display = 'block';
+    // 로딩 및 프로그레스 표시
+    showSearchProgress();
     document.getElementById('results').innerHTML = '';
     document.getElementById('resultsHeader').style.display = 'none';
     document.getElementById('sortingControl').style.display = 'none';
@@ -377,8 +377,8 @@ function performSearch(form) {
     })
     .then(response => response.json())
     .then(data => {
-        // 로딩 숨기기
-        document.getElementById('loader').style.display = 'none';
+        // 로딩 및 프로그레스 숨기기
+        hideSearchProgress();
 
         if (data.status === 'success') {
             // 전체 결과 저장
@@ -442,8 +442,8 @@ function performSearch(form) {
         }
     })
     .catch(error => {
-        // 로딩 숨기기
-        document.getElementById('loader').style.display = 'none';
+        // 로딩 및 프로그레스 숨기기
+        hideSearchProgress();
 
         // 오류 표시
         document.getElementById('resultsHeader').style.display = 'block';
@@ -1049,6 +1049,61 @@ function getRegionNameByCode(code) {
     
     const region = regions.find(reg => reg.code === code);
     return region ? region.name : '국가 정보 없음';
+}
+
+// 검색 프로그레스 표시 함수
+function showSearchProgress() {
+    const loader = document.getElementById('loader');
+    loader.innerHTML = `
+        <div class="search-progress">
+            <div class="search-status">
+                <i class="fas fa-search me-2"></i>채널에서 인기 쇼츠를 검색하는 중...
+            </div>
+            <div class="progress mb-3">
+                <div class="progress-bar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+            <div class="d-flex justify-content-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    `;
+    loader.style.display = 'block';
+    
+    // 프로그레스 바 애니메이션
+    animateProgressBar();
+}
+
+function hideSearchProgress() {
+    const loader = document.getElementById('loader');
+    loader.style.display = 'none';
+    loader.innerHTML = '';
+}
+
+// 프로그레스 바 애니메이션
+function animateProgressBar() {
+    const progressBar = document.querySelector('.progress-bar');
+    if (!progressBar) return;
+    
+    let progress = 0;
+    const interval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress > 90) {
+            progress = 90;
+            clearInterval(interval);
+        }
+        progressBar.style.width = progress + '%';
+        progressBar.setAttribute('aria-valuenow', Math.floor(progress));
+    }, 200);
+    
+    // 검색이 완료되면 100%로 설정
+    setTimeout(() => {
+        if (progressBar && document.getElementById('loader').style.display === 'block') {
+            progressBar.style.width = '100%';
+            progressBar.setAttribute('aria-valuenow', '100');
+        }
+    }, 1000);
 }
 
 // 토스트 알림 표시
