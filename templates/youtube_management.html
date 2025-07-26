@@ -590,6 +590,67 @@
         </div>
     </div>
 
+    <!-- 편집자 단가 변경 모달 -->
+    <div class="modal fade" id="changeRateModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-dollar-sign me-2"></i>편집자 단가 변경</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="changeRateForm">
+                        <input type="hidden" name="editor_id" id="changeRateEditorId">
+                        <div class="mb-3">
+                            <label class="form-label">편집자명</label>
+                            <input type="text" class="form-control" id="changeRateEditorName" readonly>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">현재 기본 단가</label>
+                                    <input type="text" class="form-control" id="currentBasicRate" readonly>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">새 기본 단가 *</label>
+                                    <input type="number" class="form-control" name="new_basic_rate" id="newBasicRate" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">현재 일본어 단가</label>
+                                    <input type="text" class="form-control" id="currentJapaneseRate" readonly>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">새 일본어 단가 *</label>
+                                    <input type="number" class="form-control" name="new_japanese_rate" id="newJapaneseRate" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">적용일 *</label>
+                            <input type="date" class="form-control" name="effective_date" id="effectiveDate" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">변경 사유 *</label>
+                            <textarea class="form-control" name="change_reason" id="changeReason" rows="3" required placeholder="단가 변경 사유를 입력하세요"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary" onclick="updateEditorRate()">변경</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 작업 추가 모달 -->
     <div class="modal fade" id="addWorkModal" tabindex="-1">
         <div class="modal-dialog">
@@ -640,6 +701,70 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
                     <button type="button" class="btn btn-primary" onclick="addWork()">추가</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 작업 수정 모달 -->
+    <div class="modal fade" id="editWorkModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit me-2"></i>작업 정보 수정</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editWorkForm">
+                        <input type="hidden" name="work_id" id="editWorkId">
+                        <div class="mb-3">
+                            <label class="form-label">편집자 선택 *</label>
+                            <select class="form-select" name="editor_id" id="editEditorSelect" required>
+                                <option value="">편집자를 선택하세요</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">영상 제목 *</label>
+                            <input type="text" class="form-control" name="title" id="editWorkTitle" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">작업 유형 *</label>
+                            <select class="form-select" name="work_type" id="editWorkType" required>
+                                <option value="basic">기본 편집</option>
+                                <option value="japanese">일본어 번역 + 편집</option>
+                            </select>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">작업일 *</label>
+                                    <input type="date" class="form-control" name="work_date" id="editWorkDate" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">마감일</label>
+                                    <input type="date" class="form-control" name="deadline" id="editWorkDeadline">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">작업 상태</label>
+                            <select class="form-select" name="status" id="editWorkStatus">
+                                <option value="pending">대기중</option>
+                                <option value="in_progress">진행중</option>
+                                <option value="completed">완료</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">특이사항</label>
+                            <textarea class="form-control" name="notes" id="editWorkNotes" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary" onclick="updateWork()">수정</button>
                 </div>
             </div>
         </div>
@@ -904,9 +1029,14 @@
                         <td class="amount">${editor.japanese_rate.toLocaleString()}원</td>
                         <td>${statusBadge}</td>
                         <td>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteEditor(${editor.id})">
-                                <i class="fas fa-trash"></i>
-                            </button>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="changeEditorRate(${editor.id})" title="단가 변경">
+                                    <i class="fas fa-dollar-sign"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="deleteEditor(${editor.id})" title="삭제">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -932,6 +1062,9 @@
                         <td>${statusBadge}</td>
                         <td>
                             <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="editWork(${work.id})" title="수정">
+                                    <i class="fas fa-edit"></i>
+                                </button>
                                 <button class="btn btn-outline-success" onclick="updateWorkStatus(${work.id}, 'completed')" title="완료">
                                     <i class="fas fa-check"></i>
                                 </button>
@@ -960,12 +1093,12 @@
                 const row = `
                     <tr>
                         <td><strong>${revenue.year_month}</strong></td>
-                        <td class="amount">${revenue.main_channel.toLocaleString()}원</td>
-                        <td class="amount">${revenue.sub_channel1.toLocaleString()}원</td>
-                        <td class="amount">${revenue.sub_channel2.toLocaleString()}원</td>
-                        <td class="amount"><strong>${revenue.total_revenue.toLocaleString()}원</strong></td>
-                        <td class="amount">${monthlyCosts.toLocaleString()}원</td>
-                        <td class="${profitClass}"><strong>${profit.toLocaleString()}원</strong></td>
+                        <td class="amount">${parseInt(revenue.main_channel || 0).toLocaleString()}원</td>
+                        <td class="amount">${parseInt(revenue.sub_channel1 || 0).toLocaleString()}원</td>
+                        <td class="amount">${parseInt(revenue.sub_channel2 || 0).toLocaleString()}원</td>
+                        <td class="amount"><strong>${parseInt(revenue.total_revenue || 0).toLocaleString()}원</strong></td>
+                        <td class="amount">${parseInt(monthlyCosts || 0).toLocaleString()}원</td>
+                        <td class="${profitClass}"><strong>${parseInt(profit || 0).toLocaleString()}원</strong></td>
                         <td>
                             <button class="btn btn-sm btn-outline-danger" onclick="deleteRevenue(${revenue.id})">
                                 <i class="fas fa-trash"></i>
@@ -992,8 +1125,8 @@
         function updateDashboard(stats) {
             document.getElementById('totalEditors').textContent = stats.total_editors;
             document.getElementById('thisWeekWorks').textContent = stats.week_work_count;
-            document.getElementById('thisWeekPay').textContent = stats.week_payment.toLocaleString() + '원';
-            document.getElementById('thisMonthRevenue').textContent = stats.month_revenue.toLocaleString() + '원';
+            document.getElementById('thisWeekPay').textContent = parseInt(stats.week_payment || 0).toLocaleString() + '원';
+            document.getElementById('thisMonthRevenue').textContent = parseInt(stats.month_revenue || 0).toLocaleString() + '원';
 
             // 편집자 랭킹 업데이트
             const rankingTbody = document.getElementById('editorRanking');
@@ -1038,9 +1171,9 @@
             const net = totalAmount - tax;
             
             document.getElementById('weeklyTotal').textContent = total + '건';
-            document.getElementById('weeklyAmount').textContent = totalAmount.toLocaleString() + '원';
-            document.getElementById('weeklyTax').textContent = tax.toLocaleString() + '원';
-            document.getElementById('weeklyNet').textContent = net.toLocaleString() + '원';
+            document.getElementById('weeklyAmount').textContent = parseInt(totalAmount || 0).toLocaleString() + '원';
+            document.getElementById('weeklyTax').textContent = parseInt(tax || 0).toLocaleString() + '원';
+            document.getElementById('weeklyNet').textContent = parseInt(net || 0).toLocaleString() + '원';
         }
 
         // 수익 통계 업데이트
@@ -1050,9 +1183,9 @@
             const profit = totalRev - totalCost;
             const margin = totalRev > 0 ? ((profit / totalRev) * 100).toFixed(1) : 0;
             
-            document.getElementById('totalRevenue').textContent = totalRev.toLocaleString() + '원';
-            document.getElementById('totalCosts').textContent = totalCost.toLocaleString() + '원';
-            document.getElementById('totalProfit').textContent = profit.toLocaleString() + '원';
+            document.getElementById('totalRevenue').textContent = parseInt(totalRev || 0).toLocaleString() + '원';
+            document.getElementById('totalCosts').textContent = parseInt(totalCost || 0).toLocaleString() + '원';
+            document.getElementById('totalProfit').textContent = parseInt(profit || 0).toLocaleString() + '원';
             document.getElementById('profitMargin').textContent = margin + '%';
             
             const profitElement = document.getElementById('totalProfit');
@@ -1138,6 +1271,138 @@
             .catch(error => {
                 console.error('작업 삭제 실패:', error);
                 showAlert('작업 삭제에 실패했습니다.', 'danger');
+            });
+        }
+
+        // 편집자 단가 변경 함수
+        function changeEditorRate(editorId) {
+            const editor = editors.find(e => e.id === editorId);
+            if (!editor) {
+                showAlert('편집자 정보를 찾을 수 없습니다.', 'danger');
+                return;
+            }
+            
+            // 모달 폼에 현재 데이터 채우기
+            document.getElementById('changeRateEditorId').value = editor.id;
+            document.getElementById('changeRateEditorName').value = editor.name;
+            document.getElementById('currentBasicRate').value = editor.basic_rate.toLocaleString() + '원';
+            document.getElementById('currentJapaneseRate').value = editor.japanese_rate.toLocaleString() + '원';
+            document.getElementById('newBasicRate').value = editor.basic_rate;
+            document.getElementById('newJapaneseRate').value = editor.japanese_rate;
+            
+            // 오늘 날짜를 기본값으로 설정
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('effectiveDate').value = today;
+            
+            // 변경 사유 초기화
+            document.getElementById('changeReason').value = '';
+            
+            // 모달 표시
+            const modal = new bootstrap.Modal(document.getElementById('changeRateModal'));
+            modal.show();
+        }
+        
+        function updateEditorRate() {
+            const form = document.getElementById('changeRateForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            const editorId = data.editor_id;
+            
+            // 데이터 정리
+            const updateData = {
+                basic_rate: parseInt(data.new_basic_rate),
+                japanese_rate: parseInt(data.new_japanese_rate),
+                effective_date: data.effective_date,
+                change_reason: data.change_reason
+            };
+            
+            fetch(`/api/youtube/editors/${editorId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updateData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showAlert('편집자 단가가 변경되었습니다.', 'success');
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('changeRateModal'));
+                    modal.hide();
+                    loadEditors();
+                } else {
+                    showAlert(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('단가 변경 실패:', error);
+                showAlert('단가 변경에 실패했습니다.', 'danger');
+            });
+        }
+
+        // 작업 수정 함수
+        function editWork(workId) {
+            const work = works.find(w => w.id === workId);
+            if (!work) {
+                showAlert('작업 정보를 찾을 수 없습니다.', 'danger');
+                return;
+            }
+            
+            // 모달 폼에 데이터 채우기
+            document.getElementById('editWorkId').value = work.id;
+            document.getElementById('editWorkTitle').value = work.title;
+            document.getElementById('editWorkType').value = work.work_type;
+            document.getElementById('editWorkDate').value = work.work_date;
+            document.getElementById('editWorkDeadline').value = work.deadline || '';
+            document.getElementById('editWorkStatus').value = work.status;
+            document.getElementById('editWorkNotes').value = work.notes || '';
+            
+            // 편집자 선택
+            const editEditorSelect = document.getElementById('editEditorSelect');
+            editEditorSelect.innerHTML = '<option value="">편집자를 선택하세요</option>';
+            editors.forEach(editor => {
+                const option = document.createElement('option');
+                option.value = editor.id;
+                option.textContent = editor.name;
+                if (editor.id === work.editor_id) {
+                    option.selected = true;
+                }
+                editEditorSelect.appendChild(option);
+            });
+            
+            // 모달 표시
+            const modal = new bootstrap.Modal(document.getElementById('editWorkModal'));
+            modal.show();
+        }
+        
+        function updateWork() {
+            const form = document.getElementById('editWorkForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            const workId = data.work_id;
+            
+            fetch(`/api/youtube/works/${workId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showAlert('작업이 수정되었습니다.', 'success');
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('editWorkModal'));
+                    modal.hide();
+                    loadWorks(currentWorkFilter);
+                    loadDashboard();
+                } else {
+                    showAlert(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('작업 수정 실패:', error);
+                showAlert('작업 수정에 실패했습니다.', 'danger');
             });
         }
 
