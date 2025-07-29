@@ -1059,10 +1059,7 @@ function showSearchProgress() {
             <div class="search-status">
                 <i class="fas fa-search me-2"></i>채널에서 인기 쇼츠를 검색하는 중...
             </div>
-            <div class="progress mb-3">
-                <div class="progress-bar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-            </div>
-            <div class="d-flex justify-content-center">
+            <div class="d-flex justify-content-center mt-3">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
@@ -1070,9 +1067,6 @@ function showSearchProgress() {
         </div>
     `;
     loader.style.display = 'block';
-    
-    // 프로그레스 바 애니메이션
-    animateProgressBar();
 }
 
 function hideSearchProgress() {
@@ -1081,30 +1075,6 @@ function hideSearchProgress() {
     loader.innerHTML = '';
 }
 
-// 프로그레스 바 애니메이션
-function animateProgressBar() {
-    const progressBar = document.querySelector('.progress-bar');
-    if (!progressBar) return;
-    
-    let progress = 0;
-    const interval = setInterval(() => {
-        progress += Math.random() * 15;
-        if (progress > 90) {
-            progress = 90;
-            clearInterval(interval);
-        }
-        progressBar.style.width = progress + '%';
-        progressBar.setAttribute('aria-valuenow', Math.floor(progress));
-    }, 200);
-    
-    // 검색이 완료되면 100%로 설정
-    setTimeout(() => {
-        if (progressBar && document.getElementById('loader').style.display === 'block') {
-            progressBar.style.width = '100%';
-            progressBar.setAttribute('aria-valuenow', '100');
-        }
-    }, 1000);
-}
 
 // 토스트 알림 표시
 function showToast(message, type = 'primary') {

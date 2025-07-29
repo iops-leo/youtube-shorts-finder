@@ -681,22 +681,9 @@ body {
     100% { transform: rotate(360deg); }
 }
 
-/* 프로그레스 바 스타일 */
+/* 검색 프로그레스 스타일 */
 .search-progress {
     margin: 20px 0;
-}
-
-.progress {
-    height: 8px;
-    border-radius: 4px;
-    background-color: #e9ecef;
-    overflow: hidden;
-}
-
-.progress-bar {
-    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-    transition: width 0.3s ease;
-    border-radius: 4px;
 }
 
 .search-status {
@@ -704,4 +691,5 @@ body {
     margin: 10px 0;
     font-size: 0.9rem;
     color: #6c757d;
+    font-weight: 500;
 }
