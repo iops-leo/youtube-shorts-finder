@@ -720,9 +720,24 @@
             searchForm.onsubmit = function(e) {
                 e.preventDefault();
                 
+                // 중복 제출 방지를 위한 버튼 비활성화
+                const submitButton = this.querySelector('button[type="submit"]');
+                const originalButtonText = submitButton.innerHTML;
+                
+                // 이미 로딩 중이면 중단
+                if (submitButton.disabled) {
+                    return false;
+                }
+                
                 const formData = new FormData(this);
                 
-                document.getElementById('loader').style.display = 'block';
+                // 로딩 시작 - 버튼 비활성화 및 텍스트 변경
+                submitButton.disabled = true;
+                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>검색 중...';
+                
+                // 기존 로더 표시 - 클래스 방식으로 변경
+                const loader = document.getElementById('loader');
+                loader.classList.add('show');
                 document.getElementById('results').innerHTML = '';
                 document.getElementById('resultsHeader').style.display = 'none';
                 document.getElementById('sortingControl').style.display = 'none';
@@ -733,7 +748,13 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    document.getElementById('loader').style.display = 'none';
+                    // 로딩 완료 - 버튼 활성화 및 원래 텍스트 복원
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = originalButtonText;
+                    
+                    // 로더 숨기기 - 클래스 방식으로 변경
+                    const loader = document.getElementById('loader');
+                    loader.classList.remove('show');
                     
                     if (handleApiResponse(data)) {
                         if (data.status === 'success') {
@@ -779,7 +800,13 @@
                     }
                 })
                 .catch(error => {
-                    document.getElementById('loader').style.display = 'none';
+                    // 에러 발생 시에도 버튼 활성화 및 원래 텍스트 복원
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = originalButtonText;
+                    
+                    // 로더 숨기기 - 클래스 방식으로 변경
+                    const loader = document.getElementById('loader');
+                    loader.classList.remove('show');
                     
                     document.getElementById('resultsHeader').style.display = 'block';
                     document.getElementById('resultCount').textContent = '0';

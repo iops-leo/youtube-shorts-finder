@@ -660,9 +660,15 @@ body {
 
 /* 로딩 스피너 스타일 */
 .loader {
-    display: none;
+    display: none !important; /* 기본적으로 완전히 숨김 */
     text-align: center;
     padding: 40px;
+    position: relative;
+    z-index: 100;
+}
+
+.loader.show {
+    display: block !important; /* show 클래스가 있을 때만 표시 */
 }
 
 .loader::after {
