@@ -870,30 +870,65 @@ def channel_search():
                     if not query.startswith('@') and '@' not in query:
                         query = '@' + query
                     
-                    # 핸들 검색 (채널 이름으로 검색 + 필터링)
+                    # YouTube Data API v3의 정확한 핸들 검색 사용
+                    handle = query.replace('@', '')  # @ 기호 제거
+                    
+                    try:
+                        # forHandle 파라미터로 정확한 핸들 매칭
+                        response = youtube.channels().list(
+                            part="snippet",
+                            forHandle=handle,
+                            maxResults=1  # 핸들은 유니크하므로 1개만
+                        ).execute()
+                        
+                        if response.get('items'):
+                            # 정확한 핸들 매칭 성공
+                            item = response['items'][0]
+                            channel = {
+                                'id': item['id'],
+                                'title': item['snippet']['title'],
+                                'thumbnail': item['snippet']['thumbnails']['default']['url'] if 'default' in item['snippet']['thumbnails'] else '',
+                                'description': item['snippet']['description']
+                            }
+                            return jsonify({"status": "success", "channels": [channel]})
+                    except Exception as handle_error:
+                        # forHandle 검색 실패 시 대체 방법 사용
+                        print(f"핸들 검색 실패: {handle_error}")
+                        pass
+                    
+                    # 대체 방법: 일반 검색으로 핸들 유사 매칭
                     response = youtube.search().list(
                         part="snippet",
                         type="channel",
-                        q=query.replace('@', ''),  # @ 기호 제거하고 검색
-                        maxResults=5  # 더 많은 결과를 가져와서 필터링
+                        q=handle,  # @ 기호 제거하고 검색
+                        maxResults=10  # 더 많은 결과를 가져와서 정확히 필터링
                     ).execute()
                     
-                    # 결과에서 정확히 일치하거나 유사한 핸들을 가진 채널 필터링
-                    filtered_channels = []
-                    channel_handle = query.lower().replace('@', '')
+                    # 결과에서 정확한 핸들 매칭 시도
+                    exact_matches = []
+                    partial_matches = []
                     
                     for item in response.get('items', []):
                         channel_title = item['snippet']['title'].lower()
-                        channel_desc = item['snippet']['description'].lower()
-                        
-                        if (channel_handle in channel_title.replace(' ', '') or 
-                            channel_handle in channel_desc):
-                            filtered_channels.append({
+                        # 정확한 매칭 우선 (대소문자 무시)
+                        if channel_title == handle.lower():
+                            exact_matches.append({
                                 'id': item['id']['channelId'],
                                 'title': item['snippet']['title'],
                                 'thumbnail': item['snippet']['thumbnails']['default']['url'] if 'default' in item['snippet']['thumbnails'] else '',
                                 'description': item['snippet']['description']
                             })
+                        # 부분 매칭은 별도로 저장
+                        elif handle.lower() in channel_title:
+                            partial_matches.append({
+                                'id': item['id']['channelId'],
+                                'title': item['snippet']['title'],
+                                'thumbnail': item['snippet']['thumbnails']['default']['url'] if 'default' in item['snippet']['thumbnails'] else '',
+                                'description': item['snippet']['description']
+                            })
+                    
+                    # 정확한 매칭이 있으면 그것만 반환, 없으면 부분 매칭 반환
+                    filtered_channels = exact_matches if exact_matches else partial_matches[:3]  # 최대 3개로 제한
                     
                     if filtered_channels:
                         return jsonify({"status": "success", "channels": filtered_channels})
