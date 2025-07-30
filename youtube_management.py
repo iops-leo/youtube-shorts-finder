@@ -197,9 +197,24 @@ def register_youtube_routes(app):
         
         works = query.order_by(Work.work_date.desc()).all()
         
+        # 편집자별 지급 예정금액 계산
+        editor_payments = {}
+        for work in works:
+            if work.status in ['completed', 'in_progress']:  # 완료 또는 진행중인 작업만
+                editor_id = work.editor_id
+                if editor_id not in editor_payments:
+                    editor_payments[editor_id] = {
+                        'editor_name': work.editor.name,
+                        'total_amount': 0,
+                        'work_count': 0
+                    }
+                editor_payments[editor_id]['total_amount'] += work.rate
+                editor_payments[editor_id]['work_count'] += 1
+        
         return jsonify({
             "status": "success",
-            "works": [work.to_dict() for work in works]
+            "works": [work.to_dict() for work in works],
+            "editor_payments": editor_payments
         })
 
     @app.route('/api/youtube/works', methods=['POST'])
@@ -369,14 +384,18 @@ def register_youtube_routes(app):
             if existing:
                 return jsonify({"status": "error", "message": "해당 월의 수익 데이터가 이미 존재합니다."})
             
-            total_revenue = data['main_channel'] + data['sub_channel1'] + data['sub_channel2']
+            # 수익 데이터를 정수로 변환 (문자열로 전송된 경우 대비)
+            main_channel = int(data.get('main_channel', 0))
+            sub_channel1 = int(data.get('sub_channel1', 0))
+            sub_channel2 = int(data.get('sub_channel2', 0))
+            total_revenue = main_channel + sub_channel1 + sub_channel2
             
             revenue = Revenue(
                 user_id=current_user.id,
                 year_month=data['year_month'],
-                main_channel=data['main_channel'],
-                sub_channel1=data['sub_channel1'],
-                sub_channel2=data['sub_channel2'],
+                main_channel=main_channel,
+                sub_channel1=sub_channel1,
+                sub_channel2=sub_channel2,
                 total_revenue=total_revenue,
                 notes=data.get('notes')
             )

@@ -422,6 +422,18 @@
                                 </div>
                             </div>
                             
+                            <!-- 편집자별 지급 예정금액 카드 -->
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h5 class="mb-0"><i class="fas fa-users me-2"></i>편집자별 지급 예정금액</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="editorPaymentCards" class="row">
+                                        <!-- 동적으로 채워집니다 -->
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div class="card">
                                 <div class="card-body">
                                     <div class="table-responsive">
@@ -985,6 +997,11 @@
             const form = document.getElementById('addRevenueForm');
             const formData = new FormData(form);
             const data = Object.fromEntries(formData.entries());
+            
+            // 수익 데이터를 정수로 명시적 변환 (문자열 전송 방지)
+            data.main_channel = parseInt(data.main_channel) || 0;
+            data.sub_channel1 = parseInt(data.sub_channel1) || 0;
+            data.sub_channel2 = parseInt(data.sub_channel2) || 0;
 
             fetch('/api/youtube/revenues', {
                 method: 'POST',
@@ -1077,6 +1094,69 @@
                 `;
                 tbody.innerHTML += row;
             });
+            
+            // 편집자별 지급 예정금액 업데이트
+            updateEditorPaymentCards();
+        }
+        
+        // 편집자별 지급 예정금액 카드 업데이트
+        function updateEditorPaymentCards() {
+            const container = document.getElementById('editorPaymentCards');
+            container.innerHTML = '';
+            
+            // 작업 데이터가 없으면 메시지 표시
+            if (!works || works.length === 0) {
+                container.innerHTML = '<div class="col-12"><p class="text-muted text-center">작업 데이터가 없습니다.</p></div>';
+                return;
+            }
+            
+            // 편집자별 지급 예정금액 계산
+            const editorPayments = {};
+            works.forEach(work => {
+                if (work.status === 'completed' || work.status === 'in_progress') {
+                    const editorId = work.editor_id;
+                    if (!editorPayments[editorId]) {
+                        editorPayments[editorId] = {
+                            editor_name: work.editor_name,
+                            total_amount: 0,
+                            work_count: 0,
+                            works: []
+                        };
+                    }
+                    editorPayments[editorId].total_amount += work.rate;
+                    editorPayments[editorId].work_count += 1;
+                    editorPayments[editorId].works.push(work);
+                }
+            });
+            
+            // 편집자별 카드 생성
+            Object.values(editorPayments).forEach(payment => {
+                const taxAmount = Math.floor(payment.total_amount * 0.033); // 3.3% 세금
+                const netAmount = payment.total_amount - taxAmount;
+                
+                const card = `
+                    <div class="col-md-4 col-lg-3 mb-3">
+                        <div class="stat-card">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="mb-0"><strong>${payment.editor_name}</strong></h6>
+                                <span class="badge bg-primary">${payment.work_count}건</span>
+                            </div>
+                            <div>
+                                <div class="small text-muted">총 지급예정액</div>
+                                <div class="h5 mb-1">${payment.total_amount.toLocaleString()}원</div>
+                                <div class="small text-danger">세금공제: -${taxAmount.toLocaleString()}원</div>
+                                <div class="small"><strong>실 지급액: ${netAmount.toLocaleString()}원</strong></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += card;
+            });
+            
+            // 편집자가 없으면 메시지 표시
+            if (Object.keys(editorPayments).length === 0) {
+                container.innerHTML = '<div class="col-12"><p class="text-muted text-center">지급 예정인 작업이 없습니다.</p></div>';
+            }
         }
 
         function updateRevenueTable() {
