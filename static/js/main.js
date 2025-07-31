@@ -1058,12 +1058,18 @@ function showSearchProgress() {
     
     loader.innerHTML = `
         <div class="search-progress">
-            <div class="search-status">
-                <i class="fas fa-search me-2"></i>채널에서 인기 쇼츠를 검색하는 중...
-            </div>
-            <div class="d-flex justify-content-center mt-3">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
+            <div class="alert alert-info text-center">
+                <div class="search-status mb-3">
+                    <i class="fas fa-search me-2"></i>
+                    <strong>채널에서 인기 쇼츠를 검색하는 중...</strong>
+                </div>
+                <div class="d-flex justify-content-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">잠시만 기다려주세요. 검색이 완료되면 결과를 표시합니다.</small>
                 </div>
             </div>
         </div>

@@ -660,31 +660,11 @@ body {
 
 /* 로딩 스피너 스타일 */
 .loader {
-    display: none !important; /* 기본적으로 완전히 숨김 */
+    display: none; /* 기본적으로 숨김 */
     text-align: center;
     padding: 40px;
     position: relative;
     z-index: 100;
-}
-
-.loader.show {
-    display: block !important; /* show 클래스가 있을 때만 표시 */
-}
-
-.loader::after {
-    content: "";
-    display: inline-block;
-    width: 40px;
-    height: 40px;
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #667eea;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
 }
 
 /* 검색 프로그레스 스타일 */
@@ -693,9 +673,10 @@ body {
 }
 
 .search-status {
+    font-size: 16px;
+    color: #495057;
     text-align: center;
     margin: 10px 0;
-    font-size: 0.9rem;
     color: #6c757d;
     font-weight: 500;
 }
