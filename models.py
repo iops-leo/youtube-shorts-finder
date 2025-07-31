@@ -236,17 +236,54 @@ class Revenue(db.Model):
     user = db.relationship('User', backref='revenues')
     
     def to_dict(self):
-        return {
-            'id': self.id,
-            'year_month': self.year_month,
-            'youtube_revenue': self.youtube_revenue or 0,
-            'music_revenue': self.music_revenue or 0,
-            'other_revenue': self.other_revenue or 0,
-            'total_revenue': self.total_revenue,
-            'notes': self.notes,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
-        }
+        try:
+            # 새로운 스키마 필드들 (nullable=True)
+            youtube_revenue = getattr(self, 'youtube_revenue', None) or 0
+            music_revenue = getattr(self, 'music_revenue', None) or 0  
+            other_revenue = getattr(self, 'other_revenue', None) or 0
+            
+            # 기존 스키마 필드들 (fallback)
+            main_channel = getattr(self, 'main_channel', None) or 0
+            sub_channel1 = getattr(self, 'sub_channel1', None) or 0
+            sub_channel2 = getattr(self, 'sub_channel2', None) or 0
+            
+            # 새로운 필드가 없으면 기존 필드 사용
+            if not youtube_revenue and not music_revenue and not other_revenue:
+                youtube_revenue = main_channel
+                music_revenue = sub_channel1  
+                other_revenue = sub_channel2
+            
+            return {
+                'id': self.id,
+                'year_month': self.year_month,
+                'youtube_revenue': youtube_revenue,
+                'music_revenue': music_revenue,
+                'other_revenue': other_revenue,
+                'main_channel': main_channel,  # backward compatibility
+                'sub_channel1': sub_channel1,  # backward compatibility  
+                'sub_channel2': sub_channel2,  # backward compatibility
+                'total_revenue': self.total_revenue or 0,
+                'notes': self.notes or '',
+                'created_at': self.created_at.isoformat() if self.created_at else '',
+                'updated_at': self.updated_at.isoformat() if self.updated_at else ''
+            }
+        except Exception as e:
+            # 에러 발생 시 기본값 반환
+            return {
+                'id': getattr(self, 'id', 0),
+                'year_month': getattr(self, 'year_month', ''),
+                'youtube_revenue': 0,
+                'music_revenue': 0,
+                'other_revenue': 0,
+                'main_channel': 0,
+                'sub_channel1': 0,
+                'sub_channel2': 0,
+                'total_revenue': 0,
+                'notes': '',
+                'created_at': '',
+                'updated_at': '',
+                'error': str(e)
+            }
 
 class EmailSentVideo(db.Model):
     """이메일 발송 영상 이력 모델"""

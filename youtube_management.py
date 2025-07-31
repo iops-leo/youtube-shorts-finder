@@ -361,12 +361,29 @@ def register_youtube_routes(app):
     @login_required
     def get_revenues():
         """수익 목록 조회"""
-        revenues = Revenue.query.filter_by(user_id=current_user.id).order_by(Revenue.year_month.desc()).all()
-        
-        return jsonify({
-            "status": "success",
-            "revenues": [revenue.to_dict() for revenue in revenues]
-        })
+        try:
+            revenues = Revenue.query.filter_by(user_id=current_user.id).order_by(Revenue.year_month.desc()).all()
+            
+            revenue_list = []
+            for revenue in revenues:
+                try:
+                    revenue_dict = revenue.to_dict()
+                    revenue_list.append(revenue_dict)
+                except Exception as e:
+                    # 개별 수익 데이터 변환 실패 시 스킵하고 로그 남김
+                    print(f"Revenue to_dict 오류: {str(e)}, Revenue ID: {getattr(revenue, 'id', 'Unknown')}")
+                    continue
+            
+            return jsonify({
+                "status": "success",
+                "revenues": revenue_list
+            })
+        except Exception as e:
+            print(f"수익 데이터 조회 오류: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "message": f"수익 데이터를 불러오는 중 오류가 발생했습니다: {str(e)}"
+            }), 500
 
     @app.route('/api/youtube/revenues', methods=['POST'])
     @login_required
