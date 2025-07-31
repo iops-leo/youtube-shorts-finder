@@ -35,6 +35,14 @@ def get_current_api_key():
         return None
     return api_keys[current_key_index]
 
+def get_api_key_info():
+    """API 키 정보 반환"""
+    return {
+        'total_keys': len(api_keys),
+        'current_key_index': current_key_index if api_keys else None,
+        'current_key_preview': api_keys[current_key_index][:8] + '...' if api_keys else None
+    }
+
 def switch_to_next_api_key():
     """다음 API 키로 전환"""
     global current_key_index
@@ -109,10 +117,27 @@ def get_from_cache(cache_key):
 def save_to_cache(cache_key, data):
     """캐시에 데이터 저장"""
     cache[cache_key] = (data, time.time())
-    # 캐시 크기 제한 (선택적)
-    if len(cache) > 100:
-        oldest_key = min(cache.keys(), key=lambda k: cache[k][1])
-        del cache[oldest_key]
+    
+    # 캐시 크기 제한 개선 (200개로 증가, 성능 향상)
+    if len(cache) > 200:
+        # 가장 오래된 20개 항목 제거 (배치 처리로 성능 향상)
+        sorted_keys = sorted(cache.keys(), key=lambda k: cache[k][1])
+        for key in sorted_keys[:20]:
+            del cache[key]
+        print(f"캐시 정리: {len(sorted_keys[:20])}개 항목 제거, 현재 캐시 크기: {len(cache)}")
+
+def get_cache_stats():
+    """캐시 통계 반환"""
+    now = time.time()
+    valid_entries = sum(1 for _, timestamp in cache.values() if now - timestamp < CACHE_TIMEOUT)
+    
+    return {
+        'total_entries': len(cache),
+        'valid_entries': valid_entries,
+        'expired_entries': len(cache) - valid_entries,
+        'translation_cache_size': len(translation_cache),
+        'cache_timeout_hours': CACHE_TIMEOUT / 3600
+    }
 
 def get_youtube_api_service():
     """YouTube API 서비스 인스턴스 생성 (키 오류 시 다음 키로 전환)"""

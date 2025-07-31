@@ -43,6 +43,10 @@ class EmailService:
             for category in search_results:
                 if category.get('videos'):
                     category['videos'].sort(key=lambda x: x.get('viewCount', 0), reverse=True)
+            
+            # 통계 계산
+            total_videos = sum(len(category.get('videos', [])) for category in search_results)
+            total_categories = sum(1 for category in search_results if len(category.get('videos', [])) > 0)
             # 이메일 템플릿 로드 (실제로는 파일에서 로드할 수 있음)
             template_str = """
             <!DOCTYPE html>
@@ -226,14 +230,6 @@ class EmailService:
                         <div class="summary">
                             <div class="summary-title">📊 검색 결과 요약</div>
                             <div class="summary-stats">
-                                {% set total_videos = 0 %}
-                                {% set total_categories = 0 %}
-                                {% for category in results %}
-                                    {% set total_videos = total_videos + category.videos|length %}
-                                    {% if category.videos|length > 0 %}
-                                        {% set total_categories = total_categories + 1 %}
-                                    {% endif %}
-                                {% endfor %}
                                 <div class="summary-stat">
                                     <span class="summary-number">{{ total_videos }}</span>
                                     <div class="summary-label">인기 Shorts 영상</div>
@@ -242,7 +238,7 @@ class EmailService:
                                     <span class="summary-number">{{ total_categories }}</span>
                                     <div class="summary-label">활성 카테고리</div>
                                 </div>
-                            </div>
+                            </div> 
                         </div>
                         
                         {% for category in results %}
@@ -330,7 +326,13 @@ class EmailService:
             """
             
             template = Template(template_str)
-            return template.render(user=user, results=search_results, timestamp=timestamp)
+            return template.render(
+                user=user, 
+                results=search_results, 
+                timestamp=timestamp,
+                total_videos=total_videos,
+                total_categories=total_categories
+            )
         except Exception as e:
             self.app.logger.error(f"이메일 포맷팅 오류: {str(e)}")
             return "<p>이메일 생성 중 오류가 발생했습니다.</p>"

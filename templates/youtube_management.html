@@ -494,9 +494,9 @@
                                             <thead>
                                                 <tr>
                                                     <th>월</th>
-                                                    <th>메인 채널</th>
-                                                    <th>서브 채널 1</th>
-                                                    <th>서브 채널 2</th>
+                                                    <th>유튜브 수익</th>
+                                                    <th>음원 수익</th>
+                                                    <th>기타 수익</th>
                                                     <th>총 수익</th>
                                                     <th>편집 비용</th>
                                                     <th>순이익</th>
@@ -787,7 +787,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-chart-line me-2"></i>수익 데이터 추가</h5>
+                    <h5 class="modal-title" id="revenueModalTitle"><i class="fas fa-chart-line me-2"></i>수익 데이터 추가</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -797,16 +797,16 @@
                             <input type="month" class="form-control" name="year_month" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">메인 채널 수익</label>
-                            <input type="number" class="form-control" name="main_channel" value="0">
+                            <label class="form-label">유튜브 수익</label>
+                            <input type="number" class="form-control" name="youtube_revenue" value="0">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">서브 채널 1 수익</label>
-                            <input type="number" class="form-control" name="sub_channel1" value="0">
+                            <label class="form-label">음원 수익</label>
+                            <input type="number" class="form-control" name="music_revenue" value="0">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">서브 채널 2 수익</label>
-                            <input type="number" class="form-control" name="sub_channel2" value="0">
+                            <label class="form-label">기타 수익</label>
+                            <input type="number" class="form-control" name="other_revenue" value="0">
                         </div>
                         <div class="mb-3">
                             <label class="form-label">특이사항</label>
@@ -816,7 +816,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-                    <button type="button" class="btn btn-primary" onclick="addRevenue()">추가</button>
+                    <button type="button" class="btn btn-primary" id="revenueModalButton" onclick="addRevenue()">추가</button>
                 </div>
             </div>
         </div>
@@ -852,6 +852,11 @@
             if (monthInput) {
                 monthInput.value = thisMonth;
             }
+            
+            // 수익 모달이 닫힐 때 초기화
+            document.getElementById('addRevenueModal').addEventListener('hidden.bs.modal', function () {
+                resetRevenueModal();
+            });
         });
 
         // 모든 데이터 로드
@@ -999,9 +1004,9 @@
             const data = Object.fromEntries(formData.entries());
             
             // 수익 데이터를 정수로 명시적 변환 (문자열 전송 방지)
-            data.main_channel = parseInt(data.main_channel) || 0;
-            data.sub_channel1 = parseInt(data.sub_channel1) || 0;
-            data.sub_channel2 = parseInt(data.sub_channel2) || 0;
+            data.youtube_revenue = parseInt(data.youtube_revenue) || 0;
+            data.music_revenue = parseInt(data.music_revenue) || 0;
+            data.other_revenue = parseInt(data.other_revenue) || 0;
 
             fetch('/api/youtube/revenues', {
                 method: 'POST',
@@ -1173,13 +1178,16 @@
                 const row = `
                     <tr>
                         <td><strong>${revenue.year_month}</strong></td>
-                        <td class="amount">${parseInt(revenue.main_channel || 0).toLocaleString()}원</td>
-                        <td class="amount">${parseInt(revenue.sub_channel1 || 0).toLocaleString()}원</td>
-                        <td class="amount">${parseInt(revenue.sub_channel2 || 0).toLocaleString()}원</td>
+                        <td class="amount">${parseInt(revenue.youtube_revenue || 0).toLocaleString()}원</td>
+                        <td class="amount">${parseInt(revenue.music_revenue || 0).toLocaleString()}원</td>
+                        <td class="amount">${parseInt(revenue.other_revenue || 0).toLocaleString()}원</td>
                         <td class="amount"><strong>${parseInt(revenue.total_revenue || 0).toLocaleString()}원</strong></td>
                         <td class="amount">${parseInt(monthlyCosts || 0).toLocaleString()}원</td>
                         <td class="${profitClass}"><strong>${(profit || 0).toLocaleString()}원</strong></td>
                         <td>
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editRevenue(${revenue.id})">
+                                <i class="fas fa-edit"></i>
+                            </button>
                             <button class="btn btn-sm btn-outline-danger" onclick="deleteRevenue(${revenue.id})">
                                 <i class="fas fa-trash"></i>
                             </button>
@@ -1484,6 +1492,81 @@
                 console.error('작업 수정 실패:', error);
                 showAlert('작업 수정에 실패했습니다.', 'danger');
             });
+        }
+
+        let editingRevenueId = null;
+
+        function editRevenue(revenueId) {
+            const revenue = revenues.find(r => r.id === revenueId);
+            if (!revenue) return;
+            
+            editingRevenueId = revenueId;
+            
+            // 모달 제목과 버튼 텍스트 변경
+            document.getElementById('revenueModalTitle').innerHTML = '<i class="fas fa-edit me-2"></i>수익 데이터 수정';
+            document.getElementById('revenueModalButton').textContent = '수정';
+            document.getElementById('revenueModalButton').setAttribute('onclick', 'updateRevenue()');
+            
+            // 폼에 기존 데이터 채우기
+            const form = document.getElementById('addRevenueForm');
+            form.querySelector('input[name="year_month"]').value = revenue.year_month;
+            form.querySelector('input[name="youtube_revenue"]').value = revenue.youtube_revenue || 0;
+            form.querySelector('input[name="music_revenue"]').value = revenue.music_revenue || 0;
+            form.querySelector('input[name="other_revenue"]').value = revenue.other_revenue || 0;
+            form.querySelector('textarea[name="notes"]').value = revenue.notes || '';
+            
+            // 모달 열기
+            new bootstrap.Modal(document.getElementById('addRevenueModal')).show();
+        }
+
+        function updateRevenue() {
+            const form = document.getElementById('addRevenueForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            // 수익 데이터를 정수로 명시적 변환
+            data.youtube_revenue = parseInt(data.youtube_revenue) || 0;
+            data.music_revenue = parseInt(data.music_revenue) || 0;
+            data.other_revenue = parseInt(data.other_revenue) || 0;
+
+            fetch(`/api/youtube/revenues/${editingRevenueId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showAlert('수익 데이터가 수정되었습니다.', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('addRevenueModal')).hide();
+                    resetRevenueModal();
+                    loadRevenues();
+                    loadDashboard();
+                } else {
+                    showAlert(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('수익 수정 실패:', error);
+                showAlert('수익 수정에 실패했습니다.', 'danger');
+            });
+        }
+
+        function resetRevenueModal() {
+            editingRevenueId = null;
+            
+            // 모달 제목과 버튼을 기본값으로 되돌리기
+            document.getElementById('revenueModalTitle').innerHTML = '<i class="fas fa-chart-line me-2"></i>수익 데이터 추가';
+            document.getElementById('revenueModalButton').textContent = '추가';
+            document.getElementById('revenueModalButton').setAttribute('onclick', 'addRevenue()');
+            
+            // 폼 초기화
+            document.getElementById('addRevenueForm').reset();
+            document.querySelector('input[name="youtube_revenue"]').value = '0';
+            document.querySelector('input[name="music_revenue"]').value = '0';
+            document.querySelector('input[name="other_revenue"]').value = '0';
         }
 
         function deleteRevenue(revenueId) {

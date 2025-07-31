@@ -385,17 +385,17 @@ def register_youtube_routes(app):
                 return jsonify({"status": "error", "message": "해당 월의 수익 데이터가 이미 존재합니다."})
             
             # 수익 데이터를 정수로 변환 (문자열로 전송된 경우 대비)
-            main_channel = int(data.get('main_channel', 0))
-            sub_channel1 = int(data.get('sub_channel1', 0))
-            sub_channel2 = int(data.get('sub_channel2', 0))
-            total_revenue = main_channel + sub_channel1 + sub_channel2
+            youtube_revenue = int(data.get('youtube_revenue', 0))
+            music_revenue = int(data.get('music_revenue', 0))
+            other_revenue = int(data.get('other_revenue', 0))
+            total_revenue = youtube_revenue + music_revenue + other_revenue
             
             revenue = Revenue(
                 user_id=current_user.id,
                 year_month=data['year_month'],
-                main_channel=main_channel,
-                sub_channel1=sub_channel1,
-                sub_channel2=sub_channel2,
+                youtube_revenue=youtube_revenue,
+                music_revenue=music_revenue,
+                other_revenue=other_revenue,
                 total_revenue=total_revenue,
                 notes=data.get('notes')
             )
@@ -406,6 +406,57 @@ def register_youtube_routes(app):
             return jsonify({
                 "status": "success",
                 "message": "수익 데이터가 추가되었습니다.",
+                "revenue": revenue.to_dict()
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"status": "error", "message": str(e)})
+
+    @app.route('/api/youtube/revenues/<int:revenue_id>', methods=['PUT'])
+    @login_required
+    def update_revenue(revenue_id):
+        """수익 데이터 수정"""
+        revenue = Revenue.query.filter_by(id=revenue_id, user_id=current_user.id).first()
+        
+        if not revenue:
+            return jsonify({"status": "error", "message": "수익 데이터를 찾을 수 없습니다."})
+        
+        try:
+            data = request.json
+            
+            # 다른 월에 동일한 year_month가 있는지 확인 (자기 자신 제외)
+            if data.get('year_month') and data['year_month'] != revenue.year_month:
+                existing = Revenue.query.filter_by(
+                    user_id=current_user.id,
+                    year_month=data['year_month']
+                ).filter(Revenue.id != revenue_id).first()
+                
+                if existing:
+                    return jsonify({"status": "error", "message": "해당 월의 수익 데이터가 이미 존재합니다."})
+            
+            # 수익 데이터 업데이트
+            if 'year_month' in data:
+                revenue.year_month = data['year_month']
+            
+            youtube_revenue = int(data.get('youtube_revenue', revenue.youtube_revenue))
+            music_revenue = int(data.get('music_revenue', revenue.music_revenue))
+            other_revenue = int(data.get('other_revenue', revenue.other_revenue))
+            
+            revenue.youtube_revenue = youtube_revenue
+            revenue.music_revenue = music_revenue
+            revenue.other_revenue = other_revenue
+            revenue.total_revenue = youtube_revenue + music_revenue + other_revenue
+            
+            if 'notes' in data:
+                revenue.notes = data.get('notes')
+            
+            revenue.updated_at = datetime.utcnow()
+            
+            db.session.commit()
+            
+            return jsonify({
+                "status": "success",
+                "message": "수익 데이터가 수정되었습니다.",
                 "revenue": revenue.to_dict()
             })
         except Exception as e:

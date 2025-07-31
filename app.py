@@ -36,7 +36,7 @@ from sqlalchemy import text
 
 # 공통 기능 임포트
 from common_utils.search import get_recent_popular_shorts, get_cache_key, save_to_cache, get_from_cache
-from common_utils.search import api_keys, switch_to_next_api_key, get_youtube_api_service
+from common_utils.search import api_keys, switch_to_next_api_key, get_youtube_api_service, get_cache_stats, get_api_key_info
 from models import db, EmailNotification, NotificationSearch, User, ChannelCategory, Channel, CategoryChannel, SearchPreference, SearchHistory, ApiLog
 
 cache = {}
@@ -455,6 +455,24 @@ def index():
                           daily_api_calls=daily_api_calls)
 
 # 관리자 대시보드 - API 사용 통계
+@app.route('/admin/cache-stats')
+@login_required
+def admin_cache_stats():
+    if not current_user.is_admin():
+        return jsonify({"status": "error", "message": "관리자 권한이 필요합니다."})
+    
+    # 캐시 통계 수집
+    cache_stats = get_cache_stats()
+    
+    # API 키 상태
+    api_key_info = get_api_key_info()
+    
+    return jsonify({
+        "status": "success",
+        "cache_stats": cache_stats,
+        "api_key_info": api_key_info
+    })
+
 @app.route('/admin/stats')
 @login_required
 def admin_stats():
