@@ -1211,6 +1211,38 @@ def save_notification_settings():
         "message": "알림 설정이 저장되었습니다."
     })
 
+@app.route('/api/notifications/debug', methods=['POST'])
+@login_required
+def debug_notification_search():
+    """날짜 필터링 디버깅용 API"""
+    from datetime import datetime, timedelta
+    
+    # 사용자의 알림 설정 가져오기
+    notification = EmailNotification.query.filter_by(user_id=current_user.id).first()
+    if not notification:
+        return jsonify({"status": "error", "message": "저장된 알림 설정이 없습니다."})
+    
+    debug_info = []
+    for search in notification.searches:
+        category = search.category
+        channels = [cat_channel.channel.id for cat_channel in category.category_channels]
+        
+        if channels:
+            cutoff_date = datetime.utcnow() - timedelta(days=search.days_ago)
+            debug_info.append({
+                "category": category.name,
+                "days_ago": search.days_ago,
+                "cutoff_date": cutoff_date.strftime('%Y-%m-%d %H:%M:%S'),
+                "min_views": search.min_views,
+                "channels_count": len(channels)
+            })
+    
+    return jsonify({
+        "status": "success",
+        "debug_info": debug_info,
+        "current_time": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    })
+
 @app.route('/api/notifications/test', methods=['POST'])
 @login_required
 def test_notification_email():

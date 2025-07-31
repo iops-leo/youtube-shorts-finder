@@ -314,6 +314,12 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
 
     if channel_id_list:
         print(f"총 {len(channel_id_list)}개 채널에서 직접 영상 수집 중...")
+        
+        # 날짜 필터 설정
+        published_after = None
+        if days_ago > 0:
+            published_after = (datetime.utcnow() - timedelta(days=days_ago)).isoformat("T") + "Z"
+            print(f"날짜 필터: {days_ago}일 전 ({published_after}) 이후 영상만 검색")
 
         for channel_id in channel_id_list:
             # 모든 API 키가 소진되었으면 더 이상 처리하지 않음
@@ -328,14 +334,20 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
                 try:
                     youtube = get_youtube_api_service()
 
-                    # 각 채널당 최신 영상 검색
-                    search_response = youtube.search().list(
-                        part='snippet',
-                        channelId=channel_id,
-                        order='date',
-                        type='video',
-                        maxResults=min(10, max(1, max_results))  # 유튜브 API 제한: 최대 10
-                    ).execute()
+                    # 각 채널당 최신 영상 검색 (날짜 필터 포함)
+                    search_params = {
+                        'part': 'snippet',
+                        'channelId': channel_id,
+                        'order': 'date',
+                        'type': 'video',
+                        'maxResults': min(50, max(1, max_results))  # 더 많은 결과로 늘려서 필터링 후에도 충분한 결과 확보
+                    }
+                    
+                    # 날짜 필터 적용
+                    if published_after:
+                        search_params['publishedAfter'] = published_after
+                    
+                    search_response = youtube.search().list(**search_params).execute()
 
                     video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
 
@@ -355,6 +367,14 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
                                 view_count = int(item['statistics'].get('viewCount', 0))
                                 duration = item['contentDetails']['duration']
                                 duration_seconds = isodate.parse_duration(duration).total_seconds()
+                                
+                                # 추가 날짜 필터링 (클라이언트 사이드에서 한 번 더 확인)
+                                if days_ago > 0:
+                                    published_at = datetime.strptime(item['snippet']['publishedAt'], "%Y-%m-%dT%H:%M:%SZ")
+                                    cutoff_date = datetime.utcnow() - timedelta(days=days_ago)
+                                    if published_at < cutoff_date:
+                                        print(f"날짜 필터링: {item['snippet']['title']} - 게시일 {published_at.strftime('%Y-%m-%d')}가 기준일 {cutoff_date.strftime('%Y-%m-%d')}보다 이전")
+                                        continue
 
                                 if view_count < min_views or duration_seconds > 60:
                                     continue

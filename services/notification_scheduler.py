@@ -204,13 +204,14 @@ class NotificationScheduler:
                 
                 # 채널 검색 수행
                 try:
-                    self.app.logger.info(f"검색 조건: 최소 조회수={search.min_views}, 기간={search.days_ago}일, 최대 결과={search.max_results}")
+                    self.app.logger.info(f"검색 조건: 카테고리={category.name}, 최소 조회수={search.min_views:,}회, 기간={search.days_ago}일, 최대 결과={search.max_results}개, 채널 수={len(channels)}개")
                     
                     videos = get_recent_popular_shorts(
                         min_views=search.min_views,
                         days_ago=search.days_ago,
                         max_results=search.max_results,
-                        channel_ids=','.join(channels)
+                        channel_ids=','.join(channels),
+                        region_code='KR'
                     )
                     
                     # 이미 발송된 영상 제외
