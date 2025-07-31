@@ -290,8 +290,8 @@ def search_by_keyword_based_shorts(min_views, days_ago, max_results,
                         batch_processed = True
                         break
 
-        # 정렬 및 제한
-        filtered_videos.sort(key=lambda x: x['viewCount'], reverse=True)
+        # 최신순 정렬 및 제한
+        filtered_videos.sort(key=lambda x: datetime.strptime(x['publishedAt'], "%Y-%m-%dT%H:%M:%SZ"), reverse=True)
         return filtered_videos[:max_results]
 
     except Exception as e:
@@ -448,8 +448,11 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
                         channel_processed = True
                         break
 
-        # 조회수 순 기준 정렬 후 전체에서 max_results개 자르기 (알림용)
-        all_filtered_videos.sort(key=lambda x: x.get('viewCount', 0), reverse=True)
+        # 최신순 기준 정렬 후 전체에서 max_results개 자르기
+        all_filtered_videos.sort(
+            key=lambda x: datetime.strptime(x['publishedAt'], "%Y-%m-%dT%H:%M:%SZ"),
+            reverse=True
+        )
         return all_filtered_videos
 
     else:
