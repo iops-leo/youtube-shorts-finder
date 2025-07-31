@@ -216,9 +216,17 @@ class Revenue(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.String(128), db.ForeignKey('user.id'), nullable=False)
     year_month = db.Column(db.String(7), nullable=False)  # YYYY-MM 형식
-    youtube_revenue = db.Column(db.Integer, default=0)  # 유튜브 수익
-    music_revenue = db.Column(db.Integer, default=0)  # 음원 수익
-    other_revenue = db.Column(db.Integer, default=0)  # 기타 수익
+    
+    # 새로운 컬럼들 (nullable=True로 설정하여 기존 데이터와의 호환성 유지)
+    youtube_revenue = db.Column(db.Integer, default=0, nullable=True)  # 유튜브 수익
+    music_revenue = db.Column(db.Integer, default=0, nullable=True)  # 음원 수익
+    other_revenue = db.Column(db.Integer, default=0, nullable=True)  # 기타 수익
+    
+    # 이전 컬럼들 (backward compatibility)
+    main_channel = db.Column(db.Integer, default=0, nullable=True)  # 메인 채널 수익
+    sub_channel1 = db.Column(db.Integer, default=0, nullable=True)  # 서브 채널1 수익
+    sub_channel2 = db.Column(db.Integer, default=0, nullable=True)  # 서브 채널2 수익
+    
     total_revenue = db.Column(db.Integer, default=0)  # 총 수익
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -231,9 +239,9 @@ class Revenue(db.Model):
         return {
             'id': self.id,
             'year_month': self.year_month,
-            'youtube_revenue': self.youtube_revenue,
-            'music_revenue': self.music_revenue,
-            'other_revenue': self.other_revenue,
+            'youtube_revenue': self.youtube_revenue or 0,
+            'music_revenue': self.music_revenue or 0,
+            'other_revenue': self.other_revenue or 0,
             'total_revenue': self.total_revenue,
             'notes': self.notes,
             'created_at': self.created_at.isoformat(),

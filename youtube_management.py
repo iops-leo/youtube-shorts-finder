@@ -438,9 +438,9 @@ def register_youtube_routes(app):
             if 'year_month' in data:
                 revenue.year_month = data['year_month']
             
-            youtube_revenue = int(data.get('youtube_revenue', revenue.youtube_revenue))
-            music_revenue = int(data.get('music_revenue', revenue.music_revenue))
-            other_revenue = int(data.get('other_revenue', revenue.other_revenue))
+            youtube_revenue = int(data.get('youtube_revenue', revenue.youtube_revenue or 0))
+            music_revenue = int(data.get('music_revenue', revenue.music_revenue or 0))
+            other_revenue = int(data.get('other_revenue', revenue.other_revenue or 0))
             
             revenue.youtube_revenue = youtube_revenue
             revenue.music_revenue = music_revenue
