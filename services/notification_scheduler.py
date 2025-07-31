@@ -216,6 +216,9 @@ class NotificationScheduler:
                     # 이미 발송된 영상 제외
                     videos = self.filter_already_sent_videos(notification.user_id, videos)
                     
+                    # 조회수 높은 순으로 정렬
+                    videos.sort(key=lambda x: x.get('viewCount', 0), reverse=True)
+                    
                     # 수정: 결과를 최대 10개로 제한
                     max_videos_per_category = 10
                     if len(videos) > max_videos_per_category:
