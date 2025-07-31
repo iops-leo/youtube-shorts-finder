@@ -114,6 +114,13 @@ with app.app_context():
     db.create_all()
     app.logger.info('데이터베이스 테이블 생성 완료')
     
+    # 자동 마이그레이션 실행
+    try:
+        from auto_migrate import safe_migrate
+        safe_migrate(app, db)
+    except Exception as e:
+        app.logger.warning(f'자동 마이그레이션 실패: {str(e)}')
+    
 # YouTube 관리 라우트 등록
 register_youtube_routes(app)
 

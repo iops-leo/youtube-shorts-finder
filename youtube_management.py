@@ -408,10 +408,19 @@ def register_youtube_routes(app):
             if existing:
                 return jsonify({"status": "error", "message": "해당 월의 수익 데이터가 이미 존재합니다."})
             
-            # 수익 데이터를 정수로 변환 (문자열로 전송된 경우 대비)
-            youtube_revenue = int(data.get('youtube_revenue', 0))
-            music_revenue = int(data.get('music_revenue', 0))
-            other_revenue = int(data.get('other_revenue', 0))
+            # 수익 데이터를 정수로 변환 (콤마 제거 후)
+            def parse_revenue(value):
+                """수익 값에서 콤마를 제거하고 정수로 변환"""
+                if isinstance(value, str):
+                    value = value.replace(',', '').replace('원', '').strip()
+                try:
+                    return int(float(value)) if value else 0
+                except (ValueError, TypeError):
+                    return 0
+            
+            youtube_revenue = parse_revenue(data.get('youtube_revenue', 0))
+            music_revenue = parse_revenue(data.get('music_revenue', 0))
+            other_revenue = parse_revenue(data.get('other_revenue', 0))
             total_revenue = youtube_revenue + music_revenue + other_revenue
             
             revenue = Revenue(
@@ -462,9 +471,19 @@ def register_youtube_routes(app):
             if 'year_month' in data:
                 revenue.year_month = data['year_month']
             
-            youtube_revenue = int(data.get('youtube_revenue', revenue.youtube_revenue or 0))
-            music_revenue = int(data.get('music_revenue', revenue.music_revenue or 0))
-            other_revenue = int(data.get('other_revenue', revenue.other_revenue or 0))
+            # 수익 데이터를 정수로 변환 (콤마 제거 후)
+            def parse_revenue(value, fallback=0):
+                """수익 값에서 콤마를 제거하고 정수로 변환"""
+                if isinstance(value, str):
+                    value = value.replace(',', '').replace('원', '').strip()
+                try:
+                    return int(float(value)) if value else fallback
+                except (ValueError, TypeError):
+                    return fallback
+            
+            youtube_revenue = parse_revenue(data.get('youtube_revenue'), revenue.youtube_revenue or 0)
+            music_revenue = parse_revenue(data.get('music_revenue'), revenue.music_revenue or 0)
+            other_revenue = parse_revenue(data.get('other_revenue'), revenue.other_revenue or 0)
             
             revenue.youtube_revenue = youtube_revenue
             revenue.music_revenue = music_revenue

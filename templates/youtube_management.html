@@ -798,15 +798,18 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label">유튜브 수익</label>
-                            <input type="number" class="form-control" name="youtube_revenue" value="0">
+                            <input type="text" class="form-control revenue-input" name="youtube_revenue" value="0" placeholder="예: 1,500,000">
+                            <div class="form-text">숫자를 입력하면 자동으로 콤마가 표시됩니다</div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">음원 수익</label>
-                            <input type="number" class="form-control" name="music_revenue" value="0">
+                            <input type="text" class="form-control revenue-input" name="music_revenue" value="0" placeholder="예: 500,000">
+                            <div class="form-text">숫자를 입력하면 자동으로 콤마가 표시됩니다</div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">기타 수익</label>
-                            <input type="number" class="form-control" name="other_revenue" value="0">
+                            <input type="text" class="form-control revenue-input" name="other_revenue" value="0" placeholder="예: 300,000">
+                            <div class="form-text">숫자를 입력하면 자동으로 콤마가 표시됩니다</div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">특이사항</label>
@@ -857,6 +860,9 @@
             document.getElementById('addRevenueModal').addEventListener('hidden.bs.modal', function () {
                 resetRevenueModal();
             });
+            
+            // 수익 입력 필드에 콤마 포맷팅 이벤트 리스너 추가
+            setupRevenueInputFormatting();
         });
 
         // 모든 데이터 로드
@@ -1005,16 +1011,63 @@
             });
         }
 
+        // 콤마 포맷팅 관련 함수들
+        function setupRevenueInputFormatting() {
+            const revenueInputs = document.querySelectorAll('.revenue-input');
+            
+            revenueInputs.forEach(input => {
+                // 입력 시 실시간 콤마 포맷팅
+                input.addEventListener('input', function(e) {
+                    let value = e.target.value.replace(/[^0-9]/g, ''); // 숫자만 추출
+                    if (value === '') {
+                        e.target.value = '0';
+                        return;
+                    }
+                    e.target.value = parseInt(value).toLocaleString();
+                });
+                
+                // 포커스 시 콤마 제거 (편집 편의)
+                input.addEventListener('focus', function(e) {
+                    let value = e.target.value.replace(/[^0-9]/g, '');
+                    if (value === '0') {
+                        e.target.value = '';
+                    } else {
+                        e.target.value = value;
+                    }
+                });
+                
+                // 포커스 아웃 시 콤마 추가
+                input.addEventListener('blur', function(e) {
+                    let value = e.target.value.replace(/[^0-9]/g, '');
+                    if (value === '' || value === '0') {
+                        e.target.value = '0';
+                    } else {
+                        e.target.value = parseInt(value).toLocaleString();
+                    }
+                });
+            });
+        }
+        
+        function parseRevenueValue(value) {
+            /**
+             * 수익 입력값에서 숫자만 추출
+             */
+            if (typeof value === 'string') {
+                value = value.replace(/[^0-9]/g, ''); // 콤마, 원 등 제거
+            }
+            return parseInt(value) || 0;
+        }
+
         // 수익 추가
         function addRevenue() {
             const form = document.getElementById('addRevenueForm');
             const formData = new FormData(form);
             const data = Object.fromEntries(formData.entries());
             
-            // 수익 데이터를 정수로 명시적 변환 (문자열 전송 방지)
-            data.youtube_revenue = parseInt(data.youtube_revenue) || 0;
-            data.music_revenue = parseInt(data.music_revenue) || 0;
-            data.other_revenue = parseInt(data.other_revenue) || 0;
+            // 수익 데이터를 정수로 명시적 변환 (콤마 제거 후)
+            data.youtube_revenue = parseRevenueValue(data.youtube_revenue);
+            data.music_revenue = parseRevenueValue(data.music_revenue);
+            data.other_revenue = parseRevenueValue(data.other_revenue);
 
             fetch('/api/youtube/revenues', {
                 method: 'POST',
@@ -1515,12 +1568,12 @@
             document.getElementById('revenueModalButton').textContent = '수정';
             document.getElementById('revenueModalButton').setAttribute('onclick', 'updateRevenue()');
             
-            // 폼에 기존 데이터 채우기
+            // 폼에 기존 데이터 채우기 (콤마 포맷팅 적용)
             const form = document.getElementById('addRevenueForm');
             form.querySelector('input[name="year_month"]').value = revenue.year_month;
-            form.querySelector('input[name="youtube_revenue"]').value = revenue.youtube_revenue || 0;
-            form.querySelector('input[name="music_revenue"]').value = revenue.music_revenue || 0;
-            form.querySelector('input[name="other_revenue"]').value = revenue.other_revenue || 0;
+            form.querySelector('input[name="youtube_revenue"]').value = (revenue.youtube_revenue || 0).toLocaleString();
+            form.querySelector('input[name="music_revenue"]').value = (revenue.music_revenue || 0).toLocaleString();
+            form.querySelector('input[name="other_revenue"]').value = (revenue.other_revenue || 0).toLocaleString();
             form.querySelector('textarea[name="notes"]').value = revenue.notes || '';
             
             // 모달 열기
@@ -1532,10 +1585,10 @@
             const formData = new FormData(form);
             const data = Object.fromEntries(formData.entries());
             
-            // 수익 데이터를 정수로 명시적 변환
-            data.youtube_revenue = parseInt(data.youtube_revenue) || 0;
-            data.music_revenue = parseInt(data.music_revenue) || 0;
-            data.other_revenue = parseInt(data.other_revenue) || 0;
+            // 수익 데이터를 정수로 명시적 변환 (콤마 제거 후)
+            data.youtube_revenue = parseRevenueValue(data.youtube_revenue);
+            data.music_revenue = parseRevenueValue(data.music_revenue);
+            data.other_revenue = parseRevenueValue(data.other_revenue);
 
             fetch(`/api/youtube/revenues/${editingRevenueId}`, {
                 method: 'PUT',
@@ -1570,11 +1623,14 @@
             document.getElementById('revenueModalButton').textContent = '추가';
             document.getElementById('revenueModalButton').setAttribute('onclick', 'addRevenue()');
             
-            // 폼 초기화
+            // 폼 초기화 (콤마 포맷팅 적용)
             document.getElementById('addRevenueForm').reset();
             document.querySelector('input[name="youtube_revenue"]').value = '0';
             document.querySelector('input[name="music_revenue"]').value = '0';
             document.querySelector('input[name="other_revenue"]').value = '0';
+            
+            // 콤마 포맷팅 재설정 (동적으로 추가된 이벤트 리스너 적용)
+            setupRevenueInputFormatting();
         }
 
         function deleteRevenue(revenueId) {
