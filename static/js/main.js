@@ -1054,6 +1054,8 @@ function getRegionNameByCode(code) {
 // 검색 프로그레스 표시 함수
 function showSearchProgress() {
     const loader = document.getElementById('loader');
+    const apiUsageAlert = document.querySelector('.alert-info'); // API 사용량 표시 요소
+    
     loader.innerHTML = `
         <div class="search-progress">
             <div class="search-status">
@@ -1067,12 +1069,24 @@ function showSearchProgress() {
         </div>
     `;
     loader.style.display = 'block';
+    
+    // API 사용량 알림을 임시로 숨김 (중복 프로그래스바 방지)
+    if (apiUsageAlert) {
+        apiUsageAlert.style.display = 'none';
+    }
 }
 
 function hideSearchProgress() {
     const loader = document.getElementById('loader');
+    const apiUsageAlert = document.querySelector('.alert-info'); // API 사용량 표시 요소
+    
     loader.style.display = 'none';
     loader.innerHTML = '';
+    
+    // API 사용량 알림 다시 표시
+    if (apiUsageAlert) {
+        apiUsageAlert.style.display = 'block';
+    }
 }
 
 
