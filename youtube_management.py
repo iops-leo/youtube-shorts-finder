@@ -2,7 +2,7 @@
 from datetime import datetime, date, timedelta
 from flask import render_template, request, jsonify, redirect, url_for, current_app
 from flask_login import login_required, current_user
-from sqlalchemy import func, and_, extract
+from sqlalchemy import func, and_, extract, text
 
 # ❌ 기존 문제있는 코드:
 # from app import app, db
@@ -362,7 +362,11 @@ def register_youtube_routes(app):
     def get_revenues():
         """수익 목록 조회"""
         try:
+            # 데이터베이스 연결 확인
+            db.session.execute(text("SELECT 1"))
+            
             revenues = Revenue.query.filter_by(user_id=current_user.id).order_by(Revenue.year_month.desc()).all()
+            print(f"수익 데이터 조회: 사용자 {current_user.id}, {len(revenues)}개 항목 발견")
             
             revenue_list = []
             for revenue in revenues:
@@ -374,12 +378,15 @@ def register_youtube_routes(app):
                     print(f"Revenue to_dict 오류: {str(e)}, Revenue ID: {getattr(revenue, 'id', 'Unknown')}")
                     continue
             
+            print(f"수익 데이터 처리 완료: {len(revenue_list)}개 항목")
             return jsonify({
                 "status": "success",
                 "revenues": revenue_list
             })
         except Exception as e:
             print(f"수익 데이터 조회 오류: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return jsonify({
                 "status": "error",
                 "message": f"수익 데이터를 불러오는 중 오류가 발생했습니다: {str(e)}"

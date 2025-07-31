@@ -253,6 +253,11 @@ class Revenue(db.Model):
                 music_revenue = sub_channel1  
                 other_revenue = sub_channel2
             
+            # total_revenue 계산 (새로운 방식 우선)
+            total_revenue = getattr(self, 'total_revenue', None)
+            if total_revenue is None:
+                total_revenue = youtube_revenue + music_revenue + other_revenue
+            
             return {
                 'id': self.id,
                 'year_month': self.year_month,
@@ -262,12 +267,13 @@ class Revenue(db.Model):
                 'main_channel': main_channel,  # backward compatibility
                 'sub_channel1': sub_channel1,  # backward compatibility  
                 'sub_channel2': sub_channel2,  # backward compatibility
-                'total_revenue': self.total_revenue or 0,
+                'total_revenue': total_revenue or 0,
                 'notes': self.notes or '',
                 'created_at': self.created_at.isoformat() if self.created_at else '',
                 'updated_at': self.updated_at.isoformat() if self.updated_at else ''
             }
         except Exception as e:
+            print(f"Revenue to_dict 에러: {str(e)}, Revenue ID: {getattr(self, 'id', 'Unknown')}")
             # 에러 발생 시 기본값 반환
             return {
                 'id': getattr(self, 'id', 0),
@@ -281,8 +287,7 @@ class Revenue(db.Model):
                 'total_revenue': 0,
                 'notes': '',
                 'created_at': '',
-                'updated_at': '',
-                'error': str(e)
+                'updated_at': ''
             }
 
 class EmailSentVideo(db.Model):
