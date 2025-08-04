@@ -13,6 +13,13 @@ from sqlalchemy import func, and_, extract, text
 from models import db, Editor, Work, Revenue, EditorRateHistory
 logger = logging.getLogger(__name__)
 
+# 2. safe_json 함수 직접 정의 (선택 사항)
+def safe_json(obj):
+    try:
+        return json.dumps(obj, ensure_ascii=False, indent=2)
+    except Exception as e:
+        return f"<json 변환 실패: {e}>"
+
 def register_youtube_routes(app):
     """YouTube 관리 라우트들을 앱에 등록하는 함수"""
     
