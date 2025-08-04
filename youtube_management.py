@@ -1,5 +1,4 @@
-import logging
-import json
+
 # youtube_management.py 수정 버전
 from datetime import datetime, date, timedelta
 from flask import render_template, request, jsonify, redirect, url_for, current_app
@@ -11,14 +10,7 @@ from sqlalchemy import func, and_, extract, text
 
 # ✅ 수정된 코드: app 대신 current_app 사용, db는 models에서 import
 from models import db, Editor, Work, Revenue, EditorRateHistory
-logger = logging.getLogger(__name__)
 
-# 2. safe_json 함수 직접 정의 (선택 사항)
-def safe_json(obj):
-    try:
-        return json.dumps(obj, ensure_ascii=False, indent=2)
-    except Exception as e:
-        return f"<json 변환 실패: {e}>"
 
 def register_youtube_routes(app):
     """YouTube 관리 라우트들을 앱에 등록하는 함수"""
@@ -817,137 +809,123 @@ def register_youtube_routes(app):
     @login_required
     def get_editor_settlement_summary():
         """편집자별 집계 - 기본/일본어 작업 구분 계산"""
-        try:
-            # 쿼리 파라미터
-            start_date = request.args.get('start_date')
-            end_date = request.args.get('end_date')
-            editor_id = request.args.get('editor_id', type=int)
-            settlement_status = request.args.get('settlement_status', 'all')
+    try:
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        editor_id = request.args.get('editor_id', type=int)
+        settlement_status = request.args.get('settlement_status', 'all')
 
-            logger.info(f"[editor-summary] 파라미터 - start: {start_date}, end: {end_date}, editor_id: {editor_id}, status: {settlement_status}")
+        print(f"[editor-summary] 필터 - start: {start_date}, end: {end_date}, editor_id: {editor_id}, status: {settlement_status}")
 
-            # 기본 쿼리
-            query = Work.query.filter(
-                Work.user_id == current_user.id,
-                Work.status == 'completed'
-            )
+        query = Work.query.filter(
+            Work.user_id == current_user.id,
+            Work.status == 'completed'
+        )
 
-            # 날짜 필터
-            if start_date:
-                try:
-                    start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
-                    query = query.filter(Work.work_date >= start_date_obj)
-                    logger.info(f"[editor-summary] start_date 필터: {start_date_obj}")
-                except ValueError:
-                    logger.warning(f"[editor-summary] 유효하지 않은 start_date: {start_date}")
+        if start_date:
+            try:
+                start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+                query = query.filter(Work.work_date >= start_date_obj)
+            except ValueError:
+                print("[editor-summary] start_date 파싱 실패")
 
-            if end_date:
-                try:
-                    end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
-                    query = query.filter(Work.work_date <= end_date_obj)
-                    logger.info(f"[editor-summary] end_date 필터: {end_date_obj}")
-                except ValueError:
-                    logger.warning(f"[editor-summary] 유효하지 않은 end_date: {end_date}")
+        if end_date:
+            try:
+                end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+                query = query.filter(Work.work_date <= end_date_obj)
+            except ValueError:
+                print("[editor-summary] end_date 파싱 실패")
 
-            if editor_id:
-                query = query.filter(Work.editor_id == editor_id)
-                logger.info(f"[editor-summary] editor_id 필터: {editor_id}")
+        if editor_id:
+            query = query.filter(Work.editor_id == editor_id)
 
-            if settlement_status != 'all':
-                query = query.filter(Work.settlement_status == settlement_status)
-                logger.info(f"[editor-summary] settlement_status 필터: {settlement_status}")
+        if settlement_status != 'all':
+            query = query.filter(Work.settlement_status == settlement_status)
 
-            works = query.order_by(Work.work_date.desc()).all()
-            logger.info(f"[editor-summary] 조회된 작업 수: {len(works)}")
+        works = query.order_by(Work.work_date.desc()).all()
+        print(f"[editor-summary] 조회된 작업 수: {len(works)}")
 
-            # 집계
-            editor_stats = {}
-            grand_total = {
-                'basic_count': 0,
-                'japanese_count': 0,
-                'basic_amount': 0,
-                'japanese_amount': 0,
-                'total_count': 0,
-                'total_amount': 0,
-                'pending_amount': 0,
-                'settled_amount': 0
-            }
+        editor_stats = {}
+        grand_total = {
+            'basic_count': 0,
+            'japanese_count': 0,
+            'basic_amount': 0,
+            'japanese_amount': 0,
+            'total_count': 0,
+            'total_amount': 0,
+            'pending_amount': 0,
+            'settled_amount': 0
+        }
 
-            for work in works:
-                editor_key = work.editor_id
-                try:
-                    editor_name = work.editor.name if work.editor else "알 수 없음"
-                except Exception as e:
-                    logger.warning(f"[editor-summary] editor.name 접근 실패 (editor_id: {editor_key}): {e}")
-                    editor_name = "알 수 없음"
+        for work in works:
+            print(f"  - 작업 ID: {work.id}, 날짜: {work.work_date}, 유형: {work.work_type}, 정산: {work.settlement_status}, 편집자 ID: {work.editor_id}")
 
-                if editor_key not in editor_stats:
-                    editor_stats[editor_key] = {
-                        'editor_id': editor_key,
-                        'editor_name': editor_name,
-                        'basic_count': 0,
-                        'japanese_count': 0,
-                        'basic_amount': 0,
-                        'japanese_amount': 0,
-                        'total_count': 0,
-                        'total_amount': 0,
-                        'pending_count': 0,
-                        'settled_count': 0,
-                        'pending_amount': 0,
-                        'settled_amount': 0
-                    }
+            editor_key = work.editor_id
+            editor_name = work.editor.name if work.editor else "알 수 없는 편집자"
 
-                stats = editor_stats[editor_key]
-
-                # 작업 유형별
-                if work.work_type == 'basic':
-                    stats['basic_count'] += 1
-                    stats['basic_amount'] += work.rate
-                    grand_total['basic_count'] += 1
-                    grand_total['basic_amount'] += work.rate
-                elif work.work_type == 'japanese':
-                    stats['japanese_count'] += 1
-                    stats['japanese_amount'] += work.rate
-                    grand_total['japanese_count'] += 1
-                    grand_total['japanese_amount'] += work.rate
-
-                # 정산 상태별
-                if work.settlement_status == 'pending':
-                    stats['pending_count'] += 1
-                    stats['pending_amount'] += work.rate
-                    grand_total['pending_amount'] += work.rate
-                elif work.settlement_status == 'settled':
-                    stats['settled_count'] += 1
-                    stats['settled_amount'] += work.rate
-                    grand_total['settled_amount'] += work.rate
-
-                # 전체 합계
-                stats['total_count'] += 1
-                stats['total_amount'] += work.rate
-                grand_total['total_count'] += 1
-                grand_total['total_amount'] += work.rate
-
-            result = {
-                "status": "success",
-                "data": {
-                    "filters": {
-                        "start_date": start_date,
-                        "end_date": end_date,
-                        "editor_id": editor_id,
-                        "settlement_status": settlement_status
-                    },
-                    "editor_stats": list(editor_stats.values()),
-                    "grand_total": grand_total,
-                    "total_works": len(works)
+            if editor_key not in editor_stats:
+                editor_stats[editor_key] = {
+                    'editor_id': editor_key,
+                    'editor_name': editor_name,
+                    'basic_count': 0,
+                    'japanese_count': 0,
+                    'basic_amount': 0,
+                    'japanese_amount': 0,
+                    'total_count': 0,
+                    'total_amount': 0,
+                    'pending_count': 0,
+                    'settled_count': 0,
+                    'pending_amount': 0,
+                    'settled_amount': 0
                 }
+
+            stats = editor_stats[editor_key]
+
+            if work.work_type == 'basic':
+                stats['basic_count'] += 1
+                stats['basic_amount'] += work.rate
+                grand_total['basic_count'] += 1
+                grand_total['basic_amount'] += work.rate
+            elif work.work_type == 'japanese':
+                stats['japanese_count'] += 1
+                stats['japanese_amount'] += work.rate
+                grand_total['japanese_count'] += 1
+                grand_total['japanese_amount'] += work.rate
+
+            if work.settlement_status == 'pending':
+                stats['pending_count'] += 1
+                stats['pending_amount'] += work.rate
+                grand_total['pending_amount'] += work.rate
+            elif work.settlement_status == 'settled':
+                stats['settled_count'] += 1
+                stats['settled_amount'] += work.rate
+                grand_total['settled_amount'] += work.rate
+
+            stats['total_count'] += 1
+            stats['total_amount'] += work.rate
+            grand_total['total_count'] += 1
+            grand_total['total_amount'] += work.rate
+
+        result = {
+            "status": "success",
+            "data": {
+                "filters": {
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "editor_id": editor_id,
+                    "settlement_status": settlement_status
+                },
+                "editor_stats": list(editor_stats.values()),
+                "grand_total": grand_total,
+                "total_works": len(works)
             }
+        }
 
-            logger.info("[editor-summary] 최종 응답:\n%s", safe_json(result))
-            return jsonify(result)
-
-        except Exception as e:
-            logger.exception("[editor-summary] 예외 발생:")
-            return jsonify({"status": "error", "message": str(e)})
+        print(f"[editor-summary] 최종 집계: 편집자 수={len(editor_stats)}, 전체 작업 수={len(works)}")
+        return jsonify(result)
+    except Exception as e:
+        print("[editor-summary] 예외 발생:", str(e))
+        return jsonify({"status": "error", "message": str(e)})
 
     @app.route('/api/youtube/settlements/complete', methods=['POST'])
     @login_required
