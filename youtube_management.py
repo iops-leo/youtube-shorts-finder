@@ -1,3 +1,4 @@
+import logging
 # youtube_management.py 수정 버전
 from datetime import datetime, date, timedelta
 from flask import render_template, request, jsonify, redirect, url_for, current_app
