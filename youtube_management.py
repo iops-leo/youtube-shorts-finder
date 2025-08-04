@@ -717,17 +717,39 @@ def register_youtube_routes(app):
                 year = today.year
                 week = today.isocalendar()[1]
             
-            # 해당 주의 시작일과 종료일 계산
-            jan1 = date(year, 1, 1)
-            week_start = jan1 + timedelta(days=(week - 1) * 7 - jan1.weekday())
-            week_end = week_start + timedelta(days=6)
+            # ISO 8601 기준으로 해당 주의 시작일과 종료일 계산 (월요일 시작)
+            # 해당 연도 1월 4일이 첫 번째 주에 속함 (ISO 8601 표준)
+            jan4 = date(year, 1, 4)
+            week1_monday = jan4 - timedelta(days=jan4.weekday())  # 첫 번째 주의 월요일
+            week_start = week1_monday + timedelta(weeks=week-1)  # 지정한 주의 월요일
+            week_end = week_start + timedelta(days=6)  # 일요일
             
-            # 완료된 작업 조회
+            # 완료된 작업 조회 (디버깅 정보 추가)
             completed_works = Work.query.filter(
                 Work.user_id == current_user.id,
                 Work.status == 'completed',
                 Work.work_date.between(week_start, week_end)
             ).order_by(Work.work_date, Work.created_at).all()
+            
+            # 디버깅: 모든 완료된 작업 조회 (비교용)
+            all_completed_works = Work.query.filter(
+                Work.user_id == current_user.id,
+                Work.status == 'completed'
+            ).order_by(Work.work_date.desc()).limit(20).all()
+            
+            print(f"Settlement query - Year: {year}, Week: {week}")
+            print(f"Date range: {week_start} to {week_end}")
+            print(f"Found {len(completed_works)} completed works in date range")
+            print(f"Total completed works (recent 20): {len(all_completed_works)}")
+            
+            print("Recent completed works:")
+            for work in all_completed_works:
+                in_range = week_start <= work.work_date <= week_end
+                print(f"  - Work ID: {work.id}, Date: {work.work_date}, Status: {work.status}, Settlement: {work.settlement_status}, In Range: {in_range}")
+            
+            print("Works in selected date range:")
+            for work in completed_works:
+                print(f"  - Work ID: {work.id}, Date: {work.work_date}, Status: {work.status}, Settlement: {work.settlement_status}")
             
             # 편집자별 집계
             editor_summary = {}
@@ -763,19 +785,23 @@ def register_youtube_routes(app):
             
             return jsonify({
                 "status": "success",
+                "works": [work.to_dict() for work in completed_works],
                 "data": {
                     "year": year,
                     "week": week,
                     "week_start": week_start.isoformat(),
                     "week_end": week_end.isoformat(),
+                    "date_range": f"{week_start.strftime('%m/%d')} - {week_end.strftime('%m/%d')}",
                     "total_works": len(completed_works),
                     "total_amount": total_amount,
-                    "editor_summary": list(editor_summary.values()),
-                    "works": [work.to_dict() for work in completed_works]
+                    "editor_summary": list(editor_summary.values())
                 }
             })
         except Exception as e:
-            return jsonify({"status": "error", "message": str(e)})
+            print(f"Settlement API error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({"status": "error", "message": f"정산 데이터 조회 중 오류가 발생했습니다: {str(e)}"})
 
     @app.route('/api/youtube/settlements/editor-summary', methods=['GET'])
     @login_required

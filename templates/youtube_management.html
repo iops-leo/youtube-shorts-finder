@@ -2027,6 +2027,11 @@
         function initializeSettlements() {
             populateYearSelect();
             populateWeekSelect();
+            
+            // 연도 변경 시 주차 옵션 업데이트
+            document.getElementById('settlementYear').addEventListener('change', function() {
+                populateWeekSelect();
+            });
         }
 
         // 년도 선택 옵션 생성
@@ -2046,15 +2051,35 @@
             }
         }
 
-        // 주차 선택 옵션 생성
+        // 주차 선택 옵션 생성 (날짜 범위 포함)
         function populateWeekSelect() {
             const weekSelect = document.getElementById('settlementWeek');
             weekSelect.innerHTML = '';
             
+            const currentYear = parseInt(document.getElementById('settlementYear').value) || new Date().getFullYear();
+            
             for (let week = 1; week <= 53; week++) {
+                // ISO 8601 기준으로 해당 주의 날짜 계산
+                const jan4 = new Date(currentYear, 0, 4);
+                const week1Monday = new Date(jan4);
+                week1Monday.setDate(jan4.getDate() - jan4.getDay() + 1);
+                
+                const weekStart = new Date(week1Monday);
+                weekStart.setDate(week1Monday.getDate() + (week - 1) * 7);
+                
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekStart.getDate() + 6);
+                
+                // 해당 연도를 벗어나면 중단
+                if (weekStart.getFullYear() > currentYear) break;
+                
                 const option = document.createElement('option');
                 option.value = week;
-                option.textContent = week + '주차';
+                
+                const startStr = `${weekStart.getMonth() + 1}/${weekStart.getDate()}`;
+                const endStr = `${weekEnd.getMonth() + 1}/${weekEnd.getDate()}`;
+                option.textContent = `${week}주차 (${startStr} - ${endStr})`;
+                
                 if (week === currentSettlementWeek) {
                     option.selected = true;
                 }
@@ -2083,7 +2108,8 @@
                         settlements = data.works || [];
                         updateSettlementTable();
                         loadEditorSettlementSummary();
-                        showAlert(`${year}년 ${week}주차 정산 데이터를 조회했습니다.`, 'success');
+                        const dateRange = data.data?.date_range || `${week}주차`;
+                        showAlert(`${year}년 ${dateRange} 정산 데이터를 조회했습니다.`, 'success');
                     } else {
                         showAlert(data.message || '정산 데이터 조회에 실패했습니다.', 'danger');
                     }
