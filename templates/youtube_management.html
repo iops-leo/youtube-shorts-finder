@@ -2160,7 +2160,7 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
-                        updateEditorSettlementCards(data.data.editor_stats || []);
+                        updateEditorSettlementCards(data.data.editor_summary || []);
                     } else {
                         console.error('편집자별 정산 요약 로드 실패:', data.message);
                     }
