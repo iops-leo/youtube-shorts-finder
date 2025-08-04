@@ -2023,6 +2023,23 @@
             return Math.ceil((days + start.getDay() + 1) / 7);
         }
 
+        // 주차의 시작 날짜 계산 (ISO 8601 기준)
+        function getWeekStartDate(year, week) {
+            const jan1 = new Date(year, 0, 1);
+            const jan1Day = jan1.getDay();
+            const daysToFirstMonday = (jan1Day === 0 ? 1 : 8 - jan1Day);
+            const firstMonday = new Date(year, 0, 1 + daysToFirstMonday);
+            const weekStart = new Date(firstMonday.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000);
+            return weekStart.toISOString().split('T')[0];
+        }
+
+        // 주차의 끝 날짜 계산 (ISO 8601 기준)
+        function getWeekEndDate(year, week) {
+            const startDate = new Date(getWeekStartDate(year, week));
+            const endDate = new Date(startDate.getTime() + 6 * 24 * 60 * 60 * 1000);
+            return endDate.toISOString().split('T')[0];
+        }
+
         // 정산 관리 초기화
         function initializeSettlements() {
             populateYearSelect();
@@ -2125,7 +2142,17 @@
             const year = currentSettlementYear;
             const week = currentSettlementWeek;
             
-            fetch(`/api/youtube/settlements/editor-summary?year=${year}&week=${week}`)
+            // 주차를 날짜 범위로 변환
+            const startDate = getWeekStartDate(year, week);
+            const endDate = getWeekEndDate(year, week);
+            
+            const params = new URLSearchParams({
+                start_date: startDate,
+                end_date: endDate,
+                settlement_status: 'all'  // 모든 정산 상태 포함
+            });
+            
+            fetch(`/api/youtube/settlements/editor-summary?${params.toString()}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
