@@ -178,44 +178,77 @@ def register_youtube_routes(app):
     @login_required
     def get_works():
         """작업 목록 조회"""
-        # 날짜 필터링 옵션
-        date_filter = request.args.get('date_filter', 'week')  # week, month, all
-        
-        query = Work.query.filter_by(user_id=current_user.id)
-        
-        if date_filter == 'week':
-            # 이번 주 작업
-            today = date.today()
-            week_start = today - timedelta(days=today.weekday())
-            week_end = week_start + timedelta(days=6)
-            query = query.filter(Work.work_date.between(week_start, week_end))
-        elif date_filter == 'month':
-            # 이번 달 작업
-            today = date.today()
-            month_start = today.replace(day=1)
-            query = query.filter(Work.work_date >= month_start)
-        
-        works = query.order_by(Work.work_date.desc()).all()
-        
-        # 편집자별 지급 예정금액 계산
-        editor_payments = {}
-        for work in works:
-            if work.status in ['completed', 'in_progress']:  # 완료 또는 진행중인 작업만
-                editor_id = work.editor_id
-                if editor_id not in editor_payments:
-                    editor_payments[editor_id] = {
-                        'editor_name': work.editor.name,
-                        'total_amount': 0,
-                        'work_count': 0
-                    }
-                editor_payments[editor_id]['total_amount'] += work.rate
-                editor_payments[editor_id]['work_count'] += 1
-        
-        return jsonify({
-            "status": "success",
-            "works": [work.to_dict() for work in works],
-            "editor_payments": editor_payments
-        })
+        try:
+            # 날짜 필터링 옵션
+            date_filter = request.args.get('date_filter', 'week')  # week, month, all
+            
+            query = Work.query.filter_by(user_id=current_user.id)
+            
+            if date_filter == 'week':
+                # 이번 주 작업
+                today = date.today()
+                week_start = today - timedelta(days=today.weekday())
+                week_end = week_start + timedelta(days=6)
+                query = query.filter(Work.work_date.between(week_start, week_end))
+            elif date_filter == 'month':
+                # 이번 달 작업
+                today = date.today()
+                month_start = today.replace(day=1)
+                query = query.filter(Work.work_date >= month_start)
+            
+            works = query.order_by(Work.work_date.desc()).all()
+            
+            # 편집자별 지급 예정금액 계산
+            editor_payments = {}
+            works_data = []
+            
+            for work in works:
+                try:
+                    # work.to_dict() 호출하면서 에러 처리
+                    work_dict = work.to_dict()
+                    works_data.append(work_dict)
+                    
+                    # 편집자별 지급 예정금액 계산 (편집자가 존재하는 경우만)
+                    if work.status in ['completed', 'in_progress'] and work.editor:  # 편집자가 존재하는지 확인
+                        editor_id = work.editor_id
+                        if editor_id not in editor_payments:
+                            editor_payments[editor_id] = {
+                                'editor_name': work.editor.name,
+                                'total_amount': 0,
+                                'work_count': 0
+                            }
+                        editor_payments[editor_id]['total_amount'] += work.rate
+                        editor_payments[editor_id]['work_count'] += 1
+                        
+                except Exception as work_error:
+                    current_app.logger.error(f"작업 데이터 처리 중 에러 (Work ID: {work.id}): {str(work_error)}")
+                    # 기본 데이터라도 반환
+                    works_data.append({
+                        'id': work.id,
+                        'title': work.title or '제목 없음',
+                        'work_type': work.work_type or 'basic',
+                        'work_date': work.work_date.isoformat() if work.work_date else None,
+                        'deadline': work.deadline.isoformat() if work.deadline else None,
+                        'rate': work.rate or 0,
+                        'status': work.status or 'pending',
+                        'notes': work.notes or '',
+                        'editor_name': work.editor.name if work.editor else '편집자 정보 없음',
+                        'created_at': work.created_at.isoformat() if work.created_at else None,
+                        'updated_at': work.updated_at.isoformat() if work.updated_at else None
+                    })
+            
+            return jsonify({
+                "status": "success",
+                "works": works_data,
+                "editor_payments": editor_payments
+            })
+            
+        except Exception as e:
+            current_app.logger.error(f"작업 목록 조회 중 에러: {str(e)}")
+            return jsonify({
+                "status": "error", 
+                "message": f"작업 목록을 불러오는 중 오류가 발생했습니다: {str(e)}"
+            }), 500
 
     @app.route('/api/youtube/works', methods=['POST'])
     @login_required
