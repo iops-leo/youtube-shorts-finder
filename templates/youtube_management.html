@@ -2139,17 +2139,21 @@
 
         // 편집자별 정산 요약 로드
         function loadEditorSettlementSummary() {
-            const year = currentSettlementYear;
-            const week = currentSettlementWeek;
+            const year = document.getElementById('settlementYear').value;
+            const week = document.getElementById('settlementWeek').value;
             
-            // 주차를 날짜 범위로 변환
-            const startDate = getWeekStartDate(year, week);
-            const endDate = getWeekEndDate(year, week);
+            if (!year || !week) {
+                showAlert('년도와 주차를 선택해주세요.', 'warning');
+                return;
+            }
+            
+            currentSettlementYear = parseInt(year);
+            currentSettlementWeek = parseInt(week);
             
             const params = new URLSearchParams({
-                start_date: startDate,
-                end_date: endDate,
-                settlement_status: 'all'  // 모든 정산 상태 포함
+                year: currentSettlementYear,
+                week: currentSettlementWeek,
+                settlement_status: 'all'
             });
             
             fetch(`/api/youtube/settlements/editor-summary?${params.toString()}`)
