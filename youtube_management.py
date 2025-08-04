@@ -807,7 +807,7 @@ def register_youtube_routes(app):
     @app.route('/api/youtube/settlements/editor-summary', methods=['GET'])
     @login_required
     def get_editor_settlement_summary():
-    """편집자별 집계 - 기본/일본어 작업 구분 계산"""
+        """편집자별 집계 - 기본/일본어 작업 구분 계산"""
         try:
             # 쿼리 파라미터
             start_date = request.args.get('start_date')
