@@ -9,6 +9,7 @@ from sqlalchemy import func, and_, extract, text
 
 # ✅ 수정된 코드: app 대신 current_app 사용, db는 models에서 import
 from models import db, Editor, Work, Revenue, EditorRateHistory
+logger = logging.getLogger(__name__)
 
 def register_youtube_routes(app):
     """YouTube 관리 라우트들을 앱에 등록하는 함수"""
@@ -806,47 +807,51 @@ def register_youtube_routes(app):
     @app.route('/api/youtube/settlements/editor-summary', methods=['GET'])
     @login_required
     def get_editor_settlement_summary():
-        """편집자별 집계 - 기본/일본어 작업 구분 계산"""
+    """편집자별 집계 - 기본/일본어 작업 구분 계산"""
         try:
             # 쿼리 파라미터
             start_date = request.args.get('start_date')
             end_date = request.args.get('end_date')
             editor_id = request.args.get('editor_id', type=int)
-            settlement_status = request.args.get('settlement_status', 'all')  # all, pending, settled
-            
+            settlement_status = request.args.get('settlement_status', 'all')
+
+            logger.info(f"[editor-summary] 파라미터 - start: {start_date}, end: {end_date}, editor_id: {editor_id}, status: {settlement_status}")
+
             # 기본 쿼리
             query = Work.query.filter(
                 Work.user_id == current_user.id,
                 Work.status == 'completed'
             )
-            
+
             # 날짜 필터
             if start_date:
                 try:
                     start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
                     query = query.filter(Work.work_date >= start_date_obj)
+                    logger.info(f"[editor-summary] start_date 필터: {start_date_obj}")
                 except ValueError:
-                    pass
-            
+                    logger.warning(f"[editor-summary] 유효하지 않은 start_date: {start_date}")
+
             if end_date:
                 try:
                     end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
                     query = query.filter(Work.work_date <= end_date_obj)
+                    logger.info(f"[editor-summary] end_date 필터: {end_date_obj}")
                 except ValueError:
-                    pass
-            
-            # 편집자 필터
+                    logger.warning(f"[editor-summary] 유효하지 않은 end_date: {end_date}")
+
             if editor_id:
                 query = query.filter(Work.editor_id == editor_id)
-            
-            # 정산 상태 필터
+                logger.info(f"[editor-summary] editor_id 필터: {editor_id}")
+
             if settlement_status != 'all':
                 query = query.filter(Work.settlement_status == settlement_status)
-            
-            # 데이터 조회
+                logger.info(f"[editor-summary] settlement_status 필터: {settlement_status}")
+
             works = query.order_by(Work.work_date.desc()).all()
-            
-            # 편집자별 집계
+            logger.info(f"[editor-summary] 조회된 작업 수: {len(works)}")
+
+            # 집계
             editor_stats = {}
             grand_total = {
                 'basic_count': 0,
@@ -858,11 +863,15 @@ def register_youtube_routes(app):
                 'pending_amount': 0,
                 'settled_amount': 0
             }
-            
+
             for work in works:
                 editor_key = work.editor_id
-                editor_name = work.editor.name if work.editor else "알 수 없는 편집자"
-                
+                try:
+                    editor_name = work.editor.name if work.editor else "알 수 없음"
+                except Exception as e:
+                    logger.warning(f"[editor-summary] editor.name 접근 실패 (editor_id: {editor_key}): {e}")
+                    editor_name = "알 수 없음"
+
                 if editor_key not in editor_stats:
                     editor_stats[editor_key] = {
                         'editor_id': editor_key,
@@ -878,10 +887,10 @@ def register_youtube_routes(app):
                         'pending_amount': 0,
                         'settled_amount': 0
                     }
-                
+
                 stats = editor_stats[editor_key]
-                
-                # 작업 유형별 집계
+
+                # 작업 유형별
                 if work.work_type == 'basic':
                     stats['basic_count'] += 1
                     stats['basic_amount'] += work.rate
@@ -892,8 +901,8 @@ def register_youtube_routes(app):
                     stats['japanese_amount'] += work.rate
                     grand_total['japanese_count'] += 1
                     grand_total['japanese_amount'] += work.rate
-                
-                # 정산 상태별 집계
+
+                # 정산 상태별
                 if work.settlement_status == 'pending':
                     stats['pending_count'] += 1
                     stats['pending_amount'] += work.rate
@@ -902,14 +911,14 @@ def register_youtube_routes(app):
                     stats['settled_count'] += 1
                     stats['settled_amount'] += work.rate
                     grand_total['settled_amount'] += work.rate
-                
-                # 전체 집계
+
+                # 전체 합계
                 stats['total_count'] += 1
                 stats['total_amount'] += work.rate
                 grand_total['total_count'] += 1
                 grand_total['total_amount'] += work.rate
-            
-            return jsonify({
+
+            result = {
                 "status": "success",
                 "data": {
                     "filters": {
@@ -922,8 +931,13 @@ def register_youtube_routes(app):
                     "grand_total": grand_total,
                     "total_works": len(works)
                 }
-            })
+            }
+
+            logger.info("[editor-summary] 최종 응답:\n%s", safe_json(result))
+            return jsonify(result)
+
         except Exception as e:
+            logger.exception("[editor-summary] 예외 발생:")
             return jsonify({"status": "error", "message": str(e)})
 
     @app.route('/api/youtube/settlements/complete', methods=['POST'])
