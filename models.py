@@ -186,6 +186,10 @@ class Work(db.Model):
     deadline = db.Column(db.Date)
     rate = db.Column(db.Integer, nullable=False)
     status = db.Column(db.String(20), default='pending')  # pending, in_progress, completed, cancelled
+    # 정산 관련 필드
+    settlement_status = db.Column(db.String(20), default='pending')  # pending, settled
+    settlement_date = db.Column(db.Date)  # 정산 완료 날짜
+    settlement_amount = db.Column(db.Integer)  # 정산 금액 (계산된 값 저장)
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -204,6 +208,9 @@ class Work(db.Model):
             'deadline': self.deadline.isoformat() if self.deadline else None,
             'rate': self.rate,
             'status': self.status,
+            'settlement_status': self.settlement_status,
+            'settlement_date': self.settlement_date.isoformat() if self.settlement_date else None,
+            'settlement_amount': self.settlement_amount,
             'notes': self.notes,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()

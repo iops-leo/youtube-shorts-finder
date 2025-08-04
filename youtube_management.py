@@ -667,3 +667,316 @@ def register_youtube_routes(app):
         except Exception as e:
             db.session.rollback()
             return jsonify({"status": "error", "message": str(e)})
+
+    # 정산 관리 API
+    @app.route('/api/youtube/settlements/weekly', methods=['GET'])
+    @login_required
+    def get_weekly_settlements():
+        """주간 정산 조회 - 특정 주의 완료된 작업 조회"""
+        try:
+            # 쿼리 파라미터에서 주간 정보 가져오기
+            year = request.args.get('year', type=int)
+            week = request.args.get('week', type=int)
+            
+            if not year or not week:
+                # 기본값: 현재 주
+                today = date.today()
+                year = today.year
+                week = today.isocalendar()[1]
+            
+            # 해당 주의 시작일과 종료일 계산
+            jan1 = date(year, 1, 1)
+            week_start = jan1 + timedelta(days=(week - 1) * 7 - jan1.weekday())
+            week_end = week_start + timedelta(days=6)
+            
+            # 완료된 작업 조회
+            completed_works = Work.query.filter(
+                Work.user_id == current_user.id,
+                Work.status == 'completed',
+                Work.work_date.between(week_start, week_end)
+            ).order_by(Work.work_date, Work.created_at).all()
+            
+            # 편집자별 집계
+            editor_summary = {}
+            total_amount = 0
+            
+            for work in completed_works:
+                editor_id = work.editor_id
+                editor_name = work.editor.name if work.editor else "알 수 없는 편집자"
+                
+                if editor_id not in editor_summary:
+                    editor_summary[editor_id] = {
+                        'editor_name': editor_name,
+                        'basic_count': 0,
+                        'japanese_count': 0,
+                        'basic_amount': 0,
+                        'japanese_amount': 0,
+                        'total_amount': 0,
+                        'works': []
+                    }
+                
+                work_dict = work.to_dict()
+                editor_summary[editor_id]['works'].append(work_dict)
+                
+                if work.work_type == 'basic':
+                    editor_summary[editor_id]['basic_count'] += 1
+                    editor_summary[editor_id]['basic_amount'] += work.rate
+                elif work.work_type == 'japanese':
+                    editor_summary[editor_id]['japanese_count'] += 1
+                    editor_summary[editor_id]['japanese_amount'] += work.rate
+                
+                editor_summary[editor_id]['total_amount'] += work.rate
+                total_amount += work.rate
+            
+            return jsonify({
+                "status": "success",
+                "data": {
+                    "year": year,
+                    "week": week,
+                    "week_start": week_start.isoformat(),
+                    "week_end": week_end.isoformat(),
+                    "total_works": len(completed_works),
+                    "total_amount": total_amount,
+                    "editor_summary": list(editor_summary.values()),
+                    "works": [work.to_dict() for work in completed_works]
+                }
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    @app.route('/api/youtube/settlements/editor-summary', methods=['GET'])
+    @login_required
+    def get_editor_settlement_summary():
+        """편집자별 집계 - 기본/일본어 작업 구분 계산"""
+        try:
+            # 쿼리 파라미터
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+            editor_id = request.args.get('editor_id', type=int)
+            settlement_status = request.args.get('settlement_status', 'all')  # all, pending, settled
+            
+            # 기본 쿼리
+            query = Work.query.filter(
+                Work.user_id == current_user.id,
+                Work.status == 'completed'
+            )
+            
+            # 날짜 필터
+            if start_date:
+                try:
+                    start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+                    query = query.filter(Work.work_date >= start_date_obj)
+                except ValueError:
+                    pass
+            
+            if end_date:
+                try:
+                    end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+                    query = query.filter(Work.work_date <= end_date_obj)
+                except ValueError:
+                    pass
+            
+            # 편집자 필터
+            if editor_id:
+                query = query.filter(Work.editor_id == editor_id)
+            
+            # 정산 상태 필터
+            if settlement_status != 'all':
+                query = query.filter(Work.settlement_status == settlement_status)
+            
+            # 데이터 조회
+            works = query.order_by(Work.work_date.desc()).all()
+            
+            # 편집자별 집계
+            editor_stats = {}
+            grand_total = {
+                'basic_count': 0,
+                'japanese_count': 0,
+                'basic_amount': 0,
+                'japanese_amount': 0,
+                'total_count': 0,
+                'total_amount': 0,
+                'pending_amount': 0,
+                'settled_amount': 0
+            }
+            
+            for work in works:
+                editor_key = work.editor_id
+                editor_name = work.editor.name if work.editor else "알 수 없는 편집자"
+                
+                if editor_key not in editor_stats:
+                    editor_stats[editor_key] = {
+                        'editor_id': editor_key,
+                        'editor_name': editor_name,
+                        'basic_count': 0,
+                        'japanese_count': 0,
+                        'basic_amount': 0,
+                        'japanese_amount': 0,
+                        'total_count': 0,
+                        'total_amount': 0,
+                        'pending_count': 0,
+                        'settled_count': 0,
+                        'pending_amount': 0,
+                        'settled_amount': 0
+                    }
+                
+                stats = editor_stats[editor_key]
+                
+                # 작업 유형별 집계
+                if work.work_type == 'basic':
+                    stats['basic_count'] += 1
+                    stats['basic_amount'] += work.rate
+                    grand_total['basic_count'] += 1
+                    grand_total['basic_amount'] += work.rate
+                elif work.work_type == 'japanese':
+                    stats['japanese_count'] += 1
+                    stats['japanese_amount'] += work.rate
+                    grand_total['japanese_count'] += 1
+                    grand_total['japanese_amount'] += work.rate
+                
+                # 정산 상태별 집계
+                if work.settlement_status == 'pending':
+                    stats['pending_count'] += 1
+                    stats['pending_amount'] += work.rate
+                    grand_total['pending_amount'] += work.rate
+                elif work.settlement_status == 'settled':
+                    stats['settled_count'] += 1
+                    stats['settled_amount'] += work.rate
+                    grand_total['settled_amount'] += work.rate
+                
+                # 전체 집계
+                stats['total_count'] += 1
+                stats['total_amount'] += work.rate
+                grand_total['total_count'] += 1
+                grand_total['total_amount'] += work.rate
+            
+            return jsonify({
+                "status": "success",
+                "data": {
+                    "filters": {
+                        "start_date": start_date,
+                        "end_date": end_date,
+                        "editor_id": editor_id,
+                        "settlement_status": settlement_status
+                    },
+                    "editor_stats": list(editor_stats.values()),
+                    "grand_total": grand_total,
+                    "total_works": len(works)
+                }
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    @app.route('/api/youtube/settlements/complete', methods=['POST'])
+    @login_required
+    def complete_settlements():
+        """정산 완료 처리 - 정산 상태 관리"""
+        try:
+            data = request.json
+            work_ids = data.get('work_ids', [])
+            settlement_date = data.get('settlement_date')
+            notes = data.get('notes', '')
+            
+            if not work_ids:
+                return jsonify({"status": "error", "message": "정산할 작업을 선택해주세요."})
+            
+            # 정산 날짜 파싱
+            if settlement_date:
+                try:
+                    settlement_date_obj = datetime.strptime(settlement_date, '%Y-%m-%d').date()
+                except ValueError:
+                    return jsonify({"status": "error", "message": "잘못된 날짜 형식입니다."})
+            else:
+                settlement_date_obj = date.today()
+            
+            # 해당 작업들 조회 및 권한 확인
+            works = Work.query.filter(
+                Work.id.in_(work_ids),
+                Work.user_id == current_user.id,
+                Work.status == 'completed',
+                Work.settlement_status == 'pending'
+            ).all()
+            
+            if len(works) != len(work_ids):
+                return jsonify({
+                    "status": "error", 
+                    "message": "일부 작업을 찾을 수 없거나 이미 정산된 작업입니다."
+                })
+            
+            # 정산 처리
+            updated_count = 0
+            total_amount = 0
+            
+            for work in works:
+                work.settlement_status = 'settled'
+                work.settlement_date = settlement_date_obj
+                work.settlement_amount = work.rate  # 정산 금액은 기본적으로 작업 단가와 동일
+                if notes:
+                    work.notes = (work.notes or '') + f'\n[정산 완료: {settlement_date_obj}] {notes}'
+                work.updated_at = datetime.utcnow()
+                
+                updated_count += 1
+                total_amount += work.rate
+            
+            db.session.commit()
+            
+            return jsonify({
+                "status": "success",
+                "message": f"{updated_count}개 작업의 정산이 완료되었습니다.",
+                "data": {
+                    "updated_count": updated_count,
+                    "total_amount": total_amount,
+                    "settlement_date": settlement_date_obj.isoformat()
+                }
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"status": "error", "message": str(e)})
+
+    @app.route('/api/youtube/settlements/revert', methods=['POST'])
+    @login_required
+    def revert_settlements():
+        """정산 되돌리기"""
+        try:
+            data = request.json
+            work_ids = data.get('work_ids', [])
+            
+            if not work_ids:
+                return jsonify({"status": "error", "message": "되돌릴 작업을 선택해주세요."})
+            
+            # 해당 작업들 조회 및 권한 확인
+            works = Work.query.filter(
+                Work.id.in_(work_ids),
+                Work.user_id == current_user.id,
+                Work.settlement_status == 'settled'
+            ).all()
+            
+            if len(works) != len(work_ids):
+                return jsonify({
+                    "status": "error", 
+                    "message": "일부 작업을 찾을 수 없거나 이미 미정산 상태입니다."
+                })
+            
+            # 정산 되돌리기
+            updated_count = 0
+            
+            for work in works:
+                work.settlement_status = 'pending'
+                work.settlement_date = None
+                work.settlement_amount = None
+                work.updated_at = datetime.utcnow()
+                
+                updated_count += 1
+            
+            db.session.commit()
+            
+            return jsonify({
+                "status": "success",
+                "message": f"{updated_count}개 작업의 정산이 되돌려졌습니다.",
+                "data": {
+                    "updated_count": updated_count
+                }
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"status": "error", "message": str(e)})
