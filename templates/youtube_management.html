@@ -172,11 +172,6 @@
             <a class="navbar-brand" href="/">
                 <i class="fab fa-youtube text-danger me-2"></i>YouTube Shorts 도구
             </a>
-            <!-- 모바일 사이드바 토글 버튼 -->
-            <button class="navbar-toggler d-md-none me-2" type="button" onclick="toggleSidebar()" aria-label="Toggle sidebar">
-                <i class="fas fa-bars"></i>
-            </button>
-            <!-- 네비게이션 토글 버튼 -->
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -1963,55 +1958,6 @@
             }
         }
 
-        // 사이드바 토글 함수
-        function toggleSidebar() {
-            const sidebarMenu = document.getElementById('sidebarMenu');
-            if (!sidebarMenu) return;
-            
-            const isOpen = sidebarMenu.classList.contains('show');
-            
-            if (isOpen) {
-                closeSidebar();
-            } else {
-                openSidebar();
-            }
-        }
-
-        // 사이드바 열기
-        function openSidebar() {
-            const sidebarMenu = document.getElementById('sidebarMenu');
-            const sidebarOverlay = document.querySelector('.sidebar-overlay');
-            const toggleButton = document.querySelector('.navbar-toggler i');
-            
-            if (sidebarMenu && sidebarOverlay) {
-                sidebarMenu.classList.add('show');
-                sidebarOverlay.classList.add('show');
-                document.body.classList.add('sidebar-open');
-                
-                // 토글 버튼 아이콘 변경
-                if (toggleButton) {
-                    toggleButton.className = 'fas fa-times';
-                }
-            }
-        }
-
-        // 사이드바 닫기
-        function closeSidebar() {
-            const sidebarMenu = document.getElementById('sidebarMenu');
-            const sidebarOverlay = document.querySelector('.sidebar-overlay');
-            const toggleButton = document.querySelector('.navbar-toggler i');
-            
-            if (sidebarMenu && sidebarOverlay) {
-                sidebarMenu.classList.remove('show');
-                sidebarOverlay.classList.remove('show');
-                document.body.classList.remove('sidebar-open');
-                
-                // 토글 버튼 아이콘 변경
-                if (toggleButton) {
-                    toggleButton.className = 'fas fa-bars';
-                }
-            }
-        }
 
         // 정산 관리 관련 함수들
 
