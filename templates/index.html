@@ -26,12 +26,12 @@
                 <!-- 모바일에서만 보이는 메인 메뉴 -->
                 <ul class="navbar-nav me-auto d-lg-none">
                     <li class="nav-item">
-                        <a class="nav-link active" href="#page-search">
+                        <a class="nav-link" href="#page-search" onclick="closeMobileMenu()">
                             <i class="fas fa-search me-2"></i>인기 Shorts 검색
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#page-channels">
+                        <a class="nav-link" href="#page-channels" onclick="closeMobileMenu()">
                             <i class="fas fa-users me-2"></i>채널 관리
                         </a>
                     </li>
@@ -57,6 +57,21 @@
                         </a>
                     </li>
                     {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="mobileHistoryButton" data-bs-toggle="modal" data-bs-target="#historyModal">
+                            <i class="fas fa-history me-2"></i>검색 기록
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="mobileResetSettings">
+                            <i class="fas fa-trash-alt me-2"></i>설정 초기화
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/logout">
+                            <i class="fas fa-sign-out-alt me-2"></i>로그아웃
+                        </a>
+                    </li>
                 </ul>
                 
                 <!-- 데스크탑에서만 보이는 우측 메뉴 -->
@@ -74,6 +89,11 @@
                     {% endif %}
                     
                     <!-- 유틸리티 메뉴 -->
+                    <li class="nav-item d-none d-lg-block">
+                        <a class="nav-link" href="/notifications">
+                            <i class="fas fa-bell me-1"></i>이메일 알림
+                        </a>
+                    </li>
                     <li class="nav-item d-none d-lg-block">
                         <a class="nav-link" href="#" id="historyButton" data-bs-toggle="modal" data-bs-target="#historyModal">
                             <i class="fas fa-history me-1"></i>검색 기록
@@ -945,6 +965,21 @@
         });
         
         // 검색 기록 버튼은 이미 data-bs-toggle로 처리되므로 별도 처리 불필요
+    }
+    
+    // 모바일 메뉴 닫기 함수 (전역으로 정의)
+    function closeMobileMenu() {
+        const navbarCollapse = document.getElementById('navbarCollapse');
+        if (navbarCollapse) {
+            // Bootstrap collapse 인스턴스를 가져와서 닫기
+            const bsCollapse = bootstrap.Collapse.getInstance(navbarCollapse);
+            if (bsCollapse) {
+                bsCollapse.hide();
+            } else {
+                // 인스턴스가 없으면 클래스 직접 조작
+                navbarCollapse.classList.remove('show');
+            }
+        }
     }
     </script>
 </body>
