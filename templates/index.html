@@ -23,8 +23,8 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarCollapse">
-                <!-- 햄버거 메뉴 -->
-                <ul class="navbar-nav me-auto">
+                <!-- 모바일에서만 보이는 메인 메뉴 -->
+                <ul class="navbar-nav me-auto d-lg-none">
                     <li class="nav-item">
                         <a class="nav-link" href="#page-search" onclick="closeMobileMenu()">
                             <i class="fas fa-search me-2"></i>인기 Shorts 검색
@@ -93,6 +93,18 @@
                             <i class="fas fa-trash-alt me-1"></i>설정 초기화
                         </a>
                     </li>
+                    
+                    {% if current_user.is_admin() %}
+                    <li class="nav-item dropdown d-none d-lg-block">
+                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-cog me-1"></i>관리자
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="adminDropdown" style="background-color: #343a40 !important; border: 1px solid #495057;">
+                            <li><a class="dropdown-item" href="/admin/users" style="color: #ffffff !important;"><i class="fas fa-users me-1"></i>사용자 관리</a></li>
+                            <li><a class="dropdown-item" href="/admin/stats" style="color: #ffffff !important;"><i class="fas fa-chart-line me-1"></i>API 통계</a></li>
+                        </ul>
+                    </li>
+                    {% endif %}
                     
                     <!-- 사용자 프로필 드롭다운 -->
                     <li class="nav-item dropdown">
