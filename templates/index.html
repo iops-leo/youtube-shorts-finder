@@ -19,37 +19,89 @@
             <a class="navbar-brand" href="/">
                 <i class="fab fa-youtube text-danger me-2"></i>YouTube Shorts 도구
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    {% if current_user.is_admin() %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-user-cog me-1"></i>관리자 메뉴
+            
+            <div class="collapse navbar-collapse" id="navbarCollapse">
+                <!-- 모바일에서만 보이는 메인 메뉴 -->
+                <ul class="navbar-nav me-auto d-lg-none">
+                    <li class="nav-item">
+                        <a class="nav-link" id="mobile-nav-search" href="#page-search">
+                            <i class="fas fa-search me-2"></i>인기 Shorts 검색
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-end bg-dark" aria-labelledby="adminDropdown">
-                            <li><a class="dropdown-item text-light" href="/admin/users"><i class="fas fa-users me-1"></i>사용자 관리</a></li>
-                            <li><a class="dropdown-item text-light" href="/admin/stats"><i class="fas fa-chart-line me-1"></i>API 통계</a></li>
-                        </ul>
                     </li>
-                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link" id="mobile-nav-channels" href="#page-channels">
+                            <i class="fas fa-users me-2"></i>채널 관리
+                        </a>
+                    </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/notifications">
-                            <i class="fas fa-bell me-1"></i>이메일 알림
+                            <i class="fas fa-bell me-2"></i>이메일 알림
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="/youtube-management">
+                            <i class="fas fa-video me-2"></i>YouTube 관리
+                        </a>
+                    </li>
+                    {% if current_user.is_admin() %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin/users">
+                            <i class="fas fa-user-cog me-2"></i>사용자 관리
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin/stats">
+                            <i class="fas fa-chart-bar me-2"></i>API 통계
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                </ul>
+                
+                <!-- 데스크탑용 우측 메뉴 -->
+                <ul class="navbar-nav ms-auto">
+                    <!-- 데스크탑에서만 보이는 유틸리티 메뉴 -->
+                    <li class="nav-item d-none d-lg-block">
                         <a class="nav-link" href="#" id="historyButton" data-bs-toggle="modal" data-bs-target="#historyModal">
                             <i class="fas fa-history me-1"></i>검색 기록
                         </a>
                     </li>
-                    <li class="nav-item">
+                    <li class="nav-item d-none d-lg-block">
                         <a class="nav-link" href="#" id="resetSettings">
                             <i class="fas fa-trash-alt me-1"></i>설정 초기화
                         </a>
                     </li>
+                    
+                    <!-- 어드민 드롭다운 (데스크탑만) -->
+                    {% if current_user.is_admin() %}
+                    <li class="nav-item dropdown d-none d-lg-block">
+                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-cog me-1"></i>관리자
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="adminDropdown">
+                            <li><a class="dropdown-item" href="/admin/users"><i class="fas fa-users me-1"></i>사용자 관리</a></li>
+                            <li><a class="dropdown-item" href="/admin/stats"><i class="fas fa-chart-line me-1"></i>API 통계</a></li>
+                        </ul>
+                    </li>
+                    {% endif %}
+                    
+                    <!-- 모바일용 유틸리티 메뉴 -->
+                    <li class="nav-item d-lg-none">
+                        <a class="nav-link" href="#" id="mobileHistoryButton" data-bs-toggle="modal" data-bs-target="#historyModal">
+                            <i class="fas fa-history me-1"></i>검색 기록
+                        </a>
+                    </li>
+                    <li class="nav-item d-lg-none">
+                        <a class="nav-link" href="#" id="mobileResetSettings">
+                            <i class="fas fa-trash-alt me-1"></i>설정 초기화
+                        </a>
+                    </li>
+                    
+                    <!-- 사용자 프로필 드롭다운 -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <img src="{{ current_user.picture }}" alt="프로필" class="rounded-circle me-1" style="width: 24px; height: 24px;">
@@ -75,8 +127,8 @@
 
     <div class="container-fluid mt-5 pt-3">
         <div class="row">
-            <!-- 사이드바 메뉴 -->
-            <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse show" id="sidebarMenu">
+            <!-- 사이드바 메뉴 (데스크탑에서만 표시) -->
+            <div class="col-lg-2 d-none d-lg-block bg-light sidebar" id="sidebarMenu">
                 <div class="position-sticky pt-3">
                     <ul class="nav flex-column">
                         <li class="nav-item">
@@ -90,33 +142,21 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" id="nav-notifications" href="/notifications">
-                                <i class="fas fa-bell me-2"></i>이메일 알림 설정
+                            <a class="nav-link" href="/notifications">
+                                <i class="fas fa-bell me-2"></i>이메일 알림
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" id="nav-youtube-management" href="/youtube-management">
+                            <a class="nav-link" href="/youtube-management">
                                 <i class="fas fa-video me-2"></i>YouTube 관리
                             </a>
                         </li>
-                        {% if current_user.is_admin() %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="/admin/users">
-                                <i class="fas fa-user-cog me-2"></i>사용자 관리
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/admin/stats">
-                                <i class="fas fa-chart-bar me-2"></i>API 사용 통계
-                            </a>
-                        </li>
-                        {% endif %}
                     </ul>
                 </div>
             </div>
 
             <!-- 메인 콘텐츠 영역 -->
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <main class="col-12 col-lg-10 px-4">
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
                         {% for category, message in messages %}
@@ -836,27 +876,46 @@
 
         // 메뉴 이벤트 리스너 설정
         setupNavigationListeners();
+        
+        // 유틸리티 버튼들 이벤트 리스너 설정
+        setupUtilityButtons();
     });
 
     // 메뉴 이벤트 리스너 설정
     function setupNavigationListeners() {
+        // 데스크탑과 모바일 네비게이션 모두 처리
         document.querySelectorAll('.nav-link').forEach(navLink => {
             navLink.addEventListener('click', function(e) {
+                // 외부 링크나 특정 페이지로 이동하는 링크는 기본 동작 허용
                 if (this.getAttribute('href').startsWith('/admin/') || 
                     this.getAttribute('href').startsWith('/notifications') ||
                     this.getAttribute('href').startsWith('/youtube-management')) {
                     return;
                 }
                 
+                // 모달이나 기타 기능 버튼들은 기본 동작 허용
+                if (this.hasAttribute('data-bs-toggle') || 
+                    this.id === 'resetSettings' ||
+                    this.id === 'mobileResetSettings' ||
+                    this.id === 'historyButton' ||
+                    this.id === 'mobileHistoryButton') {
+                    return;
+                }
+                
                 e.preventDefault();
                 
+                // 활성 상태 업데이트 (데스크탑과 모바일 모두)
                 document.querySelectorAll('.nav-link').forEach(link => {
                     link.classList.remove('active');
                 });
                 
-                this.classList.add('active');
+                // 동일한 기능의 다른 버튼들도 활성화
+                const href = this.getAttribute('href');
+                document.querySelectorAll(`a[href="${href}"]`).forEach(link => {
+                    link.classList.add('active');
+                });
                 
-                const targetId = this.getAttribute('href').substring(1);
+                const targetId = href.substring(1);
                 document.querySelectorAll('.page-content').forEach(page => {
                     page.style.display = 'none';
                 });
@@ -864,8 +923,32 @@
                 if (targetPage) {
                     targetPage.style.display = 'block';
                 }
+                
+                // 모바일에서 메뉴 클릭 후 네비게이션 닫기
+                const navbarCollapse = document.getElementById('navbarCollapse');
+                if (window.innerWidth < 992 && navbarCollapse.classList.contains('show')) {
+                    const bsCollapse = new bootstrap.Collapse(navbarCollapse);
+                    bsCollapse.hide();
+                }
             });
         });
+    }
+
+    // 유틸리티 버튼들 이벤트 리스너 설정
+    function setupUtilityButtons() {
+        // 설정 초기화 버튼들 (데스크탑과 모바일)
+        const resetButtons = document.querySelectorAll('#resetSettings, #mobileResetSettings');
+        resetButtons.forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (confirm('모든 설정을 초기화하시겠습니까? 저장된 검색 기록과 설정이 모두 삭제됩니다.')) {
+                    localStorage.clear();
+                    location.reload();
+                }
+            });
+        });
+        
+        // 검색 기록 버튼은 이미 data-bs-toggle로 처리되므로 별도 처리 불필요
     }
     </script>
 </body>
