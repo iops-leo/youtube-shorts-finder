@@ -172,30 +172,91 @@
             <a class="navbar-brand" href="/">
                 <i class="fab fa-youtube text-danger me-2"></i>YouTube Shorts 도구
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav">
+            <div class="collapse navbar-collapse" id="navbarCollapse">
+                <!-- 모바일에서만 보이는 메인 메뉴 -->
+                <ul class="navbar-nav me-auto d-lg-none">
                     <li class="nav-item">
-                        <a class="nav-link" href="/"><i class="fas fa-home me-1"></i>홈</a>
+                        <a class="nav-link" href="/">
+                            <i class="fas fa-search me-2"></i>인기 Shorts 검색
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/#page-channels">
+                            <i class="fas fa-users me-2"></i>채널 관리
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/notifications">
+                            <i class="fas fa-bell me-2"></i>이메일 알림
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/youtube-management">
+                            <i class="fas fa-video me-2"></i>YouTube 관리
+                        </a>
                     </li>
                     {% if current_user.is_admin() %}
                     <li class="nav-item">
-                        <a class="nav-link" href="/admin/users"><i class="fas fa-users me-1"></i>사용자 관리</a>
+                        <a class="nav-link" href="/admin/users">
+                            <i class="fas fa-users me-2"></i>사용자 관리
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/admin/stats"><i class="fas fa-chart-line me-1"></i>통계</a>
+                        <a class="nav-link" href="/admin/stats">
+                            <i class="fas fa-chart-line me-2"></i>API 통계
+                        </a>
                     </li>
                     {% endif %}
                 </ul>
+                
+                <!-- 데스크탑에서만 보이는 우측 메뉴 -->
                 <ul class="navbar-nav ms-auto">
+                    {% if current_user.is_admin() %}
+                    <li class="nav-item dropdown d-none d-lg-block">
+                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-cog me-1"></i>관리자
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="adminDropdown" style="background-color: #343a40 !important; border: 1px solid #495057;">
+                            <li><a class="dropdown-item" href="/admin/users" style="color: #ffffff !important;"><i class="fas fa-users me-1"></i>사용자 관리</a></li>
+                            <li><a class="dropdown-item" href="/admin/stats" style="color: #ffffff !important;"><i class="fas fa-chart-line me-1"></i>API 통계</a></li>
+                        </ul>
+                    </li>
+                    {% endif %}
+                    
+                    <!-- 모바일용 유틸리티 메뉴 -->
+                    <li class="nav-item d-lg-none">
+                        <a class="nav-link" href="#" id="historyButton" data-bs-toggle="modal" data-bs-target="#historyModal">
+                            <i class="fas fa-history me-1"></i>검색 기록
+                        </a>
+                    </li>
+                    <li class="nav-item d-lg-none">
+                        <a class="nav-link" href="#" id="resetSettings">
+                            <i class="fas fa-trash-alt me-1"></i>설정 초기화
+                        </a>
+                    </li>
+                    
+                    <!-- 유저 드롭다운 -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <img src="{{ current_user.picture }}" alt="프로필" class="rounded-circle me-1" style="width: 24px; height: 24px;">
                             {{ current_user.name }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                            <li class="d-none d-lg-block">
+                                <div class="dropdown-item text-muted">
+                                    <small>
+                                        <i class="fas fa-envelope me-1"></i>{{ current_user.email }}<br>
+                                        <i class="fas fa-chart-line me-1"></i>API 호출: {{ current_user.api_calls }}회
+                                    </small>
+                                </div>
+                            </li>
+                            <li class="d-none d-lg-block"><hr class="dropdown-divider"></li>
+                            <li class="d-none d-lg-block"><a class="dropdown-item" href="#" id="historyButton" data-bs-toggle="modal" data-bs-target="#historyModal"><i class="fas fa-history me-1"></i>검색 기록</a></li>
+                            <li class="d-none d-lg-block"><a class="dropdown-item" href="#" id="resetSettings"><i class="fas fa-trash-alt me-1"></i>설정 초기화</a></li>
+                            <li class="d-none d-lg-block"><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>로그아웃</a></li>
                         </ul>
                     </li>
