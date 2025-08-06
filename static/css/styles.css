@@ -1,5 +1,22 @@
 /* 기존 styles.css 파일 끝에 추가할 CSS */
 
+/* 어드민 드롭다운 메뉴 스타일 */
+#adminDropdown + .dropdown-menu {
+    background-color: #343a40 !important;
+    border: 1px solid #495057 !important;
+}
+
+#adminDropdown + .dropdown-menu .dropdown-item {
+    color: #ffffff !important;
+    transition: background-color 0.15s ease-in-out;
+}
+
+#adminDropdown + .dropdown-menu .dropdown-item:hover,
+#adminDropdown + .dropdown-menu .dropdown-item:focus {
+    background-color: #495057 !important;
+    color: #ffffff !important;
+}
+
 /* 네비게이션 바 고정 및 z-index 개선 */
 .navbar {
     position: fixed !important;
