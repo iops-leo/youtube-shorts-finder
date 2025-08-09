@@ -116,7 +116,7 @@ function renderSavedVideos() {
  */
 function createSavedVideoCard(video) {
     const col = document.createElement('div');
-    col.className = 'col-lg-4 col-md-6';
+    col.className = 'col-xl-4 col-lg-4 col-md-6 col-sm-12';
     
     // 날짜 포맷팅
     const savedDate = new Date(video.saved_at).toLocaleDateString('ko-KR');
