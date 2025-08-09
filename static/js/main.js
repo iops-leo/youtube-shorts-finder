@@ -554,9 +554,15 @@ function createVideoCard(video) {
             </div>
         </div>
         <div class="card-footer">
-            <a href="${video.url}" target="_blank" class="btn btn-sm btn-primary w-100">
-                <i class="fab fa-youtube me-1"></i>쇼츠 보기
-            </a>
+            <div class="d-grid gap-1">
+                <a href="${video.url}" target="_blank" class="btn btn-sm btn-primary">
+                    <i class="fab fa-youtube me-1"></i>쇼츠 보기
+                </a>
+                <button class="btn btn-sm btn-outline-success save-video-btn" 
+                        onclick="saveVideo('${video.id}', '${video.title.replace(/'/g, "\\'")}', '${video.channelTitle.replace(/'/g, "\\'")}', '${video.channelId}', '${video.thumbnail}', '${video.url}', ${video.viewCount}, '${video.duration}', '${video.publishedAt}')">
+                    <i class="fas fa-bookmark me-1"></i>영상 저장
+                </button>
+            </div>
         </div>
     `;
     
@@ -1132,4 +1138,138 @@ function showToast(message, type = 'primary') {
         delay: 3000
     });
     bsToast.show();
+}
+
+// ===================== 저장된 영상 관리 함수들 =====================
+
+/**
+ * 영상을 저장하는 함수
+ */
+function saveVideo(videoId, title, channelTitle, channelId, thumbnail, url, viewCount, duration, publishedAt) {
+    const videoData = {
+        video_id: videoId,
+        video_title: title,
+        channel_title: channelTitle,
+        channel_id: channelId,
+        thumbnail_url: thumbnail,
+        video_url: url,
+        view_count: parseInt(viewCount) || 0,
+        duration: duration,
+        published_at: publishedAt
+    };
+    
+    // 버튼 상태 변경 (로딩 표시)
+    const saveButton = event.target;
+    const originalText = saveButton.innerHTML;
+    saveButton.disabled = true;
+    saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>저장 중...';
+    
+    fetch('/api/saved-videos', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(videoData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 성공 - 버튼 상태 변경
+            saveButton.innerHTML = '<i class="fas fa-check me-1"></i>저장됨';
+            saveButton.className = 'btn btn-sm btn-success';
+            showToast('영상이 저장되었습니다!', 'success');
+            
+            // 3초 후 원래 상태로 복원
+            setTimeout(() => {
+                saveButton.disabled = false;
+                saveButton.innerHTML = originalText;
+                saveButton.className = 'btn btn-sm btn-outline-success save-video-btn';
+            }, 3000);
+        } else {
+            // 실패 처리
+            saveButton.disabled = false;
+            saveButton.innerHTML = originalText;
+            
+            if (data.message && data.message.includes('이미 저장된')) {
+                showToast('이미 저장된 영상입니다.', 'warning');
+                // 이미 저장된 경우 버튼 상태 변경
+                saveButton.innerHTML = '<i class="fas fa-bookmark me-1"></i>저장됨';
+                saveButton.className = 'btn btn-sm btn-secondary';
+                saveButton.disabled = true;
+            } else {
+                showToast(data.message || '저장 중 오류가 발생했습니다.', 'error');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('영상 저장 중 오류:', error);
+        saveButton.disabled = false;
+        saveButton.innerHTML = originalText;
+        showToast('저장 중 오류가 발생했습니다.', 'error');
+    });
+}
+
+/**
+ * 개선된 토스트 메시지 함수 (타입별 색상 지원)
+ */
+function showToast(message, type = 'info') {
+    // 기존 토스트 컨테이너 제거
+    const existingContainer = document.querySelector('.toast-container');
+    if (existingContainer) {
+        existingContainer.remove();
+    }
+    
+    // 토스트 컨테이너 생성
+    const toastContainer = document.createElement('div');
+    toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+    toastContainer.style.zIndex = '9999';
+    
+    // 타입별 색상 설정
+    let bgClass = 'bg-info';
+    let iconClass = 'fas fa-info-circle';
+    
+    switch (type) {
+        case 'success':
+            bgClass = 'bg-success';
+            iconClass = 'fas fa-check-circle';
+            break;
+        case 'error':
+            bgClass = 'bg-danger';
+            iconClass = 'fas fa-exclamation-circle';
+            break;
+        case 'warning':
+            bgClass = 'bg-warning text-dark';
+            iconClass = 'fas fa-exclamation-triangle';
+            break;
+    }
+    
+    // 토스트 생성
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white border-0 ${bgClass}`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="${iconClass} me-2"></i>${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    document.body.appendChild(toastContainer);
+    
+    const bsToast = new bootstrap.Toast(toast, {
+        autohide: true,
+        delay: type === 'error' ? 5000 : 3000  // 오류 메시지는 더 오래 표시
+    });
+    bsToast.show();
+    
+    // 토스트가 숨겨진 후 컨테이너 제거
+    toast.addEventListener('hidden.bs.toast', () => {
+        toastContainer.remove();
+    });
 }

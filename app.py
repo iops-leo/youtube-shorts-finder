@@ -37,7 +37,7 @@ from sqlalchemy import text
 # 공통 기능 임포트
 from common_utils.search import get_recent_popular_shorts, get_cache_key, save_to_cache, get_from_cache
 from common_utils.search import api_keys, switch_to_next_api_key, get_youtube_api_service, get_cache_stats, get_api_key_info
-from models import db, EmailNotification, NotificationSearch, User, ChannelCategory, Channel, CategoryChannel, SearchPreference, SearchHistory, ApiLog
+from models import db, EmailNotification, NotificationSearch, User, ChannelCategory, Channel, CategoryChannel, SearchPreference, SearchHistory, ApiLog, SavedVideo
 
 cache = {}
 CACHE_TIMEOUT = 28800  # 캐시 유효시간 (초)
@@ -1408,6 +1408,161 @@ try:
 except IOError:
     # 다른 프로세스가 이미 잠금을 획득함
     app.logger.info(f"프로세스 {os.getpid()}에서 스케줄러 락 획득 실패, 스케줄러 초기화 건너뜀")
+
+# ===================== 저장된 영상 관리 API =====================
+
+@app.route('/api/saved-videos', methods=['POST'])
+@login_required
+def save_video():
+    """영상 저장 API"""
+    try:
+        data = request.get_json()
+        
+        # 필수 데이터 검증
+        required_fields = ['video_id', 'video_title', 'channel_title', 'video_url']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': f'{field}는 필수 입력값입니다.'}), 400
+        
+        # 이미 저장된 영상인지 확인
+        existing_video = SavedVideo.query.filter_by(
+            user_id=current_user.id, 
+            video_id=data['video_id']
+        ).first()
+        
+        if existing_video:
+            return jsonify({'success': False, 'message': '이미 저장된 영상입니다.'}), 409
+        
+        # 새 저장된 영상 생성
+        saved_video = SavedVideo(
+            user_id=current_user.id,
+            video_id=data['video_id'],
+            video_title=data['video_title'],
+            channel_title=data['channel_title'],
+            channel_id=data.get('channel_id'),
+            thumbnail_url=data.get('thumbnail_url'),
+            video_url=data['video_url'],
+            view_count=data.get('view_count', 0),
+            duration=data.get('duration'),
+            published_at=datetime.fromisoformat(data['published_at'].replace('Z', '+00:00')) if data.get('published_at') else None,
+            notes=data.get('notes', '')
+        )
+        
+        db.session.add(saved_video)
+        db.session.commit()
+        
+        app.logger.info(f"사용자 {current_user.email}가 영상을 저장했습니다: {data['video_id']}")
+        
+        return jsonify({
+            'success': True, 
+            'message': '영상이 성공적으로 저장되었습니다.',
+            'video': saved_video.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"영상 저장 중 오류: {str(e)}")
+        return jsonify({'success': False, 'message': '영상 저장 중 오류가 발생했습니다.'}), 500
+
+@app.route('/api/saved-videos', methods=['GET'])
+@login_required
+def get_saved_videos():
+    """저장된 영상 목록 조회 API"""
+    try:
+        page = int(request.args.get('page', 1))
+        per_page = min(int(request.args.get('per_page', 20)), 50)  # 최대 50개
+        
+        # 저장된 영상 조회 (최신순)
+        pagination = SavedVideo.query.filter_by(user_id=current_user.id)\
+            .order_by(SavedVideo.saved_at.desc())\
+            .paginate(page=page, per_page=per_page, error_out=False)
+        
+        videos = [video.to_dict() for video in pagination.items]
+        
+        return jsonify({
+            'success': True,
+            'videos': videos,
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': pagination.total,
+                'pages': pagination.pages,
+                'has_next': pagination.has_next,
+                'has_prev': pagination.has_prev
+            }
+        })
+        
+    except Exception as e:
+        app.logger.error(f"저장된 영상 조회 중 오류: {str(e)}")
+        return jsonify({'success': False, 'message': '저장된 영상 조회 중 오류가 발생했습니다.'}), 500
+
+@app.route('/api/saved-videos/<int:video_id>', methods=['DELETE'])
+@login_required
+def delete_saved_video(video_id):
+    """저장된 영상 삭제 API"""
+    try:
+        saved_video = SavedVideo.query.filter_by(
+            id=video_id, 
+            user_id=current_user.id
+        ).first()
+        
+        if not saved_video:
+            return jsonify({'success': False, 'message': '해당 영상을 찾을 수 없습니다.'}), 404
+        
+        video_title = saved_video.video_title
+        db.session.delete(saved_video)
+        db.session.commit()
+        
+        app.logger.info(f"사용자 {current_user.email}가 저장된 영상을 삭제했습니다: {video_title}")
+        
+        return jsonify({
+            'success': True, 
+            'message': '영상이 성공적으로 삭제되었습니다.'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"저장된 영상 삭제 중 오류: {str(e)}")
+        return jsonify({'success': False, 'message': '영상 삭제 중 오류가 발생했습니다.'}), 500
+
+@app.route('/api/saved-videos/<int:video_id>/notes', methods=['PUT'])
+@login_required 
+def update_video_notes(video_id):
+    """저장된 영상 메모 업데이트 API"""
+    try:
+        data = request.get_json()
+        notes = data.get('notes', '')
+        
+        saved_video = SavedVideo.query.filter_by(
+            id=video_id,
+            user_id=current_user.id
+        ).first()
+        
+        if not saved_video:
+            return jsonify({'success': False, 'message': '해당 영상을 찾을 수 없습니다.'}), 404
+        
+        saved_video.notes = notes
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '메모가 성공적으로 업데이트되었습니다.',
+            'video': saved_video.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"영상 메모 업데이트 중 오류: {str(e)}")
+        return jsonify({'success': False, 'message': '메모 업데이트 중 오류가 발생했습니다.'}), 500
+
+@app.route('/saved-videos')
+@login_required
+def saved_videos_page():
+    """저장된 영상 관리 페이지"""
+    if not current_user.is_approved():
+        return redirect(url_for('pending'))
+    
+    return render_template('saved_videos.html', user=current_user)
 
 @app.route('/health')
 def health():

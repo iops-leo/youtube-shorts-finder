@@ -317,6 +317,51 @@ class EmailSentVideo(db.Model):
         db.Index('idx_user_sent_at', 'user_id', 'sent_at'),
     )
 
+class SavedVideo(db.Model):
+    """저장된 영상 모델"""
+    __tablename__ = 'saved_videos'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(128), db.ForeignKey('user.id'), nullable=False)
+    video_id = db.Column(db.String(50), nullable=False)  # YouTube 영상 ID
+    video_title = db.Column(db.String(500), nullable=False)  # 영상 제목 (한글 제목 고려하여 길게)
+    channel_title = db.Column(db.String(255), nullable=False)  # 채널명
+    channel_id = db.Column(db.String(128))  # 채널 ID
+    thumbnail_url = db.Column(db.String(500))  # 썸네일 URL
+    video_url = db.Column(db.String(500), nullable=False)  # 영상 URL
+    view_count = db.Column(db.Integer, default=0)  # 조회수
+    duration = db.Column(db.String(20))  # 영상 길이 (예: "PT30S")
+    published_at = db.Column(db.DateTime)  # 영상 업로드 일시
+    saved_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # 저장 일시
+    notes = db.Column(db.Text)  # 사용자 메모
+    
+    # 관계 설정
+    user = db.relationship('User', backref='saved_videos')
+    
+    # 복합 인덱스 설정 (사용자별 영상 ID 조회 최적화, 중복 저장 방지)
+    __table_args__ = (
+        db.Index('idx_user_video_saved', 'user_id', 'video_id'),
+        db.Index('idx_user_saved_at', 'user_id', 'saved_at'),
+        db.UniqueConstraint('user_id', 'video_id', name='unique_user_video'),
+    )
+    
+    def to_dict(self):
+        """딕셔너리로 변환"""
+        return {
+            'id': self.id,
+            'video_id': self.video_id,
+            'video_title': self.video_title,
+            'channel_title': self.channel_title,
+            'channel_id': self.channel_id,
+            'thumbnail_url': self.thumbnail_url,
+            'video_url': self.video_url,
+            'view_count': self.view_count,
+            'duration': self.duration,
+            'published_at': self.published_at.isoformat() if self.published_at else None,
+            'saved_at': self.saved_at.isoformat(),
+            'notes': self.notes or ''
+        }
+
 class YoutubeDashboard(db.Model):
     """대시보드 통계 캐시 모델"""
     __tablename__ = 'youtube_dashboard'
