@@ -30,6 +30,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="/#page-channels">
+                            <i class="fas fa-users me-2"></i>채널 관리
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link active" href="/saved-videos">
                             <i class="fas fa-bookmark me-2"></i>저장된 영상
                         </a>
@@ -45,7 +50,24 @@
                         </a>
                     </li>
                 </ul>
+                
                 <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#historyModal">
+                            <i class="fas fa-history me-2"></i>검색 기록
+                        </a>
+                    </li>
+                    {% if user.is_admin() %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-cog me-2"></i>관리자
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/admin/users"><i class="fas fa-users me-1"></i>사용자 관리</a></li>
+                            <li><a class="dropdown-item" href="/admin/stats"><i class="fas fa-chart-line me-1"></i>API 통계</a></li>
+                        </ul>
+                    </li>
+                    {% endif %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
                             <img src="{{ user.picture }}" alt="프로필" class="rounded-circle me-2" style="width: 24px; height: 24px;">
@@ -181,8 +203,113 @@
         </div>
     </div>
 
+    <!-- 검색 기록 모달 -->
+    <div class="modal fade" id="historyModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-history me-2"></i>검색 기록
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- 검색 기록이 동적으로 표시됩니다 -->
+                    <div class="text-center p-4 text-muted">저장된 검색 기록이 없습니다.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 스크립트 -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/static/js/saved_videos.js"></script>
+    
+    <!-- 검색 기록 기능 -->
+    <script>
+        // 검색 기록 모달 표시
+        document.addEventListener('DOMContentLoaded', function() {
+            const historyModal = document.getElementById('historyModal');
+            if (historyModal) {
+                historyModal.addEventListener('show.bs.modal', function() {
+                    const modalBody = historyModal.querySelector('.modal-body');
+                    modalBody.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"></div><p class="mt-2">검색 기록을 불러오는 중...</p></div>';
+                    
+                    // API 호출로 검색 기록 가져오기
+                    fetch('/api/search-history')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success' && data.history && data.history.length > 0) {
+                                let historyHtml = '';
+                                data.history.forEach(function(item, index) {
+                                    const date = new Date(item.created_at).toLocaleDateString('ko-KR');
+                                    historyHtml += `
+                                        <div class="border-bottom pb-3 mb-3">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="flex-grow-1">
+                                                    <h6 class="mb-1">검색 ${index + 1}</h6>
+                                                    <small class="text-muted">${date}</small>
+                                                    <div class="mt-2">
+                                                        <span class="badge bg-secondary me-1">최소 조회수: ${item.params.min_views || '없음'}</span>
+                                                        <span class="badge bg-secondary me-1">지역: ${item.params.region_code || 'KR'}</span>
+                                                        <span class="badge bg-secondary me-1">언어: ${item.params.relevance_language || 'ko'}</span>
+                                                    </div>
+                                                </div>
+                                                <button class="btn btn-sm btn-primary" onclick="window.location.href='/?load_history=${index}'">
+                                                    불러오기
+                                                </button>
+                                            </div>
+                                        </div>
+                                    `;
+                                });
+                                
+                                historyHtml += `
+                                    <div class="text-center mt-3">
+                                        <button class="btn btn-outline-danger" onclick="clearAllHistory()">
+                                            <i class="fas fa-trash me-1"></i>모든 기록 삭제
+                                        </button>
+                                    </div>
+                                `;
+                                
+                                modalBody.innerHTML = historyHtml;
+                            } else {
+                                modalBody.innerHTML = '<div class="text-center p-4 text-muted">저장된 검색 기록이 없습니다.</div>';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('검색 기록 로드 중 오류:', error);
+                            modalBody.innerHTML = '<div class="text-center p-4 text-danger">검색 기록을 불러오는 중 오류가 발생했습니다.</div>';
+                        });
+                });
+            }
+        });
+
+        // 검색 기록 모두 지우기
+        function clearAllHistory() {
+            if (confirm('모든 검색 기록을 삭제하시겠습니까?')) {
+                fetch('/api/search-history', {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showToast('모든 검색 기록이 삭제되었습니다.', 'success');
+                        
+                        // 모달 내용 업데이트
+                        const modalBody = document.querySelector('#historyModal .modal-body');
+                        if (modalBody) {
+                            modalBody.innerHTML = '<div class="text-center p-4 text-muted">저장된 검색 기록이 없습니다.</div>';
+                        }
+                    } else {
+                        showToast('검색 기록 삭제에 실패했습니다.', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('검색 기록 삭제 중 오류:', error);
+                    showToast('검색 기록 삭제 중 오류가 발생했습니다.', 'error');
+                });
+            }
+        }
+    </script>
 </body>
 </html>

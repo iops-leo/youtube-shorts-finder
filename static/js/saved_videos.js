@@ -7,6 +7,48 @@ let currentSort = 'saved_at_desc';
 let editingVideoId = null;
 let deletingVideoId = null;
 
+// Bootstrap 모달 헬퍼 함수들
+function safeCloseModal(modalId) {
+    try {
+        const modalElement = document.getElementById(modalId);
+        if (!modalElement) return;
+        
+        const modalInstance = bootstrap.Modal.getInstance(modalElement);
+        if (modalInstance) {
+            modalInstance.hide();
+        } else {
+            // data-bs-dismiss 방식으로 닫기
+            modalElement.style.display = 'none';
+            modalElement.classList.remove('show');
+            document.body.classList.remove('modal-open');
+            
+            // backdrop 제거
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+        }
+    } catch (error) {
+        console.error('모달 닫기 오류:', error);
+    }
+}
+
+function safeShowModal(modalId) {
+    try {
+        const modalElement = document.getElementById(modalId);
+        if (!modalElement) return;
+        
+        const modalInstance = bootstrap.Modal.getInstance(modalElement);
+        if (modalInstance) {
+            modalInstance.show();
+        } else {
+            new bootstrap.Modal(modalElement).show();
+        }
+    } catch (error) {
+        console.error('모달 열기 오류:', error);
+    }
+}
+
 // DOM 로드 완료 시 실행
 document.addEventListener('DOMContentLoaded', function() {
     loadSavedVideos();
@@ -116,7 +158,7 @@ function renderSavedVideos() {
  */
 function createSavedVideoCard(video) {
     const col = document.createElement('div');
-    col.className = 'col-xl-4 col-lg-4 col-md-6 col-sm-12';
+    col.className = 'col-lg-4 col-md-6 col-12';
     
     // 날짜 포맷팅
     const savedDate = new Date(video.saved_at).toLocaleDateString('ko-KR');
@@ -251,8 +293,7 @@ function openNoteModal(videoId, videoTitle, currentNotes) {
     document.getElementById('videoTitle').value = videoTitle;
     document.getElementById('videoNotes').value = currentNotes || '';
     
-    const modal = new bootstrap.Modal(document.getElementById('noteModal'));
-    modal.show();
+    safeShowModal('noteModal');
 }
 
 /**
@@ -283,8 +324,7 @@ function saveVideoNotes() {
             }
             
             // 모달 닫기
-            const modal = bootstrap.Modal.getInstance(document.getElementById('noteModal'));
-            modal.hide();
+            safeCloseModal('noteModal');
         } else {
             showToast(data.message || '메모 저장에 실패했습니다.', 'error');
         }
@@ -300,8 +340,7 @@ function saveVideoNotes() {
  */
 function openDeleteModal(videoId, videoTitle) {
     deletingVideoId = videoId;
-    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
-    modal.show();
+    safeShowModal('deleteModal');
 }
 
 /**
@@ -335,8 +374,7 @@ function confirmDeleteVideo() {
             document.getElementById('totalCount').textContent = `${currentCount - 1}개`;
             
             // 모달 닫기
-            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
-            modal.hide();
+            safeCloseModal('deleteModal');
         } else {
             showToast(data.message || '영상 삭제에 실패했습니다.', 'error');
         }

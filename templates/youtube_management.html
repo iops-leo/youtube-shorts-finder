@@ -2023,6 +2023,23 @@
                 touchStartTime = null;
             }, { passive: true });
             
+            // closeSidebar 함수 정의
+            window.closeSidebar = function() {
+                if (sidebarMenu) {
+                    sidebarMenu.classList.remove('show');
+                }
+                if (sidebarOverlay) {
+                    sidebarOverlay.classList.remove('show');
+                }
+                document.body.classList.remove('sidebar-open');
+                
+                // 토글 버튼 아이콘 초기화
+                const toggleButton = document.querySelector('.navbar-toggler i');
+                if (toggleButton) {
+                    toggleButton.className = 'fas fa-bars';
+                }
+            };
+            
             // 초기 설정
             if (window.innerWidth < 768) {
                 closeSidebar();

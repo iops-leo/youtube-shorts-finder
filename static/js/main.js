@@ -20,6 +20,48 @@ const channelCounter = document.getElementById('channelCounter');
 const resetSettingsBtn = document.getElementById('resetSettings');
 const searchForm = document.getElementById('searchForm');
 
+// Bootstrap 모달 헬퍼 함수들
+function safeCloseModal(modalId) {
+    try {
+        const modalElement = document.getElementById(modalId);
+        if (!modalElement) return;
+        
+        const modalInstance = bootstrap.Modal.getInstance(modalElement);
+        if (modalInstance) {
+            modalInstance.hide();
+        } else {
+            // data-bs-dismiss 방식으로 닫기
+            modalElement.style.display = 'none';
+            modalElement.classList.remove('show');
+            document.body.classList.remove('modal-open');
+            
+            // backdrop 제거
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+        }
+    } catch (error) {
+        console.error('모달 닫기 오류:', error);
+    }
+}
+
+function safeShowModal(modalId) {
+    try {
+        const modalElement = document.getElementById(modalId);
+        if (!modalElement) return;
+        
+        const modalInstance = bootstrap.Modal.getInstance(modalElement);
+        if (modalInstance) {
+            modalInstance.show();
+        } else {
+            new bootstrap.Modal(modalElement).show();
+        }
+    } catch (error) {
+        console.error('모달 열기 오류:', error);
+    }
+}
+
 // 페이지 로드 시 이벤트 설정
 document.addEventListener('DOMContentLoaded', function() {
     // 저장된 폼 값 복원
@@ -859,9 +901,8 @@ function showSearchHistoryModal() {
                         e.preventDefault();
                         loadSearchHistoryItem(index);
                         
-                        // 모달 닫기 (Bootstrap 방식)
-                        const historyModal = bootstrap.Modal.getInstance(document.getElementById('historyModal'));
-                        historyModal.hide();
+                        // 모달 닫기 (안전한 방식)
+                        safeCloseModal('historyModal');
                     });
                 });
             }
