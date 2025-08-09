@@ -644,9 +644,11 @@
             document.body.classList.add('sidebar-open');
             
             // 토글 버튼 아이콘 변경
-            const icon = sidebarToggler.querySelector('i');
-            if (icon) {
-                icon.className = 'fas fa-times';
+            if (sidebarToggler) {
+                const icon = sidebarToggler.querySelector('i');
+                if (icon) {
+                    icon.className = 'fas fa-times';
+                }
             }
         }
         
@@ -657,9 +659,11 @@
             document.body.classList.remove('sidebar-open');
             
             // 토글 버튼 아이콘 변경
-            const icon = sidebarToggler.querySelector('i');
-            if (icon) {
-                icon.className = 'fas fa-bars';
+            if (sidebarToggler) {
+                const icon = sidebarToggler.querySelector('i');
+                if (icon) {
+                    icon.className = 'fas fa-bars';
+                }
             }
         }
         
@@ -706,9 +710,11 @@
                     document.body.classList.remove('sidebar-open');
                     
                     // 토글 버튼 아이콘 초기화
-                    const icon = sidebarToggler.querySelector('i');
-                    if (icon) {
-                        icon.className = 'fas fa-bars';
+                    if (sidebarToggler) {
+                        const icon = sidebarToggler.querySelector('i');
+                        if (icon) {
+                            icon.className = 'fas fa-bars';
+                        }
                     }
                 }
             }, 250);
