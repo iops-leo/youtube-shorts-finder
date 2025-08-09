@@ -19,18 +19,19 @@
             <a class="navbar-brand" href="/">
                 <i class="fab fa-youtube text-danger me-2"></i>YouTube Shorts 도구
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse">
-                <span class="navbar-toggler-icon"></span>
+            <button class="navbar-toggler d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
+                <i class="fas fa-bars"></i>
             </button>
             <div class="collapse navbar-collapse" id="navbarCollapse">
-                <ul class="navbar-nav me-auto">
+                <!-- 모바일에서만 보이는 메인 메뉴 -->
+                <ul class="navbar-nav me-auto d-lg-none">
                     <li class="nav-item">
-                        <a class="nav-link" href="/">
+                        <a class="nav-link" href="/" onclick="closeMobileMenu()">
                             <i class="fas fa-search me-2"></i>인기 Shorts 검색
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/#page-channels">
+                        <a class="nav-link" href="/#page-channels" onclick="closeMobileMenu()">
                             <i class="fas fa-users me-2"></i>채널 관리
                         </a>
                     </li>
@@ -49,16 +50,28 @@
                             <i class="fas fa-video me-2"></i>YouTube 관리
                         </a>
                     </li>
+                    {% if user.is_admin() %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin/users">
+                            <i class="fas fa-users me-2"></i>사용자 관리
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin/stats">
+                            <i class="fas fa-chart-line me-2"></i>API 통계
+                        </a>
+                    </li>
+                    {% endif %}
                 </ul>
                 
-                <ul class="navbar-nav">
+                <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
                         <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#historyModal">
                             <i class="fas fa-history me-2"></i>검색 기록
                         </a>
                     </li>
                     {% if user.is_admin() %}
-                    <li class="nav-item dropdown">
+                    <li class="nav-item dropdown d-none d-lg-block">
                         <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-user-cog me-2"></i>관리자
                         </a>
@@ -87,9 +100,55 @@
     </nav>
 
     <!-- 메인 컨테이너 -->
-    <div class="container-fluid mt-5 pt-4">
+    <div class="container-fluid mt-5 pt-3">
         <div class="row">
-            <div class="col-12">
+            <!-- 사이드바 메뉴 -->
+            <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse show" id="sidebarMenu">
+                <div class="position-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">
+                                <i class="fas fa-search me-2"></i>인기 Shorts 검색
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/#page-channels">
+                                <i class="fas fa-users me-2"></i>채널 관리
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/saved-videos">
+                                <i class="fas fa-bookmark me-2"></i>저장된 영상
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/notifications">
+                                <i class="fas fa-bell me-2"></i>이메일 알림
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/youtube-management">
+                                <i class="fas fa-video me-2"></i>YouTube 관리
+                            </a>
+                        </li>
+                        {% if user.is_admin() %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/users">
+                                <i class="fas fa-users me-2"></i>사용자 관리
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/stats">
+                                <i class="fas fa-chart-line me-2"></i>API 통계
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- 메인 콘텐츠 -->
+            <div class="col-md-9 col-lg-10 ms-sm-auto px-md-4">
                 <!-- 헤더 -->
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2><i class="fas fa-bookmark text-success me-2"></i>저장된 영상</h2>
@@ -310,6 +369,109 @@
                 });
             }
         }
+        
+        // 모바일 메뉴 닫기
+        function closeMobileMenu() {
+            // 모바일에서 햄버거 메뉴가 열린 경우에만 닫기
+            if (window.innerWidth < 992) {
+                const sidebarMenu = document.getElementById('sidebarMenu');
+                if (sidebarMenu && sidebarMenu.classList.contains('show')) {
+                    sidebarMenu.classList.remove('show');
+                    document.body.classList.remove('sidebar-open');
+                    
+                    // backdrop 제거
+                    const backdrop = document.querySelector('.sidebar-overlay');
+                    if (backdrop) {
+                        backdrop.classList.remove('show');
+                    }
+                }
+            }
+        }
+
+        // 사이드바 토글 기능 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebarMenu = document.getElementById('sidebarMenu');
+            const sidebarToggler = document.querySelector('.navbar-toggler[data-bs-target="#sidebarMenu"]');
+            
+            // 오버레이 생성
+            let sidebarOverlay = document.querySelector('.sidebar-overlay');
+            if (!sidebarOverlay) {
+                sidebarOverlay = document.createElement('div');
+                sidebarOverlay.className = 'sidebar-overlay';
+                document.body.appendChild(sidebarOverlay);
+            }
+            
+            // 토글러 이벤트
+            if (sidebarToggler) {
+                sidebarToggler.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const isOpen = sidebarMenu.classList.contains('show');
+                    
+                    if (!isOpen) {
+                        // 사이드바 열기
+                        sidebarMenu.classList.add('show');
+                        sidebarOverlay.classList.add('show');
+                        document.body.classList.add('sidebar-open');
+                        
+                        const icon = sidebarToggler.querySelector('i');
+                        if (icon) {
+                            icon.className = 'fas fa-times';
+                        }
+                    } else {
+                        // 사이드바 닫기
+                        closeMobileMenu();
+                        const icon = sidebarToggler.querySelector('i');
+                        if (icon) {
+                            icon.className = 'fas fa-bars';
+                        }
+                    }
+                });
+            }
+            
+            // 오버레이 클릭 시 사이드바 닫기
+            if (sidebarOverlay) {
+                sidebarOverlay.addEventListener('click', function() {
+                    closeMobileMenu();
+                    if (sidebarToggler) {
+                        const icon = sidebarToggler.querySelector('i');
+                        if (icon) {
+                            icon.className = 'fas fa-bars';
+                        }
+                    }
+                });
+            }
+            
+            // ESC 키로 사이드바 닫기
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && sidebarMenu.classList.contains('show')) {
+                    closeMobileMenu();
+                    if (sidebarToggler) {
+                        const icon = sidebarToggler.querySelector('i');
+                        if (icon) {
+                            icon.className = 'fas fa-bars';
+                        }
+                    }
+                }
+            });
+            
+            // 사이드바 메뉴 링크 클릭 시 모바일에서 메뉴 닫기
+            const navLinks = document.querySelectorAll('.sidebar .nav-link');
+            navLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    if (window.innerWidth < 992) {
+                        closeMobileMenu();
+                        if (sidebarToggler) {
+                            const icon = sidebarToggler.querySelector('i');
+                            if (icon) {
+                                icon.className = 'fas fa-bars';
+                            }
+                        }
+                    }
+                });
+            });
+        });
     </script>
 </body>
 </html>
