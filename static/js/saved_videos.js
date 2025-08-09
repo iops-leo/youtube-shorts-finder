@@ -190,7 +190,7 @@ function createSavedVideoCard(video) {
                             <i class="fas fa-sticky-note me-1"></i>메모
                         </button>
                         <button class="btn btn-sm btn-outline-danger" 
-                                onclick="openDeleteModal(${video.id}, '${video.video_title.replace(/'/g, "\\'")')}"
+                                onclick="openDeleteModal(${video.id}, '${video.video_title.replace(/'/g, "\\'")}')"
                                 title="영상 삭제">
                             <i class="fas fa-trash me-1"></i>삭제
                         </button>
