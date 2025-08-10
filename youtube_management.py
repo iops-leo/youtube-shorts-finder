@@ -182,7 +182,7 @@ def register_youtube_routes(app):
         """작업 목록 조회"""
         try:
             # 날짜 필터링 옵션
-            date_filter = request.args.get('date_filter', 'week')  # week, month, all
+            date_filter = request.args.get('date_filter', 'week')  # week, last_week, month, all
             
             query = Work.query.filter_by(user_id=current_user.id)
             
@@ -192,6 +192,13 @@ def register_youtube_routes(app):
                 week_start = today - timedelta(days=today.weekday())
                 week_end = week_start + timedelta(days=6)
                 query = query.filter(Work.work_date.between(week_start, week_end))
+            elif date_filter == 'last_week':
+                # 지난 주 작업
+                today = date.today()
+                this_week_start = today - timedelta(days=today.weekday())
+                last_week_start = this_week_start - timedelta(days=7)
+                last_week_end = this_week_start - timedelta(days=1)
+                query = query.filter(Work.work_date.between(last_week_start, last_week_end))
             elif date_filter == 'month':
                 # 이번 달 작업
                 today = date.today()
