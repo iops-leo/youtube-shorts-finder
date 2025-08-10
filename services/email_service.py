@@ -336,3 +336,111 @@ class EmailService:
         except Exception as e:
             self.app.logger.error(f"이메일 포맷팅 오류: {str(e)}")
             return "<p>이메일 생성 중 오류가 발생했습니다.</p>"
+
+    def format_weekly_settlement_email(self, user, week_start_date, week_end_date, summary, items):
+        """주간 정산 이메일 포맷팅"""
+        try:
+            template_str = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#f5f7fa; color:#2c3e50; margin:0; }
+                    .container { max-width: 800px; margin: 24px auto; background:#fff; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.08); overflow:hidden; }
+                    .header { background: linear-gradient(135deg, #00c6ff, #0072ff); color:#fff; padding:24px; text-align:center; }
+                    .header h1 { margin:0; font-size:24px; }
+                    .period { background:#eef5ff; color:#2d6cdf; padding:12px 16px; text-align:center; font-weight:600; }
+                    .content { padding:24px; }
+                    .summary-grid { display:flex; flex-wrap:wrap; gap:12px; }
+                    .summary-card { flex:1 1 180px; background:#f8fafc; border:1px solid #e6ecf5; border-radius:10px; padding:16px; }
+                    .summary-title { font-size:12px; color:#6b7280; margin-bottom:6px; }
+                    .summary-value { font-size:20px; font-weight:700; }
+                    .table { width:100%; border-collapse:collapse; margin-top:16px; }
+                    .table th, .table td { padding:12px; border-bottom:1px solid #eef2f7; font-size:14px; }
+                    .table th { background:#f1f5f9; color:#374151; text-align:left; }
+                    .table tr:hover { background:#fafafa; }
+                    .badge { display:inline-block; padding:4px 8px; font-size:12px; border-radius:999px; background:#eef2ff; color:#3730a3; }
+                    .footer { background:#111827; color:#9ca3af; text-align:center; font-size:12px; padding:16px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>📈 주간 정산 리포트</h1>
+                    </div>
+                    <div class="period">{{ week_start }} ~ {{ week_end }} (전주)</div>
+                    <div class="content">
+                        <div class="summary-grid">
+                            <div class="summary-card">
+                                <div class="summary-title">완료 작업 수</div>
+                                <div class="summary-value">{{ summary.completed_works }}</div>
+                            </div>
+                            <div class="summary-card">
+                                <div class="summary-title">정산 대상 작업</div>
+                                <div class="summary-value">{{ summary.settlement_works }}</div>
+                            </div>
+                            <div class="summary-card">
+                                <div class="summary-title">지급 완료 합계</div>
+                                <div class="summary-value">{{ '{:,}'.format(summary.settled_amount) }}원</div>
+                            </div>
+                            <div class="summary-card">
+                                <div class="summary-title">미지급 합계</div>
+                                <div class="summary-value">{{ '{:,}'.format(summary.pending_amount) }}원</div>
+                            </div>
+                        </div>
+
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>편집자</th>
+                                    <th>작업명</th>
+                                    <th>유형</th>
+                                    <th>작업일</th>
+                                    <th>정산상태</th>
+                                    <th class="text-end">금액</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if items %}
+                                    {% for item in items %}
+                                    <tr>
+                                        <td>{{ loop.index }}</td>
+                                        <td>{{ item.editor_name }}</td>
+                                        <td>{{ item.title }}</td>
+                                        <td>{{ '일반' if item.work_type == 'basic' else '일본어' }}</td>
+                                        <td>{{ item.work_date }}</td>
+                                        <td>
+                                            <span class="badge">{{ '지급완료' if item.settlement_status == 'settled' else '미지급' }}</span>
+                                        </td>
+                                        <td style="text-align:right;">{{ '{:,}'.format(item.rate) }}원</td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="7" style="text-align:center; color:#6b7280;">전주에 해당하는 작업이 없습니다.</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="footer">
+                        이 메일은 주간 정산 알림에 의해 자동 발송되었습니다. 알림 설정 변경은 알림 설정 페이지에서 가능합니다.
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            template = Template(template_str)
+            return template.render(
+                user=user,
+                week_start=week_start_date.strftime('%Y-%m-%d'),
+                week_end=week_end_date.strftime('%Y-%m-%d'),
+                summary=summary,
+                items=items
+            )
+        except Exception as e:
+            self.app.logger.error(f"주간 정산 이메일 포맷팅 오류: {str(e)}")
+            return "<p>주간 정산 이메일 생성 중 오류가 발생했습니다.</p>"

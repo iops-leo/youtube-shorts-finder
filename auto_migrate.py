@@ -73,7 +73,19 @@ def check_and_add_columns(app, db):
                     print("✅ YouTube Dashboard 테이블 생성 완료")
                 except Exception as e:
                     print(f"⚠️ YouTube Dashboard 테이블 생성 실패: {str(e)}")
-            
+
+            # EmailNotification 테이블 weekly_settlement_active 컬럼 추가
+            try:
+                email_notif_columns = [col['name'] for col in inspector.get_columns('email_notification')]
+                if 'weekly_settlement_active' not in email_notif_columns:
+                    db.session.execute(text("ALTER TABLE email_notification ADD COLUMN weekly_settlement_active BOOLEAN DEFAULT FALSE"))
+                    db.session.commit()
+                    print("✅ email_notification.weekly_settlement_active 컬럼 추가 완료")
+                else:
+                    print("✅ email_notification.weekly_settlement_active 컬럼이 이미 존재합니다")
+            except Exception as e:
+                print(f"⚠️ email_notification 컬럼 확인/추가 중 오류: {str(e)}")
+
             # Editor Rate History 테이블 확인 및 생성
             if 'editor_rate_history' not in tables:
                 try:

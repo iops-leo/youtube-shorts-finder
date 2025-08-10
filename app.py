@@ -1163,7 +1163,8 @@ def notifications_page():
             user_id=current_user.id,
             active=False,
             frequency=3,
-            preferred_times="9,13,18"  # 기본값: 오전 9시, 오후 1시, 오후 6시
+            preferred_times="9,13,18",  # 기본값: 오전 9시, 오후 1시, 오후 6시
+            weekly_settlement_active=False
         )
         db.session.add(notification)
         db.session.commit()
@@ -1203,6 +1204,7 @@ def save_notification_settings():
     notification.active = data.get('active', False)
     notification.frequency = data.get('frequency', 3)
     notification.preferred_times = data.get('preferred_times', "9,13,18")
+    notification.weekly_settlement_active = data.get('weekly_settlement_active', False)
     
     # 기존 검색 설정 삭제
     NotificationSearch.query.filter_by(notification_id=notification.id).delete()

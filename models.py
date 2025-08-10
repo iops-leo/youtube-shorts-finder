@@ -88,6 +88,8 @@ class EmailNotification(db.Model):
     preferred_times = db.Column(db.String(128))
     last_sent = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # 주간 정산 알림 온/오프
+    weekly_settlement_active = db.Column(db.Boolean, default=False)
 
     user = db.relationship('User', backref=db.backref('email_notifications', lazy=True))
 

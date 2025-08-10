@@ -14,7 +14,8 @@ from models import (
     User,
     ChannelCategory,
     CategoryChannel,
-    Channel
+    Channel,
+    Work
 )
 
 class NotificationScheduler:
@@ -36,6 +37,14 @@ class NotificationScheduler:
                 self.check_and_send_notifications,
                 CronTrigger(minute=0),  # 매 시간 정각
                 id='email_notification_job',
+                replace_existing=True
+            )
+
+            # 매주 월요일 01:00 UTC (KST 10:00)에 주간 정산 발송
+            self.scheduler.add_job(
+                self.send_weekly_settlement_reports,
+                CronTrigger(day_of_week='mon', hour=1, minute=0),
+                id='weekly_settlement_job',
                 replace_existing=True
             )
             
@@ -324,3 +333,82 @@ class NotificationScheduler:
         except Exception as e:
             self.app.logger.error(f"발송 이력 정리 중 오류: {str(e)}")
             db.session.rollback()
+
+    def send_weekly_settlement_reports(self):
+        """매주 월요일 10시(KST)에 전주 정산 리포트를 발송"""
+        with self.app.app_context():
+            try:
+                self.app.logger.info("주간 정산 리포트 발송 시작")
+                # 주간 정산을 활성화한 사용자
+                active_notifications = EmailNotification.query.filter(
+                    EmailNotification.weekly_settlement_active == True
+                ).all()
+                self.app.logger.info(f"주간 정산 활성 사용자 수: {len(active_notifications)}")
+
+                # 전주 기간 계산 (월요일~일요일 기준)
+                kst = pytz.timezone('Asia/Seoul')
+                now_kst = datetime.datetime.utcnow().replace(tzinfo=pytz.UTC).astimezone(kst)
+                # 월요일 10시에 실행되므로, 전주의 월~일 산출
+                week_end = (now_kst.date() - datetime.timedelta(days=1))  # 전주 일요일
+                week_start = week_end - datetime.timedelta(days=6)  # 전주 월요일
+
+                for notif in active_notifications:
+                    user = User.query.get(notif.user_id)
+                    if not user:
+                        continue
+
+                    # 전주 기간에 해당하는 작업 수집
+                    items = []
+                    # User.works 관계 사용
+                    works = Work.query.filter(
+                        Work.user_id == user.id,
+                        Work.work_date >= week_start,
+                        Work.work_date <= week_end
+                    ).order_by(Work.work_date.asc()).all()
+
+                    settled_amount = 0
+                    pending_amount = 0
+                    settlement_works = 0
+                    completed_works = 0
+
+                    for w in works:
+                        completed_works += 1
+                        if w.settlement_status == 'settled':
+                            settlement_works += 1
+                            settled_amount += (w.settlement_amount or w.rate or 0)
+                        else:
+                            pending_amount += (w.rate or 0)
+                        items.append({
+                            'editor_name': w.editor.name if w.editor else '-',
+                            'title': w.title,
+                            'work_type': w.work_type,
+                            'work_date': w.work_date.strftime('%Y-%m-%d'),
+                            'settlement_status': w.settlement_status,
+                            'rate': (w.settlement_amount or w.rate or 0)
+                        })
+
+                    summary = type('Summary', (), {
+                        'completed_works': completed_works,
+                        'settlement_works': settlement_works,
+                        'settled_amount': settled_amount,
+                        'pending_amount': pending_amount
+                    })()
+
+                    html = self.email_service.format_weekly_settlement_email(
+                        user=user,
+                        week_start_date=week_start,
+                        week_end_date=week_end,
+                        summary=summary,
+                        items=items
+                    )
+
+                    subject = f"주간 정산 리포트 ({week_start.strftime('%Y-%m-%d')} ~ {week_end.strftime('%Y-%m-%d')})"
+                    ok = self.email_service.send_email(user.email, subject, html)
+                    if ok:
+                        self.app.logger.info(f"주간 정산 리포트 발송 성공: {user.email}")
+                    else:
+                        self.app.logger.error(f"주간 정산 리포트 발송 실패: {user.email}")
+
+            except Exception as e:
+                self.app.logger.error(f"주간 정산 리포트 발송 중 오류: {str(e)}")
+                self.app.logger.error(traceback.format_exc())

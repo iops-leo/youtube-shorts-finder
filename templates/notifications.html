@@ -159,6 +159,17 @@
                                             <small class="text-muted">활성화하면 설정한 시간에 인기 Shorts 영상 알림을 이메일로 받습니다.</small>
                                         </div>
 
+                                        <!-- 주간 정산 알림 활성화 -->
+                                        <div class="col-md-12">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="weeklySettlementActive" {{ 'checked' if getattr(notification, 'weekly_settlement_active', False) else '' }}>
+                                                <label class="form-check-label" for="weeklySettlementActive">
+                                                    <strong>주간 정산 이메일 활성화</strong>
+                                                </label>
+                                            </div>
+                                            <small class="text-muted">매주 월요일 오전 10시(KST)에 전주(월요일~일요일) 정산 현황을 이메일로 받아봅니다.</small>
+                                        </div>
+
                                         <!-- 이메일 발송 시간 -->
                                         <div class="col-md-6">
                                             <label for="preferredTimes" class="form-label">
@@ -261,6 +272,7 @@
                                 </ol>
                                 <div class="alert alert-info mt-3">
                                     <i class="fas fa-lightbulb me-2"></i><strong>팁:</strong> 각 카테고리의 최소 조회수와 기간을 다르게 설정하여 다양한 인기 영상을 받아볼 수 있습니다.
+                                    <div class="mt-2"><i class="fas fa-calendar-week me-2"></i>주간 정산 이메일을 활성화하면 매주 월요일 10시에 전주(월~일) 정산 리포트를 받아볼 수 있습니다.</div>
                                 </div>
                             </div>
                         </div>
@@ -344,6 +356,7 @@
         function saveSettings() {
             // 기본 설정 값 가져오기
             const active = document.getElementById('activeNotification').checked;
+            const weeklySettlementActive = document.getElementById('weeklySettlementActive').checked;
             const preferredTimes = document.getElementById('preferredTimes').value;
             const frequency = document.getElementById('frequency').value;
             
@@ -366,6 +379,7 @@
             // API 요청 데이터
             const data = {
                 active: active,
+                weekly_settlement_active: weeklySettlementActive,
                 preferred_times: preferredTimes,
                 frequency: parseInt(frequency),
                 categories: categories
