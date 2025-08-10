@@ -75,7 +75,8 @@ function setupNavigationListeners() {
         navLink.addEventListener('click', function(e) {
             // 관리자 페이지 링크 또는 notifications 페이지로 이동하는 경우 기본 동작 허용
             if (this.getAttribute('href').startsWith('/admin/') || 
-                this.getAttribute('href') === '/notifications') {
+                this.getAttribute('href') === '/notifications' ||
+                this.getAttribute('href').startsWith('/saved-videos')) {
                 return; // 기본 링크 동작 유지
             }
             

@@ -860,7 +860,8 @@
                 // 외부 링크나 특정 페이지로 이동하는 링크는 기본 동작 허용
                 if (this.getAttribute('href').startsWith('/admin/') || 
                     this.getAttribute('href').startsWith('/notifications') ||
-                    this.getAttribute('href').startsWith('/youtube-management')) {
+                    this.getAttribute('href').startsWith('/youtube-management') ||
+                    this.getAttribute('href').startsWith('/saved-videos')) {
                     return;
                 }
                 

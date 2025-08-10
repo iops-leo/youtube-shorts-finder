@@ -89,7 +89,7 @@ function loadSavedVideos(page = 1, sort = 'saved_at_desc') {
                     sortVideosLocally(sort);
                     renderSavedVideos();
                     renderPagination(data.pagination);
-                    savedVideosList.style.display = 'block';
+                    savedVideosList.style.display = 'flex';
                     paginationContainer.style.display = 'block';
                 }
                 
