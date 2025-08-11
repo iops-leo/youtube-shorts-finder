@@ -162,7 +162,7 @@
                                         <!-- 주간 정산 알림 활성화 -->
                                         <div class="col-md-12">
                                             <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox" id="weeklySettlementActive" {{ 'checked' if getattr(notification, 'weekly_settlement_active', False) else '' }}>
+                                                <input class="form-check-input" type="checkbox" id="weeklySettlementActive" {{ 'checked' if notification.weekly_settlement_active else '' }}>
                                                 <label class="form-check-label" for="weeklySettlementActive">
                                                     <strong>주간 정산 이메일 활성화</strong>
                                                 </label>
