@@ -25,13 +25,18 @@ quota_manager = initialize_quota_manager(api_key_str, daily_limit=10000)
 api_keys = quota_manager.api_keys if quota_manager else []
 current_key_index = 0
 
+# 보안: API 키 정보 로깅 방지
 if quota_manager:
-    print(f"향상된 할당량 관리자로 {len(api_keys)}개의 API 키가 로드되었습니다.")
+    print(f"✅ 할당량 관리자 초기화 완료: {len(api_keys)}개 키 로드")
 else:
-    print("경고: YOUTUBE_API_KEY 환경 변수가 설정되지 않았거나 할당량 관리자 초기화에 실패했습니다.")
+    print("⚠️ 경고: YOUTUBE_API_KEY 환경변수 미설정 또는 할당량 관리자 초기화 실패")
 
 def _key_preview(key: str) -> str:
-    return f"{key[:8]}..." if key else "(없음)"
+    """보안: API 키 미리보기 (전체 키 노출 방지)"""
+    if not key:
+        return "(없음)"
+    # 8자리를 4자리로 축소하여 보안 강화
+    return f"••••{key[-4:]}" if len(key) >= 4 else "••••"
 
 def _is_quota_or_key_error(error_str: str) -> bool:
     # 영문/국문 키워드 모두 인식
@@ -61,7 +66,7 @@ def get_api_key_info():
     return {
         'total_keys': len(api_keys),
         'current_key_index': current_key_index if api_keys else None,
-        'current_key_preview': api_keys[current_key_index][:8] + '...' if api_keys else None
+        'current_key_preview': _key_preview(api_keys[current_key_index]) if api_keys else None
     }
 
 def switch_to_next_api_key():
@@ -79,7 +84,7 @@ def switch_to_next_api_key():
         
     current_key_index = (current_key_index + 1) % len(api_keys)
     new_key = get_current_api_key()
-    print(f"API 키 전환: 인덱스 {current_key_index}의 키로 변경됨")
+    print(f"ℹ️ API 키 전환: 인덱스 {current_key_index}로 변경됨")
     return new_key
 
 def translate_text(text, target_lang='ko'):
@@ -98,7 +103,8 @@ def translate_text(text, target_lang='ko'):
     
     # 캐시에서 번역 확인
     if cache_key in translation_cache:
-        print(f"번역 캐시 히트: {text[:30]}...")
+        # 보안: 캐시 히트 로깅에서 내용 축소
+        print(f"💾 번역 캐시 히트 (길이: {len(text)}자)")
         return translation_cache[cache_key]
     
     try:
@@ -113,10 +119,11 @@ def translate_text(text, target_lang='ko'):
         # 번역 결과 캐싱
         translation_cache[cache_key] = translated
         
-        print(f"번역 완료: {text[:30]}... -> {translated[:30]}...")
+        # 보안: 번역 로깅에서 내용 축소 
+        print(f"✅ 번역 완료 (입력: {len(text)}자, 출력: {len(translated)}자)")
         return translated
     except Exception as e:
-        print(f"번역 오류: {str(e)}")
+        print(f"❌ 번역 오류: {type(e).__name__}")
         return text  # 오류 시 원본 반환
         
     # 번역 캐시 크기 제한
@@ -151,7 +158,7 @@ def save_to_cache(cache_key, data):
         sorted_keys = sorted(cache.keys(), key=lambda k: cache[k][1])
         for key in sorted_keys[:20]:
             del cache[key]
-        print(f"캐시 정리: {len(sorted_keys[:20])}개 항목 제거, 현재 캐시 크기: {len(cache)}")
+        print(f"🗺️ 캐시 정리: {len(sorted_keys[:20])}개 항목 제거, 현재: {len(cache)}개")
 
 def get_cache_stats():
     """캐시 통계 반환"""
@@ -188,7 +195,7 @@ def get_youtube_api_service():
             error_type, user_message = quota_manager.handle_quota_error(str(e), "get_service")
             next_api_key = quota_manager.switch_to_next_key()
             if next_api_key:
-                print(f"할당량/키 오류로 다음 API 키({_key_preview(next_api_key)})로 전환합니다.")
+                print(f"⚠️ 할당량/키 오류로 다음 API 키({_key_preview(next_api_key)})로 전환")
                 return googleapiclient.discovery.build("youtube", "v3", developerKey=next_api_key)
             else:
                 raise Exception(user_message)
@@ -239,7 +246,7 @@ def execute_youtube_api_call(api_call_func, endpoint_name, max_retries=3):
                     # 다른 키로 전환 시도
                     next_key = quota_manager.switch_to_next_key()
                     if next_key and attempt < max_retries - 1:
-                        print(f"[{endpoint_name}] API 키 전환({_key_preview(next_key)}) 후 재시도 ({attempt + 1}/{max_retries})")
+                    print(f"🔄 [{endpoint_name}] API 키 전환({_key_preview(next_key)}) 후 재시도 ({attempt + 1}/{max_retries})")
                         continue
                     else:
                         # 더 이상 시도할 수 없는 경우
@@ -248,7 +255,7 @@ def execute_youtube_api_call(api_call_func, endpoint_name, max_retries=3):
                     # 기존 로직 (호환성)
                     next_key = switch_to_next_api_key()
                     if next_key and attempt < max_retries - 1:
-                        print(f"[{endpoint_name}] API 키 전환 후 재시도 ({attempt + 1}/{max_retries})")
+                    print(f"🔄 [{endpoint_name}] API 키 전환 후 재시도 ({attempt + 1}/{max_retries})")
                         continue
                     else:
                         raise Exception("모든 YouTube API 키의 할당량이 초과되었습니다.")
@@ -260,7 +267,7 @@ def execute_youtube_api_call(api_call_func, endpoint_name, max_retries=3):
                 # 재시도 가능한 오류인지 확인 (네트워크 오류 등)
                 if any(keyword in error_str for keyword in ['timeout', 'connection', 'network']):
                     if attempt < max_retries - 1:
-                        print(f"[{endpoint_name}] 네트워크 오류로 재시도 ({attempt + 1}/{max_retries})")
+                        print(f"🌐 [{endpoint_name}] 네트워크 오류로 재시도 ({attempt + 1}/{max_retries})")
                         time.sleep(1)  # 1초 대기 후 재시도
                         continue
                 
@@ -301,7 +308,9 @@ def search_by_keyword_based_shorts(min_views, days_ago, max_results,
         if language and language != 'any':
             search_params['relevanceLanguage'] = language
 
-        print(f"[키워드 검색] 조건: {search_params}")
+        # 보안: 검색 파라미터에서 API 키 제거
+        safe_params = {k: v for k, v in search_params.items() if k != 'key' and 'api' not in k.lower()}
+        print(f"🔍 [키워드 검색] 조건: {safe_params}")
         all_video_ids = []
         next_page_token = None
 
@@ -326,7 +335,7 @@ def search_by_keyword_based_shorts(min_views, days_ago, max_results,
                     video_ids = [item['id']['videoId'] for item in items]
                     all_video_ids.extend(video_ids)
                     
-                    print(f"페이지 결과: {len(items)}개 항목 발견 (총 {len(all_video_ids)}개)")
+                    print(f"📊 페이지 결과: {len(items)}개 항목 발견 (총 {len(all_video_ids)}개)")
                     next_page_token = search_response.get('nextPageToken')
                     page_processed = True
                     
@@ -338,15 +347,15 @@ def search_by_keyword_based_shorts(min_views, days_ago, max_results,
                     if _is_quota_or_key_error(error_str):
                         next_key = quota_manager.switch_to_next_key() if quota_manager else switch_to_next_api_key()
                         if next_key:
-                            print(f"[검색 중 할당량/키 오류] 다음 API 키({_key_preview(next_key)})로 전환")
+                            print(f"⚠️ [검색 중 할당량/키 오류] 다음 API 키({_key_preview(next_key)})로 전환")
                             current_attempt += 1
                         else:
-                            print("[모든 API 키 소진] 더 이상 사용 가능한 API 키가 없습니다.")
+                            print("🚫 [모든 API 키 소진] 더 이상 사용 가능한 API 키가 없음")
                             all_api_keys_exhausted = True
                             break
                     else:
                         # 할당량 외 다른 오류
-                        print(f"[검색 오류] {str(e)}")
+                        print(f"❌ [검색 오류] {type(e).__name__}: {str(e)[:100]}")
                         page_processed = True
                         break
             
@@ -413,7 +422,7 @@ def search_by_keyword_based_shorts(min_views, days_ago, max_results,
                             })
 
                         except Exception as ve:
-                            print(f"[상세 처리 오류] {str(ve)}")
+                            print(f"❌ [상세 처리 오류] {type(ve).__name__}")
                             continue
                             
                     batch_processed = True
@@ -423,15 +432,15 @@ def search_by_keyword_based_shorts(min_views, days_ago, max_results,
                     if _is_quota_or_key_error(error_str):
                         next_key = quota_manager.switch_to_next_key() if quota_manager else switch_to_next_api_key()
                         if next_key:
-                            print(f"[상세 조회 중 할당량/키 오류] 다음 API 키({_key_preview(next_key)})로 전환")
+                            print(f"⚠️ [상세 조회 중 할당량/키 오류] 다음 API 키({_key_preview(next_key)})로 전환")
                             current_attempt += 1
                         else:
-                            print("[모든 API 키 소진] 더 이상 사용 가능한 API 키가 없습니다.")
+                            print("🚫 [모든 API 키 소진] 더 이상 사용 가능한 API 키가 없음")
                             all_api_keys_exhausted = True
                             break
                     else:
                         # 할당량 외 다른 오류
-                        print(f"[상세 조회 오류] {str(e)}")
+                        print(f"❌ [상세 조회 오류] {type(e).__name__}: {str(e)[:100]}")
                         batch_processed = True
                         break
 
@@ -443,7 +452,7 @@ def search_by_keyword_based_shorts(min_views, days_ago, max_results,
         return filtered_videos[:max_results]
 
     except Exception as e:
-        print(f"[키워드 기반 검색 오류] {str(e)}")
+        print(f"❌ [키워드 기반 검색 오류] {type(e).__name__}: {str(e)[:100]}")
         # 상위에서 구분 처리할 수 있도록 예외 그대로 전파
         raise
 
@@ -462,13 +471,13 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
         channel_id_list = channel_ids or []
 
     if channel_id_list:
-        print(f"총 {len(channel_id_list)}개 채널에서 직접 영상 수집 중...")
+        print(f"📺 총 {len(channel_id_list)}개 채널에서 직접 영상 수집 중...")
         
         # 날짜 필터 설정
         published_after = None
         if days_ago > 0:
             published_after = (datetime.utcnow() - timedelta(days=days_ago)).isoformat("T") + "Z"
-            print(f"날짜 필터: {days_ago}일 전 ({published_after}) 이후 영상만 검색")
+            print(f"📅 날짜 필터: {days_ago}일 전 ({published_after}) 이후 영상만 검색")
 
         for channel_id in channel_id_list:
             # 모든 API 키가 소진되었으면 더 이상 처리하지 않음

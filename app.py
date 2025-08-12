@@ -31,6 +31,7 @@ from services.email_service import EmailService
 from services.notification_scheduler import NotificationScheduler
 from youtube_management import register_youtube_routes
 import fcntl
+from config.security import SecurityConfig, validate_required_environment, setup_secure_logging
 from sqlalchemy import text
 
 
@@ -43,6 +44,10 @@ from models import db, EmailNotification, NotificationSearch, User, ChannelCateg
 
 cache = {}
 CACHE_TIMEOUT = 28800  # 캐시 유효시간 (초)
+
+# 보안 설정 초기화
+setup_secure_logging()  # 보안 로깅 필터 적용
+validate_required_environment()  # 필수 환경변수 검증
 
 if os.environ.get('FLASK_ENV') == 'production':
     # 운영 환경 설정
@@ -75,7 +80,14 @@ app.config.update(
     MAIL_PASSWORD=os.environ.get('MAIL_PASSWORD'),
 )
 
-app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key')  # 실제 배포 시 환경 변수로 설정해야 함
+# SECRET_KEY 보안 설정 - 기본값 제거로 보안 강화
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError("❌ 보안 오류: SECRET_KEY 환경변수가 설정되지 않았습니다. SECRET_KEY는 필수입니다.")
+app.secret_key = SECRET_KEY
+
+# 보안 헤더 적용
+SecurityConfig.apply_security_headers(app)
 app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID', '')  # Google OAuth 클라이언트 ID
 app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET', '')  # Google OAuth 클라이언트 시크릿
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -142,10 +154,13 @@ def get_google_flow():
     # 리디렉션 URI 목록에 로컬과 운영 모두 포함
     redirect_uris = ["https://shorts.ddns.net/login/callback"]
     
-    # 로컬 개발 환경이면 로컬 URI도 추가
+    # 로컬 개발 환경이면 로컬 URI도 추가 (보안 강화)
     if is_local_dev:
         port = os.environ.get('PORT', '8080')
-        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+        # 보안: 개발 환경에서만 INSECURE_TRANSPORT 허용
+        if os.environ.get('FLASK_ENV') in ['dev', 'development']:
+            os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+            print("⚠️ 개발 환경: OAUTHLIB_INSECURE_TRANSPORT 활성화")
         redirect_uris.append(f"http://localhost:{port}/login/callback")
     
     flow = Flow.from_client_config(
@@ -175,7 +190,7 @@ def login():
     
     flow = get_google_flow()
     # 환경에 따라 리디렉션 URI 설정
-    is_local_dev = os.environ.get('FLASK_ENV') == 'dev'
+    is_local_dev = os.environ.get('FLASK_ENV') in ['dev', 'development']
     if is_local_dev:
         flow.redirect_uri = f"http://localhost:{os.environ.get('PORT', '8080')}/login/callback"
     else:
@@ -197,7 +212,7 @@ def login_callback():
     
     flow = get_google_flow()
     # 환경에 따라 리디렉션 URI 설정
-    is_local_dev = os.environ.get('FLASK_ENV') == 'dev'
+    is_local_dev = os.environ.get('FLASK_ENV') in ['dev', 'development']
     if is_local_dev:
         flow.redirect_uri = f"http://localhost:{os.environ.get('PORT', '8080')}/login/callback"
     else:
@@ -345,14 +360,17 @@ def approve_user(user_id):
     
     return jsonify({"status": "success", "message": message})
 
-# API 호출 로깅 함수
+# API 호출 로깅 함수 - 보안 강화
 def log_api_call(endpoint, params=None):
     if current_user.is_authenticated:
+        # 보안: 파라미터에서 민감한 정보 마스킹
+        safe_params = SecurityConfig.safe_log_params(params) if params else None
+        
         # API 호출 로그 저장
         api_log = ApiLog(
             user_id=current_user.id,
             endpoint=endpoint,
-            params=json.dumps(params) if params else None
+            params=json.dumps(safe_params) if safe_params else None
         )
         db.session.add(api_log)
         
@@ -360,7 +378,7 @@ def log_api_call(endpoint, params=None):
         current_user.api_calls += 1
         db.session.commit()
         
-        app.logger.info(f'API 호출: {endpoint} by {current_user.email}')
+        app.logger.info(f'🔍 API 호출: {endpoint} by {current_user.email}')
 
 # API 호출 제한 함수
 def check_api_limits():
