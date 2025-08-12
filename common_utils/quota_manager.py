@@ -38,6 +38,9 @@ class QuotaUsage:
     rate_limit_remaining: int = 100  # 분당 요청 제한
     last_request_time: datetime = None
     warning_threshold: float = 0.9  # 90%
+    # 추가 상태
+    disabled: bool = False  # 키 비활성화(예: 잘못된 키)
+    last_error_reason: str = ""  # 마지막 오류 이유 기록
     
     def get_usage_percentage(self) -> float:
         """할당량 사용률 반환"""
@@ -92,6 +95,16 @@ class YouTubeQuotaManager:
         reset_time = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
         return reset_time.astimezone(timezone.utc)
     
+    def _is_key_available(self, index: int) -> bool:
+        usage = self.quota_usage.get(index)
+        if not usage:
+            return False
+        if usage.disabled:
+            return False
+        if usage.is_exceeded():
+            return False
+        return True
+    
     def get_current_api_key(self) -> Optional[str]:
         """현재 사용할 API 키 반환"""
         if not self.api_keys:
@@ -102,20 +115,18 @@ class YouTubeQuotaManager:
             self._check_quota_reset()
             
             # 현재 키가 사용 가능한지 확인
-            current_usage = self.quota_usage.get(self.current_key_index)
-            if current_usage and not current_usage.is_exceeded():
+            if self._is_key_available(self.current_key_index):
                 return self.api_keys[self.current_key_index]
             
             # 사용 가능한 다른 키 찾기
             for i, key in enumerate(self.api_keys):
-                usage = self.quota_usage.get(i)
-                if usage and not usage.is_exceeded():
+                if self._is_key_available(i):
                     self.current_key_index = i
                     logger.info(f"API 키 전환: 인덱스 {i}로 변경")
                     return key
             
-            # 모든 키가 할당량을 초과한 경우
-            logger.warning("모든 API 키의 할당량이 초과되었습니다")
+            # 모든 키가 사용 불가한 경우
+            logger.warning("모든 API 키가 사용 불가 상태입니다(소진/비활성).")
             return None
     
     def record_api_call(self, endpoint: str, success: bool = True, 
@@ -134,6 +145,7 @@ class YouTubeQuotaManager:
                 if success:
                     usage.daily_used += cost
                 usage.last_request_time = now
+                usage.last_error_reason = "" if success else (error_message or usage.last_error_reason)
                 
                 # 경고 레벨 체크
                 if usage.is_warning_level() and not usage.is_exceeded():
@@ -159,46 +171,67 @@ class YouTubeQuotaManager:
     def switch_to_next_key(self) -> Optional[str]:
         """다음 사용 가능한 API 키로 전환"""
         with self.lock:
-            # 현재 키를 할당량 초과로 표시
+            # 현재 키 상태 로그
             if self.current_key_index in self.quota_usage:
                 current_usage = self.quota_usage[self.current_key_index]
-                logger.warning(f"API 키 {self.current_key_index} 할당량 초과 - "
-                             f"사용량: {current_usage.daily_used}/{current_usage.daily_limit}")
+                status = []
+                if current_usage.is_exceeded():
+                    status.append("소진")
+                if current_usage.disabled:
+                    status.append("비활성")
+                status_str = "/".join(status) if status else "사용 가능"
+                logger.warning(
+                    f"API 키 {self.current_key_index} 전환 - 상태: {status_str} - "
+                    f"사용량: {current_usage.daily_used}/{current_usage.daily_limit}"
+                )
             
             # 다음 사용 가능한 키 찾기
             start_index = self.current_key_index
             for _ in range(len(self.api_keys)):
                 self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
-                usage = self.quota_usage.get(self.current_key_index)
-                
-                if usage and not usage.is_exceeded():
+                if self._is_key_available(self.current_key_index):
                     new_key = self.api_keys[self.current_key_index]
                     logger.info(f"API 키 전환 성공: 인덱스 {self.current_key_index}")
                     return new_key
                     
-            # 모든 키가 소진된 경우
+            # 모든 키가 소진/비활성인 경우
             logger.error("사용 가능한 API 키가 없습니다")
             return None
     
     def handle_quota_error(self, error_message: str, endpoint: str = "") -> Tuple[QuotaErrorType, str]:
         """할당량 오류 처리 및 분석"""
-        error_lower = error_message.lower()
+        error_lower = (error_message or "").lower()
         
         # 할당량 초과 기록
         self.record_api_call(endpoint, success=False, error_message=error_message)
         
-        # 오류 유형 분석
-        if 'quotaexceeded' in error_lower or ('quota' in error_lower and 'exceeded' in error_lower):
+        # 오류 유형 분석 (googleapiclient HttpError 메시지 패턴 고려)
+        # 대표 코드: quotaExceeded, dailyLimitExceeded, rateLimitExceeded, keyInvalid
+        if any(k in error_lower for k in ['quotaexceeded', 'dailylimitexceeded']):
             error_type = QuotaErrorType.DAILY_QUOTA_EXCEEDED
-        elif any(keyword in error_lower for keyword in ['quota', 'exceeded']):
-            if 'daily' in error_lower or 'per day' in error_lower:
-                error_type = QuotaErrorType.DAILY_QUOTA_EXCEEDED
-            else:
-                error_type = QuotaErrorType.RATE_LIMIT_EXCEEDED
-        elif any(keyword in error_lower for keyword in ['invalid', 'forbidden', '403']):
+        elif 'ratelimitexceeded' in error_lower or (
+            'quota' in error_lower and 'exceeded' in error_lower and 'daily' not in error_lower
+        ):
+            error_type = QuotaErrorType.RATE_LIMIT_EXCEEDED
+        elif any(k in error_lower for k in ['keyinvalid', 'api key not valid', 'api key not valid.', 'invalid key', 'invalid', 'forbidden', '403']):
             error_type = QuotaErrorType.API_KEY_INVALID
         else:
             error_type = QuotaErrorType.UNKNOWN_ERROR
+        
+        # 현재 키 상태 갱신 (유형별 조치)
+        with self.lock:
+            usage = self.quota_usage.get(self.current_key_index)
+            if usage:
+                usage.last_error_reason = error_type.value
+                if error_type == QuotaErrorType.DAILY_QUOTA_EXCEEDED:
+                    # 당일 키 소진 처리하여 재선택 방지
+                    usage.daily_used = usage.daily_limit
+                elif error_type == QuotaErrorType.API_KEY_INVALID:
+                    # 잘못된 키는 비활성화 처리
+                    usage.disabled = True
+                elif error_type == QuotaErrorType.RATE_LIMIT_EXCEEDED:
+                    # 속도 제한은 일시적인 문제 → 바로 전환할 수 있도록만 기록
+                    pass
         
         # 한국어 오류 메시지 생성
         user_message = self._generate_korean_error_message(error_type)
@@ -257,6 +290,9 @@ class YouTubeQuotaManager:
                 usage.daily_used = 0
                 usage.reset_time = self._get_next_reset_time()
                 usage.rate_limit_remaining = 100
+                # 리셋 시 비활성 상태 해제 (키가 다시 유효해졌을 수 있음은 제외: invalid는 유지)
+                if usage.last_error_reason == QuotaErrorType.DAILY_QUOTA_EXCEEDED.value:
+                    usage.disabled = False
                 
                 logger.info(f"API 키 {key_index} 할당량 리셋: {old_usage} -> 0")
     
@@ -281,6 +317,8 @@ class YouTubeQuotaManager:
                     'usage_percentage': round(usage.get_usage_percentage(), 2),
                     'is_exceeded': usage.is_exceeded(),
                     'is_warning': usage.is_warning_level(),
+                    'disabled': usage.disabled,
+                    'last_error_reason': usage.last_error_reason,
                     'reset_time': usage.reset_time.isoformat() if usage.reset_time else None
                 }
                 status['keys_status'].append(key_status)
