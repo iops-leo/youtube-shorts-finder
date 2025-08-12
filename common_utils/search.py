@@ -246,7 +246,7 @@ def execute_youtube_api_call(api_call_func, endpoint_name, max_retries=3):
                     # 다른 키로 전환 시도
                     next_key = quota_manager.switch_to_next_key()
                     if next_key and attempt < max_retries - 1:
-                    print(f"🔄 [{endpoint_name}] API 키 전환({_key_preview(next_key)}) 후 재시도 ({attempt + 1}/{max_retries})")
+                        print(f"🔄 [{endpoint_name}] API 키 전환({_key_preview(next_key)}) 후 재시도 ({attempt + 1}/{max_retries})")
                         continue
                     else:
                         # 더 이상 시도할 수 없는 경우
@@ -255,7 +255,7 @@ def execute_youtube_api_call(api_call_func, endpoint_name, max_retries=3):
                     # 기존 로직 (호환성)
                     next_key = switch_to_next_api_key()
                     if next_key and attempt < max_retries - 1:
-                    print(f"🔄 [{endpoint_name}] API 키 전환 후 재시도 ({attempt + 1}/{max_retries})")
+                        print(f"🔄 [{endpoint_name}] API 키 전환 후 재시도 ({attempt + 1}/{max_retries})")
                         continue
                     else:
                         raise Exception("모든 YouTube API 키의 할당량이 초과되었습니다.")
@@ -625,18 +625,16 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=20,
                         break
 
         # 최신순 기준 정렬 후 전체에서 max_results개 자르기
-        all_filtered_videos.sort(
-            key=lambda x: datetime.strptime(x['publishedAt'], "%Y-%m-%dT%H:%M:%SZ"),
-            reverse=True
-        )
-        # 모든 키 소진 상태에서 결과가 없다면 예외로 상위에 알림
+        all_filtered_videos.sort(key=lambda x: datetime.strptime(x['publishedAt'], "%Y-%m-%dT%H:%M:%SZ"), reverse=True)
+        
         if all_api_keys_exhausted and len(all_filtered_videos) == 0:
             raise Exception("모든 YouTube API 키의 할당량이 초과되었습니다.")
-        return all_filtered_videos
-
-    else:
-        # 키워드 기반 검색으로 fallback (여기도 API 키 소진 관리 필요)
-        # 모든 API 키가 이미 소진된 경우 빈 결과 반환
+        
+        return all_filtered_videos[:max_results]
+    
+    # 채널이 없고 키워드만 있는 경우 키워드 기반 검색으로 전환
+    if keyword:
+        print("🔍 채널이 지정되지 않아 키워드 기반 검색으로 전환합니다.")
         if all_api_keys_exhausted:
             print("모든 API 키가 소진되어 키워드 검색을 건너뜁니다.")
             raise Exception("모든 YouTube API 키의 할당량이 초과되었습니다.")
@@ -651,4 +649,5 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=20,
             keyword=keyword
         )
     
-# perform_search는 기존 그대로 유지합니다(내부에서 전환 로직이 포함되어 있음).
+    # 채널도 키워드도 없는 경우
+    return []
