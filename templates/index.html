@@ -177,23 +177,26 @@
                                                 <label for="min_views" class="form-label">
                                                     <i class="fas fa-eye me-1"></i>최소 조회수
                                                 </label>
-                                                <input type="number" class="form-control" id="min_views" name="min_views" value="100000" min="1000">
+                                                <input type="number" class="form-control" id="min_views" name="min_views" value="100000" min="100000">
                                             </div>
                                             <div class="col-md-6">
                                                 <label for="days_ago" class="form-label">
                                                     <i class="far fa-calendar-alt me-1"></i>최근 기간 (일)
                                                 </label>
-                                                <input type="number" class="form-control" id="days_ago" name="days_ago" value="5" min="1" max="30">
+                                                <input type="number" class="form-control" id="days_ago" name="days_ago" value="5" min="1" max="5">
                                             </div>
                                             <div class="col-md-6">
                                                 <label for="category_id" class="form-label">
-                                                    <i class="fas fa-tag me-1"></i>카테고리
+                                                    <i class="fas fa-tag me-1"></i>카테고리 <small class="text-muted">(키워드 검색 전용)</small>
                                                 </label>
                                                 <select class="form-select" id="category_id" name="category_id">
                                                     {% for category in categories %}
                                                     <option value="{{ category.id }}">{{ category.name }}</option>
                                                     {% endfor %}
                                                 </select>
+                                                <div class="form-text text-muted">
+                                                    <small><i class="fas fa-info-circle me-1"></i>채널 검색 시에는 적용되지 않습니다.</small>
+                                                </div>
                                             </div>
                                             <div class="col-md-6">
                                                 <label for="region_code" class="form-label">
@@ -208,30 +211,35 @@
                                             </div>
                                             <div class="col-md-6">
                                                 <label for="language" class="form-label">
-                                                    <i class="fas fa-language me-1"></i>언어
+                                                    <i class="fas fa-language me-1"></i>언어 <small class="text-muted">(키워드 검색 전용)</small>
                                                 </label>
                                                 <select class="form-select" id="language" name="language">
                                                     {% for lang in languages %}
                                                     <option value="{{ lang.code }}" {% if lang.code == selected_language %}selected{% endif %}>{{ lang.name }}</option>
                                                     {% endfor %}
                                                 </select>
+                                                <div class="form-text text-muted">
+                                                    <small><i class="fas fa-info-circle me-1"></i>채널 검색 시에는 적용되지 않습니다.</small>
+                                                </div>
                                             </div>
                                             <div class="col-md-6">
                                                 <label for="max_results" class="form-label">
                                                     <i class="fas fa-list-ol me-1"></i>채널당 최대 검색 수
                                                 </label>
-                                                <input type="number" class="form-control" id="max_results" name="max_results" value="20" min="1" max="500">
+                                                <input type="number" class="form-control" id="max_results" name="max_results" value="20" min="1" max="20">
                                                 <div class="form-text text-muted">
-                                                    <small>채널별 검색은 최대 20개까지 검색됩니다. 결과가 많을수록 시간이 오래 걸립니다.</small>
+                                                    <small>채널별 검색은 최대 20개까지 검색됩니다.</small>
                                                 </div>
                                             </div>
                                             <div class="col-md-12">
                                                 <label for="keyword" class="form-label">
-                                                    <i class="fas fa-key me-1"></i>키워드
+                                                    <i class="fas fa-key me-1"></i>키워드 <small class="text-muted">(선택사항, 채널 미선택 시 필수)</small>
                                                 </label>
                                                 <input type="text" class="form-control" id="keyword" name="keyword" placeholder="검색할 키워드 (콤마로 구분하여 여러 키워드 입력 가능)">
                                                 <div class="form-text text-muted">
-                                                    <small>여러 키워드는 콤마(,)로 구분하세요. 예: 축구,농구,야구</small>
+                                                    <small>
+                                                        <i class="fas fa-info-circle me-1"></i>채널이 선택되지 않은 경우 키워드가 필수입니다. 예: 축구,농구,야구
+                                                    </small>
                                                 </div>
                                             </div>
 
@@ -249,7 +257,7 @@
                                             <!-- 채널 검색 영역 -->
                                             <div class="col-md-12">
                                                 <label for="channel_search" class="form-label">
-                                                    <i class="fas fa-user-circle me-1"></i>채널 검색 (최대 50개 추가 가능)
+                                                    <i class="fas fa-user-circle me-1"></i>채널 검색 (최대 20개 추가 가능)
                                                 </label>
                                                 <div class="position-relative">
                                                     <input type="text" class="form-control" id="channel_search" placeholder="채널 이름으로 검색" autocomplete="off">

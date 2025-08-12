@@ -280,10 +280,11 @@ def execute_youtube_api_call(api_call_func, endpoint_name, max_retries=3):
 # 이하의 고수준 검색 함수들에서는 quota_manager가 있는 경우 그 로직을 우선 사용하고,
 # 호환성 블록은 그대로 유지합니다.
 
-def search_by_keyword_based_shorts(min_views, days_ago, max_results,
-                                   category_id, region_code, language, keyword):
+def search_by_keyword_based_shorts(min_views=100000, days_ago=5, max_results=20,
+                                   category_id=None, region_code="KR", language=None, keyword=None):
     """
     키워드 기반 영상 검색 - API 키 순환 로직 강화
+    제한사항 적용: 최소 조회수 10만, 최대 기간 5일, 최대 20개 결과
     """
     filtered_videos = []
     all_api_keys_exhausted = False  # 모든 API 키 소진 여부 플래그
@@ -308,9 +309,10 @@ def search_by_keyword_based_shorts(min_views, days_ago, max_results,
         if language and language != 'any':
             search_params['relevanceLanguage'] = language
 
-        # 보안: 검색 파라미터에서 API 키 제거
+        # 보안: 검색 파라미터에서 API 키 제거 및 제한 반영
         safe_params = {k: v for k, v in search_params.items() if k != 'key' and 'api' not in k.lower()}
         print(f"🔍 [키워드 검색] 조건: {safe_params}")
+        print(f"⚙️ [제한사항] 최소조회수: {min_views:,}, 기간: {days_ago}일, 최대결과: {max_results}개")
         all_video_ids = []
         next_page_token = None
 
@@ -456,11 +458,12 @@ def search_by_keyword_based_shorts(min_views, days_ago, max_results,
         # 상위에서 구분 처리할 수 있도록 예외 그대로 전파
         raise
 
-def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
+def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=20,
                              category_id=None, region_code="KR", language=None,
                              channel_ids=None, keyword=None):
     """
     채널 ID 기반 최신 쇼츠 수집 방식 - API 키 순환 로직 강화
+    제한사항 적용: 최소 조회수 10만, 최대 기간 5일, 채널당 최대 20개
     """
     all_filtered_videos = []
     all_api_keys_exhausted = False  # 모든 API 키 소진 여부 플래그
@@ -471,7 +474,13 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
         channel_id_list = channel_ids or []
 
     if channel_id_list:
+        # 채널 개수 제한 (20개)
+        if len(channel_id_list) > 20:
+            print(f"⚠️ [채널 개수 제한] {len(channel_id_list)}개 입력 → 20개로 제한")
+            channel_id_list = channel_id_list[:20]
+            
         print(f"📺 총 {len(channel_id_list)}개 채널에서 직접 영상 수집 중...")
+        print(f"⚙️ [제한사항] 최소조회수: {min_views:,}, 기간: {days_ago}일, 채널당 최대: {max_results}개")
         
         # 날짜 필터 설정
         published_after = None
@@ -632,8 +641,14 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
             print("모든 API 키가 소진되어 키워드 검색을 건너뜁니다.")
             raise Exception("모든 YouTube API 키의 할당량이 초과되었습니다.")
             
-        return search_by_keyword_based_shorts(min_views, days_ago, max_results,
-                                             category_id, region_code, language,
-                                             keyword)
+        return search_by_keyword_based_shorts(
+            min_views=min_views, 
+            days_ago=days_ago, 
+            max_results=max_results,
+            category_id=category_id, 
+            region_code=region_code, 
+            language=language,
+            keyword=keyword
+        )
     
 # perform_search는 기존 그대로 유지합니다(내부에서 전환 로직이 포함되어 있음).

@@ -119,6 +119,41 @@ function setupEventListeners() {
     searchForm.addEventListener('submit', function(e) {
         e.preventDefault();
         
+        // 제한사항 검증
+        const minViews = parseInt(document.getElementById('min_views').value) || 100000;
+        const daysAgo = parseInt(document.getElementById('days_ago').value) || 5;
+        const maxResults = parseInt(document.getElementById('max_results').value) || 20;
+        
+        // 최소 조회수 제한 검증
+        if (minViews < 100000) {
+            alert('최소 조회수는 10만 회 이상이어야 합니다.');
+            document.getElementById('min_views').value = 100000;
+            return;
+        }
+        
+        // 최근 기간 제한 검증
+        if (daysAgo < 1 || daysAgo > 5) {
+            alert('최근 기간은 1일에서 5일 사이여야 합니다.');
+            document.getElementById('days_ago').value = Math.min(5, Math.max(1, daysAgo));
+            return;
+        }
+        
+        // 최대 검색 수 제한 검증
+        if (maxResults < 1 || maxResults > 20) {
+            alert('채널당 최대 검색 수는 1개에서 20개 사이여야 합니다.');
+            document.getElementById('max_results').value = Math.min(20, Math.max(1, maxResults));
+            return;
+        }
+        
+        // 채널 및 키워드 검증 (둘 중 하나는 반드시 필요)
+        const keyword = document.getElementById('keyword').value.trim();
+        const hasChannels = selectedChannels.length > 0;
+        
+        if (!hasChannels && !keyword) {
+            alert('채널을 선택하거나 키워드를 입력해주세요.');
+            return;
+        }
+        
         // 초기화
         allResults = [];
         currentPage = 1;
@@ -175,9 +210,9 @@ function addChannel(channel) {
         return;
     }
     
-    // 채널 개수 제한 (최대 50개)
-    if (selectedChannels.length >= 50) {
-        alert('최대 50개까지만 채널을 추가할 수 있습니다.');
+    // 채널 개수 제한 (최대 20개)
+    if (selectedChannels.length >= 20) {
+        alert('최대 20개까지만 채널을 추가할 수 있습니다.');
         return;
     }
     

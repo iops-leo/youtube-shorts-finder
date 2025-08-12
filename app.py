@@ -710,11 +710,11 @@ def search():
     try:
         data = request.form
         
-        # 파라미터 파싱
+        # 파라미터 파싱 및 제한 적용
         params = {
-            'min_views': int(data.get('min_views', '100000')),
-            'days_ago': int(data.get('days_ago', 5)),
-            'max_results': int(data.get('max_results', 300)),
+            'min_views': max(100000, int(data.get('min_views', '100000'))),  # 최소 10만 조회수
+            'days_ago': min(5, max(1, int(data.get('days_ago', 5)))),  # 최대 5일, 최소 1일
+            'max_results': min(20, max(1, int(data.get('max_results', 20)))),  # 최대 20개
             'category_id': data.get('category_id') if data.get('category_id') != 'any' else None,
             'region_code': data.get('region_code'),
             'language': data.get('language') if data.get('language') != 'any' else None,
