@@ -37,6 +37,8 @@ from sqlalchemy import text
 # 공통 기능 임포트
 from common_utils.search import get_recent_popular_shorts, get_cache_key, save_to_cache, get_from_cache
 from common_utils.search import api_keys, switch_to_next_api_key, get_youtube_api_service, get_cache_stats, get_api_key_info
+from common_utils.quota_manager import get_quota_manager
+from common_utils.quota_monitoring import get_quota_monitor, initialize_quota_monitor
 from models import db, EmailNotification, NotificationSearch, User, ChannelCategory, Channel, CategoryChannel, SearchPreference, SearchHistory, ApiLog, SavedVideo
 
 cache = {}
@@ -101,6 +103,9 @@ file_handler.setLevel(logging.INFO)
 app.logger.addHandler(file_handler)
 app.logger.setLevel(logging.INFO)
 app.logger.info('애플리케이션 시작')
+
+# 할당량 모니터링 시스템 초기화
+initialize_quota_monitor(app.config)
 
 # 로그인 매니저 설정
 login_manager = LoginManager()
@@ -509,6 +514,174 @@ def admin_stats():
                          daily_stats=daily_stats,
                          user_stats=user_stats,
                          endpoint_stats=endpoint_stats)
+
+# ===================== YouTube API 할당량 관리 API =====================
+
+@app.route('/admin/quota/status')
+@login_required
+def admin_quota_status():
+    """관리자용 할당량 현황 API"""
+    if not current_user.is_admin():
+        return jsonify({"status": "error", "message": "관리자 권한이 필요합니다."})
+    
+    try:
+        quota_manager = get_quota_manager()
+        quota_monitor = get_quota_monitor()
+        
+        if not quota_manager:
+            return jsonify({"status": "error", "message": "할당량 관리자가 초기화되지 않았습니다."})
+        
+        # 현재 할당량 상태
+        quota_status = quota_manager.get_quota_status()
+        
+        # 사용량 통계 (최근 24시간)
+        usage_stats = quota_manager.get_usage_statistics(hours=24)
+        
+        # 최근 알림 정보
+        alerts_summary = quota_monitor.get_alerts_summary(hours=24) if quota_monitor else {}
+        
+        # 응답 데이터 구성
+        response_data = {
+            "status": "success",
+            "quota_status": quota_status,
+            "usage_stats": usage_stats,
+            "alerts_summary": alerts_summary,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        app.logger.error(f"할당량 상태 조회 오류: {str(e)}")
+        return jsonify({"status": "error", "message": "할당량 상태를 조회할 수 없습니다."})
+
+@app.route('/admin/quota/usage/<int:hours>')
+@login_required  
+def admin_quota_usage(hours):
+    """관리자용 할당량 사용량 통계 API"""
+    if not current_user.is_admin():
+        return jsonify({"status": "error", "message": "관리자 권한이 필요합니다."})
+    
+    try:
+        quota_manager = get_quota_manager()
+        if not quota_manager:
+            return jsonify({"status": "error", "message": "할당량 관리자가 초기화되지 않았습니다."})
+        
+        # 시간 범위 제한 (최대 7일)
+        hours = min(hours, 168)
+        
+        usage_stats = quota_manager.get_usage_statistics(hours=hours)
+        
+        return jsonify({
+            "status": "success",
+            "usage_stats": usage_stats,
+            "period_hours": hours,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        app.logger.error(f"할당량 사용량 조회 오류: {str(e)}")
+        return jsonify({"status": "error", "message": "사용량 통계를 조회할 수 없습니다."})
+
+@app.route('/admin/quota/alerts')
+@login_required
+def admin_quota_alerts():
+    """관리자용 할당량 알림 내역 API"""
+    if not current_user.is_admin():
+        return jsonify({"status": "error", "message": "관리자 권한이 필요합니다."})
+    
+    try:
+        quota_monitor = get_quota_monitor()
+        if not quota_monitor:
+            return jsonify({"status": "error", "message": "할당량 모니터가 초기화되지 않았습니다."})
+        
+        hours = request.args.get('hours', 24, type=int)
+        hours = min(hours, 168)  # 최대 7일
+        
+        alerts_summary = quota_monitor.get_alerts_summary(hours=hours)
+        
+        return jsonify({
+            "status": "success",
+            "alerts_summary": alerts_summary,
+            "period_hours": hours,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        app.logger.error(f"할당량 알림 조회 오류: {str(e)}")
+        return jsonify({"status": "error", "message": "알림 내역을 조회할 수 없습니다."})
+
+@app.route('/admin/quota/check', methods=['POST'])
+@login_required
+def admin_quota_check():
+    """관리자용 할당량 상태 수동 체크 API"""
+    if not current_user.is_admin():
+        return jsonify({"status": "error", "message": "관리자 권한이 필요합니다."})
+    
+    try:
+        quota_manager = get_quota_manager()
+        quota_monitor = get_quota_monitor()
+        
+        if not quota_manager or not quota_monitor:
+            return jsonify({"status": "error", "message": "할당량 시스템이 초기화되지 않았습니다."})
+        
+        # 할당량 상태 수동 체크
+        quota_monitor.check_quota_status(quota_manager)
+        
+        app.logger.info(f"관리자 {current_user.email}가 할당량 상태를 수동으로 체크했습니다.")
+        
+        return jsonify({
+            "status": "success",
+            "message": "할당량 상태 체크가 완료되었습니다.",
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        app.logger.error(f"할당량 수동 체크 오류: {str(e)}")
+        return jsonify({"status": "error", "message": "할당량 체크 중 오류가 발생했습니다."})
+
+@app.route('/api/quota/info')
+@login_required
+def api_quota_info():
+    """사용자용 할당량 정보 API (간단한 정보만)"""
+    try:
+        quota_manager = get_quota_manager()
+        if not quota_manager:
+            return jsonify({"status": "error", "message": "할당량 정보를 조회할 수 없습니다."})
+        
+        quota_status = quota_manager.get_quota_status()
+        
+        # 사용자에게는 전체적인 상태만 제공
+        user_info = {
+            "total_keys": quota_status['total_keys'],
+            "overall_status": "normal",  # 기본값
+            "message": "API 서비스가 정상 작동 중입니다."
+        }
+        
+        # 모든 키가 경고 수준 이상인지 확인
+        warning_keys = sum(1 for key_status in quota_status['keys_status'] 
+                          if key_status['usage_percentage'] >= 90)
+        exceeded_keys = sum(1 for key_status in quota_status['keys_status'] 
+                           if key_status['is_exceeded'])
+        
+        if exceeded_keys > 0:
+            user_info['overall_status'] = "limited"
+            user_info['message'] = "일부 API 서비스에 제한이 있을 수 있습니다. 잠시 후 다시 시도해주세요."
+        elif warning_keys >= len(quota_status['keys_status']) // 2:
+            user_info['overall_status'] = "warning" 
+            user_info['message'] = "API 사용량이 증가했습니다. 서비스 속도가 일시적으로 느려질 수 있습니다."
+        
+        return jsonify({
+            "status": "success",
+            "quota_info": user_info,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        app.logger.error(f"사용자 할당량 정보 조회 오류: {str(e)}")
+        return jsonify({"status": "error", "message": "할당량 정보를 조회할 수 없습니다."})
+
+# ===================== 할당량 관리 API 끝 =====================
 
 # 정적 파일 경로 설정
 app.static_folder = 'static'

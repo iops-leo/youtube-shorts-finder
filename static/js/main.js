@@ -453,18 +453,41 @@ function performSearch(form) {
             renderResults();
         } 
         else if (data.status === 'quota_exceeded') {
-            // API 쿼터 제한 오류 표시
+            // API 할당량 초과 오류 표시 (개선된 버전)
             document.getElementById('resultsHeader').style.display = 'block';
             document.getElementById('resultCount').textContent = '0';
+            
+            // 백엔드에서 전달된 사용자 친화적 메시지 사용
+            const userMessage = data.user_message || 'YouTube API 일일 할당량이 초과되었습니다.';
+            
             document.getElementById('results').innerHTML = `
                 <div class="col-12">
-                    <div class="alert alert-danger">
-                        <h5 class="mb-2"><i class="fas fa-exclamation-circle me-2"></i>YouTube API 할당량 초과</h5>
-                        <p class="mb-2">YouTube API 일일 할당량이 초과되었습니다. 내일 다시 시도해주세요.</p>
-                        <p class="mb-0 small text-muted">
-                            <i class="fas fa-info-circle me-1"></i>YouTube Data API는 프로젝트당 하루 일정량의 사용만 허용합니다. 
-                            일일 할당량은 미국 태평양 시간(PST) 자정에 리셋됩니다.
-                        </p>
+                    <div class="alert alert-warning border-0 shadow-sm">
+                        <div class="d-flex align-items-start">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-clock text-warning fs-4 me-3"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h5 class="alert-heading mb-2">🚨 YouTube API 할당량 일시 소진</h5>
+                                <p class="mb-2">${userMessage}</p>
+                                <div class="mb-3 p-3 bg-light rounded">
+                                    <h6 class="mb-2"><i class="fas fa-info-circle text-primary me-1"></i> 할당량 정보</h6>
+                                    <ul class="mb-0 small">
+                                        <li><strong>리셋 시간:</strong> 매일 한국시간 오전 9시 (PST 자정)</li>
+                                        <li><strong>대안:</strong> 잠시 후 다시 시도하거나 내일 이용해주세요</li>
+                                        <li><strong>팁:</strong> 검색 조건을 더 구체적으로 설정하면 효율적입니다</li>
+                                    </ul>
+                                </div>
+                                <div class="mt-3">
+                                    <button type="button" class="btn btn-outline-primary btn-sm me-2" onclick="checkQuotaStatus()">
+                                        <i class="fas fa-sync-alt me-1"></i> 할당량 상태 확인
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+                                        <i class="fas fa-redo me-1"></i> 페이지 새로고침
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;
@@ -1313,4 +1336,63 @@ function showToast(message, type = 'info') {
     toast.addEventListener('hidden.bs.toast', () => {
         toastContainer.remove();
     });
+}
+
+// 할당량 상태 확인 함수
+function checkQuotaStatus() {
+    const button = event.target;
+    const originalText = button.innerHTML;
+    
+    // 버튼 상태 변경
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 확인 중...';
+    
+    fetch('/api/quota/info')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const quotaInfo = data.quota_info;
+                let statusMessage = '';
+                let alertClass = 'alert-info';
+                
+                if (quotaInfo.has_available_keys) {
+                    statusMessage = `현재 사용 가능한 API 키가 ${quotaInfo.available_keys}개 있습니다.`;
+                    alertClass = 'alert-success';
+                } else {
+                    statusMessage = '모든 API 키의 할당량이 소진되었습니다. 내일 다시 시도해주세요.';
+                    alertClass = 'alert-warning';
+                }
+                
+                // 상태 정보를 결과 영역에 표시
+                const statusHtml = `
+                    <div class="col-12 mb-3">
+                        <div class="alert ${alertClass} border-0 shadow-sm">
+                            <h6 class="mb-2"><i class="fas fa-info-circle me-1"></i> 할당량 상태</h6>
+                            <p class="mb-2">${statusMessage}</p>
+                            <div class="small">
+                                <div class="mb-1"><strong>전체 API 키:</strong> ${quotaInfo.total_keys}개</div>
+                                <div class="mb-1"><strong>사용 가능한 키:</strong> ${quotaInfo.available_keys}개</div>
+                                <div><strong>확인 시간:</strong> ${new Date().toLocaleString('ko-KR')}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                const resultsContainer = document.getElementById('results');
+                resultsContainer.insertAdjacentHTML('afterbegin', statusHtml);
+                
+                showToast('할당량 상태가 업데이트되었습니다.', 'info');
+            } else {
+                showToast('할당량 상태 확인 중 오류가 발생했습니다.', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('할당량 상태 확인 오류:', error);
+            showToast('할당량 상태 확인 중 네트워크 오류가 발생했습니다.', 'danger');
+        })
+        .finally(() => {
+            // 버튼 상태 복원
+            button.disabled = false;
+            button.innerHTML = originalText;
+        });
 }

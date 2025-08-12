@@ -8,10 +8,7 @@ import isodate
 import pytz
 from datetime import datetime, timedelta
 from deep_translator import GoogleTranslator
-
-# 콤마로 구분된 API 키들을 리스트로 변환
-api_keys = []
-api_key_str = os.environ.get('YOUTUBE_API_KEY', '')
+from .quota_manager import initialize_quota_manager, get_quota_manager, QuotaErrorType
 
 # 캐시 설정 (API 호출 결과를 메모리에 저장)
 CACHE_TIMEOUT = 28800  # 캐시 유효시간 (초)
@@ -20,23 +17,35 @@ cache = {}
 # 번역 캐시 설정
 translation_cache = {}
 
-if api_key_str:
-    api_keys = [key.strip() for key in api_key_str.split(',') if key.strip()]
-    print(f"{len(api_keys)}개의 API 키가 로드되었습니다.")
-else:
-    print("경고: YOUTUBE_API_KEY 환경 변수가 설정되지 않았습니다.")
+# 할당량 관리자 초기화
+api_key_str = os.environ.get('YOUTUBE_API_KEY', '')
+quota_manager = initialize_quota_manager(api_key_str, daily_limit=10000)
 
-# 현재 사용 중인 API 키 인덱스
+# 호환성을 위한 기존 변수들
+api_keys = quota_manager.api_keys if quota_manager else []
 current_key_index = 0
+
+if quota_manager:
+    print(f"향상된 할당량 관리자로 {len(api_keys)}개의 API 키가 로드되었습니다.")
+else:
+    print("경고: YOUTUBE_API_KEY 환경 변수가 설정되지 않았거나 할당량 관리자 초기화에 실패했습니다.")
 
 def get_current_api_key():
     """현재 사용할 API 키 반환"""
-    if not api_keys:
-        return None
-    return api_keys[current_key_index]
+    if quota_manager:
+        return quota_manager.get_current_api_key()
+    return api_keys[current_key_index] if api_keys else None
 
 def get_api_key_info():
     """API 키 정보 반환"""
+    if quota_manager:
+        status = quota_manager.get_quota_status()
+        return {
+            'total_keys': status['total_keys'],
+            'current_key_index': status['current_key_index'],
+            'current_key_preview': f"키{status['current_key_index'] + 1}" if status['current_key_index'] is not None else None,
+            'quota_status': status
+        }
     return {
         'total_keys': len(api_keys),
         'current_key_index': current_key_index if api_keys else None,
@@ -45,11 +54,17 @@ def get_api_key_info():
 
 def switch_to_next_api_key():
     """다음 API 키로 전환"""
+    if quota_manager:
+        new_key = quota_manager.switch_to_next_key()
+        if new_key:
+            print(f"할당량 관리자: 다음 API 키로 전환 완료")
+        return new_key
+    
+    # 기존 로직 (호환성 유지)
     global current_key_index
     if not api_keys:
         return None
         
-    # 다음 키 인덱스로 전환 (순환)
     current_key_index = (current_key_index + 1) % len(api_keys)
     new_key = get_current_api_key()
     print(f"API 키 전환: 인덱스 {current_key_index}의 키로 변경됨")
@@ -143,6 +158,11 @@ def get_youtube_api_service():
     """YouTube API 서비스 인스턴스 생성 (키 오류 시 다음 키로 전환)"""
     api_key = get_current_api_key()
     if not api_key:
+        if quota_manager:
+            error_type, user_message = quota_manager.handle_quota_error(
+                "모든 API 키의 할당량이 초과되었습니다", "get_service"
+            )
+            raise Exception(user_message)
         raise Exception("사용 가능한 YouTube API 키가 없습니다.")
         
     try:
@@ -150,14 +170,92 @@ def get_youtube_api_service():
         return youtube
     except Exception as e:
         error_str = str(e).lower()
-        if 'quota' in error_str or 'exceeded' in error_str:
-            # 할당량 초과 시 다음 키로 전환
+        if quota_manager and ('quota' in error_str or 'exceeded' in error_str):
+            # 할당량 관리자를 통한 오류 처리
+            error_type, user_message = quota_manager.handle_quota_error(str(e), "get_service")
+            next_api_key = quota_manager.switch_to_next_key()
+            if next_api_key:
+                print(f"할당량 초과로 다음 API 키로 전환합니다.")
+                return googleapiclient.discovery.build("youtube", "v3", developerKey=next_api_key)
+            else:
+                raise Exception(user_message)
+        elif 'quota' in error_str or 'exceeded' in error_str:
+            # 기존 로직 (호환성)
             next_api_key = switch_to_next_api_key()
             if next_api_key:
                 print(f"할당량 초과로 다음 API 키로 전환합니다.")
                 return googleapiclient.discovery.build("youtube", "v3", developerKey=next_api_key)
         # 다른 오류는 그대로 전파
         raise
+
+def execute_youtube_api_call(api_call_func, endpoint_name, max_retries=3):
+    """
+    YouTube API 호출을 실행하고 할당량을 추적하는 헬퍼 함수
+    
+    Args:
+        api_call_func: 실행할 API 호출 함수
+        endpoint_name: API 엔드포인트 이름 (예: 'search.list')
+        max_retries: 최대 재시도 횟수
+    
+    Returns:
+        API 응답 결과
+    
+    Raises:
+        Exception: API 호출 실패 시
+    """
+    for attempt in range(max_retries):
+        try:
+            # API 호출 실행
+            result = api_call_func()
+            
+            # 성공한 경우 할당량 기록
+            if quota_manager:
+                quota_manager.record_api_call(endpoint_name, success=True)
+            
+            return result
+            
+        except Exception as e:
+            error_str = str(e).lower()
+            
+            # 할당량 관련 오류인지 확인
+            if 'quota' in error_str or 'exceeded' in error_str:
+                if quota_manager:
+                    # 할당량 관리자를 통한 오류 처리
+                    error_type, user_message = quota_manager.handle_quota_error(str(e), endpoint_name)
+                    
+                    # 다른 키로 전환 시도
+                    next_key = quota_manager.switch_to_next_key()
+                    if next_key and attempt < max_retries - 1:
+                        print(f"[{endpoint_name}] API 키 전환 후 재시도 ({attempt + 1}/{max_retries})")
+                        continue
+                    else:
+                        # 더 이상 시도할 수 없는 경우
+                        raise Exception(user_message)
+                else:
+                    # 기존 로직 (호환성)
+                    next_key = switch_to_next_api_key()
+                    if next_key and attempt < max_retries - 1:
+                        print(f"[{endpoint_name}] API 키 전환 후 재시도 ({attempt + 1}/{max_retries})")
+                        continue
+                    else:
+                        raise Exception("모든 YouTube API 키의 할당량이 초과되었습니다.")
+            else:
+                # 할당량 외 다른 오류
+                if quota_manager:
+                    quota_manager.record_api_call(endpoint_name, success=False, error_message=str(e))
+                
+                # 재시도 가능한 오류인지 확인 (네트워크 오류 등)
+                if any(keyword in error_str for keyword in ['timeout', 'connection', 'network']):
+                    if attempt < max_retries - 1:
+                        print(f"[{endpoint_name}] 네트워크 오류로 재시도 ({attempt + 1}/{max_retries})")
+                        time.sleep(1)  # 1초 대기 후 재시도
+                        continue
+                
+                # 재시도 불가능한 오류
+                raise
+    
+    # 모든 재시도 실패
+    raise Exception(f"API 호출 실패: {endpoint_name} (최대 {max_retries}회 재시도 후 실패)")
 
 def search_by_keyword_based_shorts(min_views, days_ago, max_results,
                                    category_id, region_code, language, keyword):
