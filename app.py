@@ -731,12 +731,15 @@ def search():
         error_message = str(e)
         print(f"오류 발생: {e}")
         
-        # YouTube API 할당량 초과 오류 처리
-        if "모든" in error_message and ("할당량" in error_message or "API 키" in error_message):
+        # YouTube API 할당량 초과 오류 처리 (국문/영문 모두 인식)
+        lower_msg = error_message.lower()
+        if ("모든" in error_message and ("할당량" in error_message or "api 키" in error_message)) or \
+           ("quota" in lower_msg and ("exceeded" in lower_msg or "daily" in lower_msg)) or \
+           ("api key not valid" in lower_msg or "forbidden" in lower_msg or "invalid" in lower_msg):
             return jsonify({
                 "status": "quota_exceeded",
-                "message": "모든 YouTube API 키의 할당량이 초과되었습니다.",
-                "user_message": "YouTube API 일일 할당량이 초과되었습니다. 내일 다시 시도해주세요."
+                "message": "모든 YouTube API 키의 할당량이 초과되었거나 사용이 제한되었습니다.",
+                "user_message": "YouTube API 일일 할당량이 소진되었거나 일시적으로 제한되었습니다. 잠시 후 다시 시도해주세요."
             })
         
         return jsonify({"status": "error", "message": error_message})

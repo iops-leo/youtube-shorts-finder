@@ -33,6 +33,15 @@ else:
 def _key_preview(key: str) -> str:
     return f"{key[:8]}..." if key else "(없음)"
 
+def _is_quota_or_key_error(error_str: str) -> bool:
+    # 영문/국문 키워드 모두 인식
+    return (
+        ('quota' in error_str) or ('exceeded' in error_str) or
+        ('invalid' in error_str) or ('forbidden' in error_str) or
+        ('api key not valid' in error_str) or ('daily' in error_str) or
+        ('할당량' in error_str) or ('api 키' in error_str) or ('모든 api 키' in error_str)
+    )
+
 def get_current_api_key():
     """현재 사용할 API 키 반환"""
     if quota_manager:
@@ -165,7 +174,8 @@ def get_youtube_api_service():
             error_type, user_message = quota_manager.handle_quota_error(
                 "모든 API 키의 할당량이 초과되었습니다", "get_service"
             )
-            raise Exception(user_message)
+            # 명시적으로 할당량 관련 에러로 인식되도록 한국어 메시지 그대로 전달
+            raise Exception("모든 YouTube API 키의 할당량이 초과되었습니다.")
         raise Exception("사용 가능한 YouTube API 키가 없습니다.")
         
     try:
@@ -173,7 +183,7 @@ def get_youtube_api_service():
         return youtube
     except Exception as e:
         error_str = str(e).lower()
-        if quota_manager and ('quota' in error_str or 'exceeded' in error_str or 'invalid' in error_str or 'forbidden' in error_str or 'api key not valid' in error_str):
+        if quota_manager and _is_quota_or_key_error(error_str):
             # 할당량 관리자를 통한 오류 처리
             error_type, user_message = quota_manager.handle_quota_error(str(e), "get_service")
             next_api_key = quota_manager.switch_to_next_key()
@@ -182,7 +192,7 @@ def get_youtube_api_service():
                 return googleapiclient.discovery.build("youtube", "v3", developerKey=next_api_key)
             else:
                 raise Exception(user_message)
-        elif 'quota' in error_str or 'exceeded' in error_str:
+        elif _is_quota_or_key_error(error_str):
             # 기존 로직 (호환성)
             next_api_key = switch_to_next_api_key()
             if next_api_key:
@@ -221,7 +231,7 @@ def execute_youtube_api_call(api_call_func, endpoint_name, max_retries=3):
             error_str = str(e).lower()
             
             # 할당량/키 관련 오류인지 확인
-            if 'quota' in error_str or 'exceeded' in error_str or 'invalid' in error_str or 'forbidden' in error_str or 'api key not valid' in error_str:
+            if _is_quota_or_key_error(error_str):
                 if quota_manager:
                     # 할당량 관리자를 통한 오류 처리
                     error_type, user_message = quota_manager.handle_quota_error(str(e), endpoint_name)
@@ -325,7 +335,7 @@ def search_by_keyword_based_shorts(min_views, days_ago, max_results,
                         
                 except Exception as e:
                     error_str = str(e).lower()
-                    if 'quota' in error_str or 'exceeded' in error_str or 'invalid' in error_str or 'forbidden' in error_str or 'api key not valid' in error_str:
+                    if _is_quota_or_key_error(error_str):
                         next_key = quota_manager.switch_to_next_key() if quota_manager else switch_to_next_api_key()
                         if next_key:
                             print(f"[검색 중 할당량/키 오류] 다음 API 키({_key_preview(next_key)})로 전환")
@@ -410,7 +420,7 @@ def search_by_keyword_based_shorts(min_views, days_ago, max_results,
 
                 except Exception as e:
                     error_str = str(e).lower()
-                    if 'quota' in error_str or 'exceeded' in error_str or 'invalid' in error_str or 'forbidden' in error_str or 'api key not valid' in error_str:
+                    if _is_quota_or_key_error(error_str):
                         next_key = quota_manager.switch_to_next_key() if quota_manager else switch_to_next_api_key()
                         if next_key:
                             print(f"[상세 조회 중 할당량/키 오류] 다음 API 키({_key_preview(next_key)})로 전환")
@@ -427,11 +437,15 @@ def search_by_keyword_based_shorts(min_views, days_ago, max_results,
 
         # 최신순 정렬 및 제한
         filtered_videos.sort(key=lambda x: datetime.strptime(x['publishedAt'], "%Y-%m-%dT%H:%M:%SZ"), reverse=True)
+        # 모든 키 소진 상태에서 결과가 없다면 예외로 상위에 알림
+        if all_api_keys_exhausted and len(filtered_videos) == 0:
+            raise Exception("모든 YouTube API 키의 할당량이 초과되었습니다.")
         return filtered_videos[:max_results]
 
     except Exception as e:
         print(f"[키워드 기반 검색 오류] {str(e)}")
-        return []
+        # 상위에서 구분 처리할 수 있도록 예외 그대로 전파
+        raise
 
 def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
                              category_id=None, region_code="KR", language=None,
@@ -554,7 +568,7 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
                     except Exception as e:
                         # 비디오 목록 조회 중 오류
                         error_str = str(e).lower()
-                        if 'quota' in error_str or 'exceeded' in error_str or 'invalid' in error_str or 'forbidden' in error_str or 'api key not valid' in error_str:
+                        if _is_quota_or_key_error(error_str):
                             next_key = quota_manager.switch_to_next_key() if quota_manager else switch_to_next_api_key()
                             if next_key:
                                 print(f"[비디오 조회 중 할당량/키 오류] 채널 {channel_id} - 다음 API 키({_key_preview(next_key)})로 전환")
@@ -573,7 +587,7 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
                 except Exception as e:
                     # 채널 검색 중 오류
                     error_str = str(e).lower()
-                    if 'quota' in error_str or 'exceeded' in error_str or 'invalid' in error_str or 'forbidden' in error_str or 'api key not valid' in error_str:
+                    if _is_quota_or_key_error(error_str):
                         # 상태 반영
                         if quota_manager:
                             quota_manager.handle_quota_error(str(e), 'search.list')
@@ -597,6 +611,9 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
             key=lambda x: datetime.strptime(x['publishedAt'], "%Y-%m-%dT%H:%M:%SZ"),
             reverse=True
         )
+        # 모든 키 소진 상태에서 결과가 없다면 예외로 상위에 알림
+        if all_api_keys_exhausted and len(all_filtered_videos) == 0:
+            raise Exception("모든 YouTube API 키의 할당량이 초과되었습니다.")
         return all_filtered_videos
 
     else:
@@ -604,7 +621,7 @@ def get_recent_popular_shorts(min_views=100000, days_ago=5, max_results=300,
         # 모든 API 키가 이미 소진된 경우 빈 결과 반환
         if all_api_keys_exhausted:
             print("모든 API 키가 소진되어 키워드 검색을 건너뜁니다.")
-            return []
+            raise Exception("모든 YouTube API 키의 할당량이 초과되었습니다.")
             
         return search_by_keyword_based_shorts(min_views, days_ago, max_results,
                                              category_id, region_code, language,

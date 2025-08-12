@@ -719,8 +719,21 @@
         
         // API 오류 응답 처리
         function handleApiResponse(response) {
+            if (response.status === 'quota_exceeded') {
+                document.getElementById('resultsHeader').style.display = 'block';
+                document.getElementById('resultCount').textContent = '0';
+                document.getElementById('results').innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-warning">
+                            <h5 class="mb-1"><i class="fas fa-battery-empty me-2"></i>API 할당량이 소진되었습니다</h5>
+                            <p class="mb-0">${response.user_message || 'YouTube API 일일 할당량이 소진되었습니다. 잠시 후 다시 시도해주세요.'}</p>
+                        </div>
+                    </div>
+                `;
+                return false;
+            }
             if (response.status === 'error') {
-                if (response.message.includes('API 호출 제한')) {
+                if (response.message && response.message.includes('API 호출 제한')) {
                     const apiLimitModal = new bootstrap.Modal(document.getElementById('apiLimitModal'));
                     apiLimitModal.show();
                     return false;
