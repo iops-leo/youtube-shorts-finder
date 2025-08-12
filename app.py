@@ -728,8 +728,18 @@ def search():
             "fromCache": False
         })
     except Exception as e:
+        error_message = str(e)
         print(f"오류 발생: {e}")
-        return jsonify({"status": "error", "message": str(e)})
+        
+        # YouTube API 할당량 초과 오류 처리
+        if "모든" in error_message and ("할당량" in error_message or "API 키" in error_message):
+            return jsonify({
+                "status": "quota_exceeded",
+                "message": "모든 YouTube API 키의 할당량이 초과되었습니다.",
+                "user_message": "YouTube API 일일 할당량이 초과되었습니다. 내일 다시 시도해주세요."
+            })
+        
+        return jsonify({"status": "error", "message": error_message})
 
 
 @app.route('/api/categories', methods=['GET'])
