@@ -119,6 +119,95 @@ def check_and_add_columns(app, db):
                     print("✅ Editor Rate History 테이블 및 인덱스 생성 완료")
                 except Exception as e:
                     print(f"⚠️ Editor Rate History 테이블 생성 실패: {str(e)}")
+
+            # 사용자 API 키 관련 테이블들 확인 및 생성
+            try:
+                print("🔑 사용자 API 키 관련 테이블 마이그레이션 시작...")
+                
+                # 1. user_api_keys 테이블 생성
+                if 'user_api_keys' not in tables:
+                    print("📋 user_api_keys 테이블 생성 중...")
+                    create_user_api_keys_sql = """
+                    CREATE TABLE user_api_keys (
+                        id SERIAL PRIMARY KEY,
+                        user_id VARCHAR(128) NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+                        name VARCHAR(100) NOT NULL,
+                        api_key VARCHAR(256) NOT NULL,
+                        is_active BOOLEAN DEFAULT TRUE,
+                        daily_quota INTEGER DEFAULT 10000,
+                        usage_count INTEGER DEFAULT 0,
+                        last_reset_date DATE DEFAULT CURRENT_DATE,
+                        last_error TEXT,
+                        error_count INTEGER DEFAULT 0,
+                        last_used TIMESTAMP,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    db.session.execute(text(create_user_api_keys_sql))
+                    print("✅ user_api_keys 테이블 생성 완료")
+                else:
+                    print("✅ user_api_keys 테이블이 이미 존재합니다")
+
+                # 2. api_key_usage 테이블 생성
+                if 'api_key_usage' not in tables:
+                    print("📋 api_key_usage 테이블 생성 중...")
+                    create_api_key_usage_sql = """
+                    CREATE TABLE api_key_usage (
+                        id SERIAL PRIMARY KEY,
+                        api_key_id INTEGER NOT NULL REFERENCES user_api_keys(id) ON DELETE CASCADE,
+                        user_id VARCHAR(128) NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+                        endpoint VARCHAR(50) NOT NULL,
+                        quota_cost INTEGER DEFAULT 1,
+                        success BOOLEAN DEFAULT TRUE,
+                        error_message TEXT,
+                        response_time REAL,
+                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    db.session.execute(text(create_api_key_usage_sql))
+                    print("✅ api_key_usage 테이블 생성 완료")
+                else:
+                    print("✅ api_key_usage 테이블이 이미 존재합니다")
+
+                # 3. api_key_rotations 테이블 생성
+                if 'api_key_rotations' not in tables:
+                    print("📋 api_key_rotations 테이블 생성 중...")
+                    create_api_key_rotations_sql = """
+                    CREATE TABLE api_key_rotations (
+                        id SERIAL PRIMARY KEY,
+                        user_id VARCHAR(128) NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+                        from_key_id INTEGER REFERENCES user_api_keys(id) ON DELETE SET NULL,
+                        to_key_id INTEGER REFERENCES user_api_keys(id) ON DELETE SET NULL,
+                        reason VARCHAR(100),
+                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    db.session.execute(text(create_api_key_rotations_sql))
+                    print("✅ api_key_rotations 테이블 생성 완료")
+                else:
+                    print("✅ api_key_rotations 테이블이 이미 존재합니다")
+
+                # 인덱스 생성
+                user_api_indexes = [
+                    "CREATE INDEX IF NOT EXISTS idx_user_active ON user_api_keys (user_id, is_active)",
+                    "CREATE INDEX IF NOT EXISTS idx_user_reset_date ON user_api_keys (user_id, last_reset_date)",
+                    "CREATE INDEX IF NOT EXISTS idx_api_key_timestamp ON api_key_usage (api_key_id, timestamp)",
+                    "CREATE INDEX IF NOT EXISTS idx_user_api_timestamp ON api_key_usage (user_id, timestamp)"
+                ]
+                
+                for idx_sql in user_api_indexes:
+                    try:
+                        db.session.execute(text(idx_sql))
+                    except Exception as e:
+                        print(f"⚠️ 인덱스 생성 중 오류 (무시됨): {str(e)}")
+
+                db.session.commit()
+                print("✅ 사용자 API 키 관련 테이블 마이그레이션 완료")
+                
+            except Exception as e:
+                print(f"⚠️ 사용자 API 키 테이블 마이그레이션 중 오류: {str(e)}")
+                db.session.rollback()
             
             return True
             
