@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 키 관리 - YouTube Shorts 도구</title>
+    <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    
+    <style>
+        .api-key-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid #e0e0e0;
+        }
+        
+        .api-key-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .api-key-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .api-key-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-active {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+        }
+        
+        .status-inactive {
+            background-color: #ffeaa7;
+            color: #d63031;
+        }
+        
+        .api-key-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .info-label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 500;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        
+        .info-value {
+            font-size: 14px;
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        
+        .progress-low { background-color: #4caf50; }
+        .progress-medium { background-color: #ff9800; }
+        .progress-high { background-color: #f44336; }
+        
+        .api-key-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .btn-primary {
+            background-color: #2196f3;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #1976d2;
+        }
+        
+        .btn-secondary {
+            background-color: #f5f5f5;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #e0e0e0;
+        }
+        
+        .btn-danger {
+            background-color: #f44336;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background-color: #d32f2f;
+        }
+        
+        .btn-success {
+            background-color: #4caf50;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #388e3c;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+        
+        .modal-header {
+            margin-bottom: 20px;
+        }
+        
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #2196f3;
+            box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+        }
+        
+        .form-help {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+        
+        .alert {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+        
+        .alert-success {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+        
+        .alert-error {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+        }
+        
+        .alert-info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            border: 1px solid #bbdefb;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2196f3;
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .no-api-keys {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        
+        .no-api-keys h3 {
+            margin-bottom: 12px;
+            color: #333;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #2196f3;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-left">
+                <h1>
+                    <a href="{{ url_for('index') }}" style="color: inherit; text-decoration: none;">
+                        📺 YouTube Shorts 도구
+                    </a>
+                </h1>
+            </div>
+            <div class="header-right">
+                <a href="{{ url_for('index') }}" class="nav-link">홈</a>
+                <a href="{{ url_for('notifications') }}" class="nav-link">알림 설정</a>
+                <a href="{{ url_for('saved_videos_page') }}" class="nav-link">저장된 영상</a>
+                <a href="{{ url_for('youtube_management') }}" class="nav-link">YouTube 관리</a>
+                <a href="{{ url_for('api_keys_page') }}" class="nav-link active">API 키 관리</a>
+                {% if current_user.is_admin() %}
+                <a href="{{ url_for('admin_users') }}" class="nav-link">관리자</a>
+                {% endif %}
+                <a href="/logout" class="nav-link">로그아웃</a>
+            </div>
+        </header>
+        
+        <main class="main-content">
+            <div class="section-header">
+                <h2>🔑 API 키 관리</h2>
+                <p>개인 YouTube API 키를 관리하여 더 많은 할당량을 사용하세요.</p>
+                <button class="btn btn-primary" onclick="openAddModal()">
+                    ➕ 새 API 키 추가
+                </button>
+            </div>
+            
+            <div id="alert-container"></div>
+            
+            <!-- 통계 섹션 -->
+            <div id="stats-section" class="stats-grid" style="display: none;">
+                <div class="stat-card">
+                    <div class="stat-value" id="total-keys">0</div>
+                    <div class="stat-label">전체 API 키</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="active-keys">0</div>
+                    <div class="stat-label">활성 키</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="today-calls">0</div>
+                    <div class="stat-label">오늘 호출 수</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="success-rate">0%</div>
+                    <div class="stat-label">성공률</div>
+                </div>
+            </div>
+            
+            <!-- API 키 목록 -->
+            <div id="api-keys-container">
+                <div class="loading" id="loading">
+                    <div>⏳ API 키를 불러오는 중...</div>
+                </div>
+            </div>
+            
+            <!-- API 키 추가 모달 -->
+            <div id="add-modal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 class="modal-title">새 API 키 추가</h3>
+                    </div>
+                    <form id="add-form">
+                        <div class="form-group">
+                            <label class="form-label" for="api-key-name">키 이름</label>
+                            <input type="text" id="api-key-name" class="form-input" placeholder="예: 내 개인 키" required>
+                            <div class="form-help">구분하기 쉬운 이름을 입력하세요.</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="api-key-value">YouTube API 키</label>
+                            <input type="text" id="api-key-value" class="form-input" placeholder="AIza..." required>
+                            <div class="form-help">Google Cloud Console에서 발급받은 YouTube Data API v3 키를 입력하세요.</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="daily-quota">일일 할당량</label>
+                            <input type="number" id="daily-quota" class="form-input" value="10000" min="1000" max="50000">
+                            <div class="form-help">일일 사용 한도를 설정하세요 (1,000 ~ 50,000).</div>
+                        </div>
+                        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                            <button type="button" class="btn btn-secondary" onclick="closeAddModal()">취소</button>
+                            <button type="submit" class="btn btn-primary">추가</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- API 키 편집 모달 -->
+            <div id="edit-modal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 class="modal-title">API 키 편집</h3>
+                    </div>
+                    <form id="edit-form">
+                        <input type="hidden" id="edit-key-id">
+                        <div class="form-group">
+                            <label class="form-label" for="edit-api-key-name">키 이름</label>
+                            <input type="text" id="edit-api-key-name" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="edit-daily-quota">일일 할당량</label>
+                            <input type="number" id="edit-daily-quota" class="form-input" min="1000" max="50000">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="edit-is-active"> 활성화
+                            </label>
+                        </div>
+                        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                            <button type="button" class="btn btn-secondary" onclick="closeEditModal()">취소</button>
+                            <button type="submit" class="btn btn-primary">저장</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let apiKeys = [];
+        let stats = {};
+
+        // 페이지 로드 시 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            loadApiKeys();
+            loadStats();
+        });
+
+        // API 키 목록 로드
+        async function loadApiKeys() {
+            try {
+                const response = await fetch('/api/user/api-keys');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    apiKeys = data.api_keys;
+                    renderApiKeys();
+                } else {
+                    showAlert('API 키 로드 실패: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showAlert('API 키 로드 중 오류가 발생했습니다.', 'error');
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // 통계 로드
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/user/api-keys/stats?days=7');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    stats = data.stats;
+                    renderStats();
+                }
+            } catch (error) {
+                console.error('통계 로드 실패:', error);
+            }
+        }
+
+        // API 키 목록 렌더링
+        function renderApiKeys() {
+            const container = document.getElementById('api-keys-container');
+            
+            if (apiKeys.length === 0) {
+                container.innerHTML = `
+                    <div class="no-api-keys">
+                        <h3>등록된 API 키가 없습니다</h3>
+                        <p>YouTube API 키를 추가하여 개인 할당량을 사용하세요.</p>
+                        <button class="btn btn-primary" onclick="openAddModal()">첫 번째 API 키 추가</button>
+                    </div>
+                `;
+                return;
+            }
+
+            const html = apiKeys.map(key => {
+                const usagePercent = key.daily_quota > 0 ? (key.daily_usage / key.daily_quota * 100) : 0;
+                const progressClass = usagePercent < 50 ? 'progress-low' : usagePercent < 80 ? 'progress-medium' : 'progress-high';
+                
+                return `
+                    <div class="api-key-card">
+                        <div class="api-key-header">
+                            <div>
+                                <div class="api-key-name">${escapeHtml(key.name)}</div>
+                                <span class="api-key-status ${key.is_active ? 'status-active' : 'status-inactive'}">
+                                    ${key.is_active ? '활성' : '비활성'}
+                                </span>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" ${key.is_active ? 'checked' : ''} 
+                                       onchange="toggleApiKey(${key.id}, this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        
+                        <div class="api-key-info">
+                            <div class="info-item">
+                                <div class="info-label">일일 사용량</div>
+                                <div class="info-value">${key.daily_usage.toLocaleString()} / ${key.daily_quota.toLocaleString()}</div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill ${progressClass}" style="width: ${Math.min(usagePercent, 100)}%"></div>
+                                </div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">총 사용 횟수</div>
+                                <div class="info-value">${key.usage_count.toLocaleString()}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">오류 횟수</div>
+                                <div class="info-value">${key.error_count.toLocaleString()}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">마지막 사용</div>
+                                <div class="info-value">${key.last_used ? formatDate(key.last_used) : '사용 안함'}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="api-key-actions">
+                            <button class="btn btn-secondary" onclick="testApiKey(${key.id})">🧪 테스트</button>
+                            <button class="btn btn-secondary" onclick="editApiKey(${key.id})">✏️ 편집</button>
+                            <button class="btn btn-danger" onclick="deleteApiKey(${key.id}, '${escapeHtml(key.name)}')">🗑️ 삭제</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = html;
+        }
+
+        // 통계 렌더링
+        function renderStats() {
+            if (!stats.daily_usage || stats.daily_usage.length === 0) return;
+            
+            document.getElementById('stats-section').style.display = 'grid';
+            
+            const totalKeys = apiKeys.length;
+            const activeKeys = apiKeys.filter(k => k.is_active).length;
+            
+            const todayCalls = stats.daily_usage.length > 0 ? stats.daily_usage[stats.daily_usage.length - 1].total_calls : 0;
+            const todaySuccessRate = stats.daily_usage.length > 0 ? stats.daily_usage[stats.daily_usage.length - 1].success_rate : 0;
+            
+            document.getElementById('total-keys').textContent = totalKeys;
+            document.getElementById('active-keys').textContent = activeKeys;
+            document.getElementById('today-calls').textContent = todayCalls.toLocaleString();
+            document.getElementById('success-rate').textContent = todaySuccessRate + '%';
+        }
+
+        // API 키 추가 모달 열기
+        function openAddModal() {
+            document.getElementById('add-modal').style.display = 'block';
+        }
+
+        // API 키 추가 모달 닫기
+        function closeAddModal() {
+            document.getElementById('add-modal').style.display = 'none';
+            document.getElementById('add-form').reset();
+        }
+
+        // API 키 편집 모달 열기
+        function editApiKey(keyId) {
+            const key = apiKeys.find(k => k.id === keyId);
+            if (!key) return;
+            
+            document.getElementById('edit-key-id').value = keyId;
+            document.getElementById('edit-api-key-name').value = key.name;
+            document.getElementById('edit-daily-quota').value = key.daily_quota;
+            document.getElementById('edit-is-active').checked = key.is_active;
+            
+            document.getElementById('edit-modal').style.display = 'block';
+        }
+
+        // API 키 편집 모달 닫기
+        function closeEditModal() {
+            document.getElementById('edit-modal').style.display = 'none';
+            document.getElementById('edit-form').reset();
+        }
+
+        // API 키 추가 폼 제출
+        document.getElementById('add-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                name: document.getElementById('api-key-name').value,
+                api_key: document.getElementById('api-key-value').value,
+                daily_quota: parseInt(document.getElementById('daily-quota').value)
+            };
+            
+            try {
+                const response = await fetch('/api/user/api-keys', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showAlert(data.message, 'success');
+                    closeAddModal();
+                    loadApiKeys();
+                } else {
+                    showAlert('추가 실패: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showAlert('API 키 추가 중 오류가 발생했습니다.', 'error');
+            }
+        });
+
+        // API 키 편집 폼 제출
+        document.getElementById('edit-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const keyId = document.getElementById('edit-key-id').value;
+            const formData = {
+                name: document.getElementById('edit-api-key-name').value,
+                daily_quota: parseInt(document.getElementById('edit-daily-quota').value),
+                is_active: document.getElementById('edit-is-active').checked
+            };
+            
+            try {
+                const response = await fetch(`/api/user/api-keys/${keyId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showAlert(data.message, 'success');
+                    closeEditModal();
+                    loadApiKeys();
+                } else {
+                    showAlert('수정 실패: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showAlert('API 키 수정 중 오류가 발생했습니다.', 'error');
+            }
+        });
+
+        // API 키 활성/비활성 토글
+        async function toggleApiKey(keyId, isActive) {
+            try {
+                const response = await fetch(`/api/user/api-keys/${keyId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ is_active: isActive })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showAlert(`API 키가 ${isActive ? '활성화' : '비활성화'}되었습니다.`, 'success');
+                    loadApiKeys();
+                } else {
+                    showAlert('상태 변경 실패: ' + data.message, 'error');
+                    // 체크박스 상태 되돌리기
+                    loadApiKeys();
+                }
+            } catch (error) {
+                showAlert('상태 변경 중 오류가 발생했습니다.', 'error');
+                loadApiKeys();
+            }
+        }
+
+        // API 키 테스트
+        async function testApiKey(keyId) {
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = '⏳ 테스트 중...';
+            button.disabled = true;
+            
+            try {
+                const response = await fetch(`/api/user/api-keys/test/${keyId}`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showAlert(data.message, data.valid ? 'success' : 'error');
+                } else {
+                    showAlert('테스트 실패: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showAlert('API 키 테스트 중 오류가 발생했습니다.', 'error');
+            } finally {
+                button.textContent = originalText;
+                button.disabled = false;
+            }
+        }
+
+        // API 키 삭제
+        async function deleteApiKey(keyId, keyName) {
+            if (!confirm(`정말로 "${keyName}" API 키를 삭제하시겠습니까?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/user/api-keys/${keyId}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showAlert(data.message, 'success');
+                    loadApiKeys();
+                } else {
+                    showAlert('삭제 실패: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showAlert('API 키 삭제 중 오류가 발생했습니다.', 'error');
+            }
+        }
+
+        // 알림 표시
+        function showAlert(message, type) {
+            const container = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            
+            container.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+
+        // HTML 이스케이프
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // 날짜 포맷팅
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 60000) return '방금 전';
+            if (diff < 3600000) return Math.floor(diff / 60000) + '분 전';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + '시간 전';
+            if (diff < 604800000) return Math.floor(diff / 86400000) + '일 전';
+            
+            return date.toLocaleDateString('ko-KR');
+        }
+
+        // 모달 외부 클릭 시 닫기
+        window.addEventListener('click', function(event) {
+            const addModal = document.getElementById('add-modal');
+            const editModal = document.getElementById('edit-modal');
+            
+            if (event.target === addModal) {
+                closeAddModal();
+            }
+            if (event.target === editModal) {
+                closeEditModal();
+            }
+        });
+    </script>
+</body>
+</html>

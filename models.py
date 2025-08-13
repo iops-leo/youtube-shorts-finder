@@ -364,6 +364,151 @@ class SavedVideo(db.Model):
             'notes': self.notes or ''
         }
 
+class UserApiKey(db.Model):
+    """사용자 API 키 모델"""
+    __tablename__ = 'user_api_keys'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(128), db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)  # API 키 별명 (예: "개인용", "프로젝트A")
+    api_key = db.Column(db.String(256), nullable=False)  # 암호화된 API 키
+    is_active = db.Column(db.Boolean, default=True)  # 활성화 상태
+    daily_quota = db.Column(db.Integer, default=10000)  # 일일 할당량 (기본 10,000)
+    usage_count = db.Column(db.Integer, default=0)  # 일일 사용량
+    last_reset_date = db.Column(db.Date, default=datetime.utcnow().date)  # 마지막 리셋 날짜
+    last_error = db.Column(db.Text)  # 마지막 오류 메시지
+    error_count = db.Column(db.Integer, default=0)  # 연속 오류 횟수
+    last_used = db.Column(db.DateTime)  # 마지막 사용 시간
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 관계 설정
+    user = db.relationship('User', backref='api_keys')
+    usage_logs = db.relationship('ApiKeyUsage', backref='api_key', lazy=True, cascade='all, delete-orphan')
+    
+    # 복합 인덱스 설정
+    __table_args__ = (
+        db.Index('idx_user_active', 'user_id', 'is_active'),
+        db.Index('idx_user_reset_date', 'user_id', 'last_reset_date'),
+    )
+    
+    def to_dict(self, include_key=False):
+        """딕셔너리로 변환 (보안을 위해 API 키는 선택적 포함)"""
+        result = {
+            'id': self.id,
+            'name': self.name,
+            'is_active': self.is_active,
+            'daily_quota': self.daily_quota,
+            'usage_count': self.usage_count,
+            'daily_usage': self.usage_count,  # template 호환성을 위한 별칭
+            'usage_percentage': round((self.usage_count / self.daily_quota) * 100, 1) if self.daily_quota > 0 else 0,
+            'last_reset_date': self.last_reset_date.isoformat(),
+            'last_used': self.last_used.isoformat() if self.last_used else None,
+            'last_error': self.last_error,
+            'error_count': self.error_count,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+            'masked_key': f"••••{self.api_key[-4:]}" if len(self.api_key) >= 4 else "••••"
+        }
+        
+        if include_key:
+            result['api_key'] = self.api_key
+            result['encrypted_key'] = self.api_key  # 템플릿 호환성을 위한 별칭
+            
+        return result
+    
+    def reset_daily_usage(self):
+        """일일 사용량 리셋"""
+        today = datetime.utcnow().date()
+        if self.last_reset_date < today:
+            self.usage_count = 0
+            self.last_reset_date = today
+            self.error_count = 0
+            db.session.commit()
+    
+    def increment_usage(self):
+        """사용량 증가"""
+        self.reset_daily_usage()  # 날짜 확인 후 필요시 리셋
+        self.usage_count += 1
+        self.last_used = datetime.utcnow()
+        self.updated_at = datetime.utcnow()
+    
+    def record_error(self, error_message):
+        """오류 기록"""
+        self.last_error = error_message[:500]  # 메시지 길이 제한
+        self.error_count += 1
+        self.updated_at = datetime.utcnow()
+    
+    def is_quota_exceeded(self):
+        """할당량 초과 여부 확인"""
+        self.reset_daily_usage()
+        return self.usage_count >= self.daily_quota
+    
+    def is_healthy(self):
+        """API 키 상태가 건강한지 확인 (연속 오류 5회 미만)"""
+        return self.error_count < 5 and self.is_active
+
+class ApiKeyUsage(db.Model):
+    """API 키 사용 이력 모델"""
+    __tablename__ = 'api_key_usage'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    api_key_id = db.Column(db.Integer, db.ForeignKey('user_api_keys.id'), nullable=False)
+    user_id = db.Column(db.String(128), db.ForeignKey('user.id'), nullable=False)
+    endpoint = db.Column(db.String(50), nullable=False)  # 예: 'search.list', 'videos.list'
+    quota_cost = db.Column(db.Integer, default=1)  # 할당량 비용
+    success = db.Column(db.Boolean, default=True)  # 성공 여부
+    error_message = db.Column(db.Text)  # 오류 메시지
+    response_time = db.Column(db.Float)  # 응답 시간 (초)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # 관계 설정
+    user = db.relationship('User', backref='api_key_usage_logs')
+    
+    # 인덱스 설정
+    __table_args__ = (
+        db.Index('idx_api_key_timestamp', 'api_key_id', 'timestamp'),
+        db.Index('idx_user_timestamp', 'user_id', 'timestamp'),
+        db.Index('idx_date_success', db.func.date('timestamp'), 'success'),
+    )
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'api_key_id': self.api_key_id,
+            'endpoint': self.endpoint,
+            'quota_cost': self.quota_cost,
+            'success': self.success,
+            'error_message': self.error_message,
+            'response_time': self.response_time,
+            'timestamp': self.timestamp.isoformat()
+        }
+
+class ApiKeyRotation(db.Model):
+    """API 키 순환 로그 모델"""
+    __tablename__ = 'api_key_rotations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(128), db.ForeignKey('user.id'), nullable=False)
+    from_key_id = db.Column(db.Integer, db.ForeignKey('user_api_keys.id'))
+    to_key_id = db.Column(db.Integer, db.ForeignKey('user_api_keys.id'))
+    reason = db.Column(db.String(100))  # 순환 이유 (quota_exceeded, error, manual)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # 관계 설정
+    user = db.relationship('User', backref='api_key_rotations')
+    from_key = db.relationship('UserApiKey', foreign_keys=[from_key_id])
+    to_key = db.relationship('UserApiKey', foreign_keys=[to_key_id])
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'from_key_name': self.from_key.name if self.from_key else None,
+            'to_key_name': self.to_key.name if self.to_key else None,
+            'reason': self.reason,
+            'timestamp': self.timestamp.isoformat()
+        }
+
 class YoutubeDashboard(db.Model):
     """대시보드 통계 캐시 모델"""
     __tablename__ = 'youtube_dashboard'

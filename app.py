@@ -38,9 +38,11 @@ from sqlalchemy import text
 # 공통 기능 임포트
 from common_utils.search import get_recent_popular_shorts, get_cache_key, save_to_cache, get_from_cache
 from common_utils.search import api_keys, switch_to_next_api_key, get_youtube_api_service, get_cache_stats, get_api_key_info
+from common_utils.user_search import UserSearchService
 from common_utils.quota_manager import get_quota_manager
 from common_utils.quota_monitoring import get_quota_monitor, initialize_quota_monitor
-from models import db, EmailNotification, NotificationSearch, User, ChannelCategory, Channel, CategoryChannel, SearchPreference, SearchHistory, ApiLog, SavedVideo
+from models import db, EmailNotification, NotificationSearch, User, ChannelCategory, Channel, CategoryChannel, SearchPreference, SearchHistory, ApiLog, SavedVideo, UserApiKey, ApiKeyUsage, ApiKeyRotation
+from services.user_api_service import UserApiKeyManager
 
 cache = {}
 CACHE_TIMEOUT = 28800  # 캐시 유효시간 (초)
@@ -1760,6 +1762,586 @@ def update_video_notes(video_id):
         db.session.rollback()
         app.logger.error(f"영상 메모 업데이트 중 오류: {str(e)}")
         return jsonify({'success': False, 'message': '메모 업데이트 중 오류가 발생했습니다.'}), 500
+
+# ===================== 사용자 API 키 관리 API =====================
+
+@app.route('/api-keys')
+@login_required
+def api_keys_page():
+    """사용자 API 키 관리 페이지"""
+    if not current_user.is_approved():
+        return redirect(url_for('pending'))
+    
+    return render_template('api_keys.html', user=current_user)
+
+@app.route('/api/user-api-keys', methods=['GET'])
+@login_required
+def get_user_api_keys():
+    """사용자의 API 키 목록 조회"""
+    try:
+        manager = UserApiKeyManager(current_user.id)
+        keys = manager.get_user_api_keys()
+        
+        return jsonify({
+            'success': True,
+            'api_keys': keys,
+            'total_count': len(keys)
+        })
+        
+    except Exception as e:
+        app.logger.error(f"API 키 목록 조회 중 오류: {str(e)}")
+        return jsonify({'success': False, 'message': 'API 키 목록을 조회할 수 없습니다.'}), 500
+
+@app.route('/api/user-api-keys', methods=['POST'])
+@login_required
+def add_user_api_key():
+    """새 API 키 추가"""
+    try:
+        data = request.get_json()
+        
+        # 필수 데이터 검증
+        if not data.get('name') or not data.get('api_key'):
+            return jsonify({'success': False, 'message': '이름과 API 키는 필수입니다.'}), 400
+        
+        # API 키 개수 제한 (사용자당 최대 5개)
+        manager = UserApiKeyManager(current_user.id)
+        existing_keys = manager.get_user_api_keys()
+        
+        if len(existing_keys) >= 5:
+            return jsonify({'success': False, 'message': '최대 5개의 API 키만 등록할 수 있습니다.'}), 400
+        
+        name = data['name'].strip()
+        api_key = data['api_key'].strip()
+        daily_quota = data.get('daily_quota', 10000)
+        
+        # 이름 길이 제한
+        if len(name) > 50:
+            return jsonify({'success': False, 'message': 'API 키 이름은 50자를 초과할 수 없습니다.'}), 400
+        
+        # 할당량 범위 제한
+        if not (1000 <= daily_quota <= 50000):
+            return jsonify({'success': False, 'message': '일일 할당량은 1,000 ~ 50,000 사이여야 합니다.'}), 400
+        
+        success, message = manager.add_api_key(name, api_key, daily_quota)
+        
+        if success:
+            app.logger.info(f"사용자 {current_user.email}가 새 API 키를 추가했습니다: {name}")
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'success': False, 'message': message}), 400
+            
+    except Exception as e:
+        app.logger.error(f"API 키 추가 중 오류: {str(e)}")
+        return jsonify({'success': False, 'message': 'API 키 추가 중 오류가 발생했습니다.'}), 500
+
+@app.route('/api/user-api-keys/<int:key_id>', methods=['PUT'])
+@login_required
+def update_user_api_key(key_id):
+    """API 키 정보 업데이트"""
+    try:
+        data = request.get_json()
+        
+        name = data.get('name', '').strip() if data.get('name') else None
+        daily_quota = data.get('daily_quota')
+        is_active = data.get('is_active')
+        
+        # 이름 길이 제한
+        if name and len(name) > 50:
+            return jsonify({'success': False, 'message': 'API 키 이름은 50자를 초과할 수 없습니다.'}), 400
+        
+        # 할당량 범위 제한
+        if daily_quota is not None and not (1000 <= daily_quota <= 50000):
+            return jsonify({'success': False, 'message': '일일 할당량은 1,000 ~ 50,000 사이여야 합니다.'}), 400
+        
+        manager = UserApiKeyManager(current_user.id)
+        success, message = manager.update_api_key(key_id, name, daily_quota, is_active)
+        
+        if success:
+            app.logger.info(f"사용자 {current_user.email}가 API 키를 업데이트했습니다: ID {key_id}")
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'success': False, 'message': message}), 400
+            
+    except Exception as e:
+        app.logger.error(f"API 키 업데이트 중 오류: {str(e)}")
+        return jsonify({'success': False, 'message': 'API 키 업데이트 중 오류가 발생했습니다.'}), 500
+
+@app.route('/api/user-api-keys/<int:key_id>', methods=['DELETE'])
+@login_required
+def delete_user_api_key(key_id):
+    """API 키 삭제"""
+    try:
+        manager = UserApiKeyManager(current_user.id)
+        success, message = manager.delete_api_key(key_id)
+        
+        if success:
+            app.logger.info(f"사용자 {current_user.email}가 API 키를 삭제했습니다: ID {key_id}")
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'success': False, 'message': message}), 404
+            
+    except Exception as e:
+        app.logger.error(f"API 키 삭제 중 오류: {str(e)}")
+        return jsonify({'success': False, 'message': 'API 키 삭제 중 오류가 발생했습니다.'}), 500
+
+@app.route('/api/user-api-keys/test/<int:key_id>', methods=['POST'])
+@login_required
+def test_user_api_key(key_id):
+    """API 키 테스트"""
+    try:
+        api_key_obj = UserApiKey.query.filter_by(id=key_id, user_id=current_user.id).first()
+        if not api_key_obj:
+            return jsonify({'success': False, 'message': 'API 키를 찾을 수 없습니다.'}), 404
+        
+        manager = UserApiKeyManager(current_user.id)
+        decrypted_key = manager.decrypt_api_key(api_key_obj.api_key)
+        
+        # 간단한 API 호출 테스트
+        import googleapiclient.discovery
+        import time
+        
+        start_time = time.time()
+        youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=decrypted_key)
+        
+        # 가벼운 테스트 요청 (할당량 1 소모)
+        test_response = youtube.search().list(
+            part="snippet",
+            q="test",
+            type="video",
+            maxResults=1
+        ).execute()
+        
+        response_time = round((time.time() - start_time) * 1000, 2)  # 밀리초 단위
+        
+        # 테스트 성공 기록
+        manager.current_key = api_key_obj
+        manager.record_api_usage("search.list", success=True, response_time=response_time/1000)
+        
+        return jsonify({
+            'success': True, 
+            'message': 'API 키가 정상적으로 작동합니다.',
+            'response_time': f"{response_time}ms",
+            'items_found': len(test_response.get('items', []))
+        })
+        
+    except Exception as e:
+        error_str = str(e).lower()
+        
+        # 테스트 실패 기록
+        if 'api_key_obj' in locals():
+            manager = UserApiKeyManager(current_user.id)
+            manager.current_key = api_key_obj
+            manager.record_api_usage("search.list", success=False, error_message=str(e))
+        
+        if 'quota' in error_str or 'exceeded' in error_str:
+            message = 'API 키는 유효하지만 할당량이 초과되었습니다.'
+        elif 'invalid' in error_str or 'forbidden' in error_str:
+            message = '유효하지 않은 API 키입니다.'
+        else:
+            message = f'API 키 테스트 중 오류가 발생했습니다: {str(e)}'
+        
+        app.logger.error(f"API 키 테스트 중 오류: {str(e)}")
+        return jsonify({'success': False, 'message': message}), 400
+
+@app.route('/api/user-api-keys/statistics', methods=['GET'])
+@login_required
+def get_api_key_statistics():
+    """API 키 사용 통계 조회"""
+    try:
+        days = int(request.args.get('days', 7))
+        days = min(days, 30)  # 최대 30일
+        
+        manager = UserApiKeyManager(current_user.id)
+        statistics = manager.get_usage_statistics(days)
+        
+        return jsonify({
+            'success': True,
+            'statistics': statistics,
+            'period_days': days
+        })
+        
+    except Exception as e:
+        app.logger.error(f"API 키 통계 조회 중 오류: {str(e)}")
+        return jsonify({'success': False, 'message': '통계를 조회할 수 없습니다.'}), 500
+
+@app.route('/api/user-api-keys/reset-usage/<int:key_id>', methods=['POST'])
+@login_required
+def reset_api_key_usage(key_id):
+    """API 키 일일 사용량 수동 리셋 (관리자 또는 키 소유자만)"""
+    try:
+        api_key_obj = UserApiKey.query.filter_by(id=key_id, user_id=current_user.id).first()
+        if not api_key_obj:
+            return jsonify({'success': False, 'message': 'API 키를 찾을 수 없습니다.'}), 404
+        
+        # 수동 리셋 (오늘 날짜로 강제 설정)
+        api_key_obj.usage_count = 0
+        api_key_obj.error_count = 0
+        api_key_obj.last_reset_date = datetime.utcnow().date()
+        api_key_obj.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        app.logger.info(f"사용자 {current_user.email}가 API 키 사용량을 리셋했습니다: {api_key_obj.name}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'API 키 사용량이 리셋되었습니다.'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"API 키 사용량 리셋 중 오류: {str(e)}")
+        return jsonify({'success': False, 'message': '사용량 리셋 중 오류가 발생했습니다.'}), 500
+
+# ===================== 업데이트된 검색 API =====================
+
+@app.route("/search", methods=["POST"])
+@api_login_required
+def search():
+    try:
+        data = request.form
+        
+        # 파라미터 파싱 및 제한 적용
+        params = {
+            'min_views': max(100000, int(data.get('min_views', '100000'))),  # 최소 10만 조회수
+            'days_ago': min(5, max(1, int(data.get('days_ago', 5)))),  # 최대 5일, 최소 1일
+            'max_results': min(20, max(1, int(data.get('max_results', 20)))),  # 최대 20개
+            'category_id': data.get('category_id') if data.get('category_id') != 'any' else None,
+            'region_code': data.get('region_code'),
+            'language': data.get('language') if data.get('language') != 'any' else None,
+            'keyword': data.get('keyword'),
+            'channel_ids': data.get('channel_ids') or None
+        }
+
+        # API 호출 로깅
+        log_api_call('search', params)
+
+        # 캐시 체크 (사용자별 캐시 키 생성)
+        cache_key = get_cache_key({**params, 'user_id': current_user.id})
+        cached_results = get_from_cache(cache_key)
+        if cached_results:
+            return jsonify({"status": "success", "results": cached_results, "fromCache": True})
+
+        # 사용자별 검색 서비스 사용
+        search_service = UserSearchService(current_user.id)
+        
+        # 비동기 작업 시작
+        future = executor.submit(
+            search_service.search_recent_popular_shorts,
+            **params
+        )
+        results = future.result(timeout=30)  # 최대 30초 대기
+        
+        # 결과 캐싱
+        save_to_cache(cache_key, results)
+        
+        return jsonify({
+            "status": "success",
+            "results": results,
+            "count": len(results), 
+            "fromCache": False
+        })
+        
+    except Exception as e:
+        error_message = str(e)
+        app.logger.error(f"검색 오류 (사용자: {current_user.email}): {error_message}")
+        
+        # 사용자 친화적 오류 메시지 처리
+        if "api 키" in error_message.lower() or "할당량" in error_message.lower():
+            return jsonify({
+                "status": "quota_exceeded",
+                "message": error_message,
+                "user_message": error_message,
+                "action": "manage_api_keys",
+                "action_url": "/api-keys"
+            })
+        
+        return jsonify({"status": "error", "message": error_message})
+
+@app.route('/channel-search', methods=['GET'])
+@api_login_required
+def channel_search():
+    """채널 검색 API 엔드포인트 - 사용자별 API 키 지원"""
+    try:
+        query = request.args.get('q', '')
+        if not query:
+            return jsonify({"status": "error", "message": "검색어가 필요합니다."})
+        
+        # API 호출 로깅
+        log_api_call('channel-search', {'query': query})
+        
+        # 사용자별 검색 서비스 사용
+        search_service = UserSearchService(current_user.id)
+        channels = search_service.search_channels(query)
+        
+        return jsonify({"status": "success", "channels": channels})
+        
+    except Exception as e:
+        error_message = str(e)
+        app.logger.error(f"채널 검색 오류 (사용자: {current_user.email}): {error_message}")
+        
+        # 사용자 친화적 오류 메시지 처리
+        if "api 키" in error_message.lower() or "할당량" in error_message.lower():
+            return jsonify({
+                "status": "quota_exceeded",
+                "message": error_message,
+                "action": "manage_api_keys",
+                "action_url": "/api-keys"
+            })
+        
+        return jsonify({"status": "error", "message": error_message})
+
+# 사용자 API 키 상태 체크 API
+@app.route('/api/user-api-status')
+@login_required
+def check_user_api_status():
+    """사용자 API 키 상태 체크"""
+    try:
+        manager = UserApiKeyManager(current_user.id)
+        api_keys = manager.get_user_api_keys()
+        
+        # 사용 가능한 키가 있는지 확인
+        available_key = manager.get_available_api_key()
+        
+        status = {
+            'has_keys': len(api_keys) > 0,
+            'total_keys': len(api_keys),
+            'active_keys': len([k for k in api_keys if k['is_active']]),
+            'available_quota': available_key is not None,
+            'keys_summary': []
+        }
+        
+        # 각 키의 간단한 상태 정보
+        for key in api_keys:
+            key_status = {
+                'id': key['id'],
+                'name': key['name'],
+                'is_active': key['is_active'],
+                'usage_percentage': key['usage_percentage'],
+                'is_healthy': key['error_count'] < 5,
+                'quota_exceeded': key['usage_count'] >= key['daily_quota']
+            }
+            status['keys_summary'].append(key_status)
+        
+        return jsonify({
+            'success': True,
+            'status': status
+        })
+        
+    except Exception as e:
+        app.logger.error(f"API 키 상태 체크 오류: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': '상태를 확인할 수 없습니다.'
+        })
+
+# 네비게이션에 API 키 관리 링크 추가를 위한 컨텍스트 프로세서
+@app.context_processor
+def inject_api_key_status():
+    """템플릿에서 사용할 API 키 상태 정보 주입"""
+    if current_user.is_authenticated and current_user.is_approved():
+        try:
+            manager = UserApiKeyManager(current_user.id)
+            api_keys = manager.get_user_api_keys()
+            
+            return {
+                'user_has_api_keys': len(api_keys) > 0,
+                'user_api_keys_count': len(api_keys)
+            }
+        except:
+            pass
+    
+    return {
+        'user_has_api_keys': False,
+        'user_api_keys_count': 0
+    }
+
+# 사용자별 API 키 관리 라우트
+@app.route('/api-keys')
+@login_required
+def api_keys_page():
+    """API 키 관리 페이지"""
+    if not current_user.is_approved():
+        return redirect(url_for('pending'))
+    
+    return render_template('api_keys.html', user=current_user)
+
+@app.route('/api/user/api-keys', methods=['GET'])
+@login_required
+def get_user_api_keys():
+    """사용자 API 키 목록 조회"""
+    try:
+        manager = UserApiKeyManager(current_user.id)
+        api_keys = manager.get_user_api_keys()
+        
+        return jsonify({
+            'status': 'success',
+            'api_keys': api_keys
+        })
+    except Exception as e:
+        app.logger.error(f"API 키 조회 오류: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': 'API 키 조회 중 오류가 발생했습니다.'
+        }), 500
+
+@app.route('/api/user/api-keys', methods=['POST'])
+@login_required
+def add_user_api_key():
+    """새 API 키 추가"""
+    try:
+        data = request.get_json()
+        
+        if not data or not data.get('name') or not data.get('api_key'):
+            return jsonify({
+                'status': 'error',
+                'message': '이름과 API 키는 필수 항목입니다.'
+            }), 400
+        
+        manager = UserApiKeyManager(current_user.id)
+        success, message = manager.add_api_key(
+            name=data['name'],
+            api_key=data['api_key'],
+            daily_quota=data.get('daily_quota', 10000)
+        )
+        
+        if success:
+            return jsonify({
+                'status': 'success',
+                'message': message
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': message
+            }), 400
+            
+    except Exception as e:
+        app.logger.error(f"API 키 추가 오류: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': 'API 키 추가 중 오류가 발생했습니다.'
+        }), 500
+
+@app.route('/api/user/api-keys/<int:key_id>', methods=['PUT'])
+@login_required
+def update_user_api_key(key_id):
+    """API 키 정보 업데이트"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'status': 'error',
+                'message': '업데이트할 데이터가 없습니다.'
+            }), 400
+        
+        manager = UserApiKeyManager(current_user.id)
+        success, message = manager.update_api_key(
+            key_id=key_id,
+            name=data.get('name'),
+            daily_quota=data.get('daily_quota'),
+            is_active=data.get('is_active')
+        )
+        
+        if success:
+            return jsonify({
+                'status': 'success',
+                'message': message
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': message
+            }), 400
+            
+    except Exception as e:
+        app.logger.error(f"API 키 업데이트 오류: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': 'API 키 업데이트 중 오류가 발생했습니다.'
+        }), 500
+
+@app.route('/api/user/api-keys/<int:key_id>', methods=['DELETE'])
+@login_required
+def delete_user_api_key(key_id):
+    """API 키 삭제"""
+    try:
+        manager = UserApiKeyManager(current_user.id)
+        success, message = manager.delete_api_key(key_id)
+        
+        if success:
+            return jsonify({
+                'status': 'success',
+                'message': message
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': message
+            }), 400
+            
+    except Exception as e:
+        app.logger.error(f"API 키 삭제 오류: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': 'API 키 삭제 중 오류가 발생했습니다.'
+        }), 500
+
+@app.route('/api/user/api-keys/test/<int:key_id>', methods=['POST'])
+@login_required
+def test_user_api_key(key_id):
+    """API 키 테스트"""
+    try:
+        manager = UserApiKeyManager(current_user.id)
+        
+        # 특정 키 조회
+        user_keys = manager.get_user_api_keys()
+        target_key = next((k for k in user_keys if k['id'] == key_id), None)
+        
+        if not target_key:
+            return jsonify({
+                'status': 'error',
+                'message': 'API 키를 찾을 수 없습니다.'
+            }), 404
+        
+        # API 키 테스트
+        decrypted_key = manager.decrypt_api_key(target_key['encrypted_key'])
+        is_valid = manager._validate_api_key(decrypted_key)
+        
+        return jsonify({
+            'status': 'success',
+            'valid': is_valid,
+            'message': 'API 키가 유효합니다.' if is_valid else 'API 키가 유효하지 않습니다.'
+        })
+        
+    except Exception as e:
+        app.logger.error(f"API 키 테스트 오류: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': 'API 키 테스트 중 오류가 발생했습니다.'
+        }), 500
+
+@app.route('/api/user/api-keys/stats', methods=['GET'])
+@login_required
+def get_user_api_key_stats():
+    """API 키 사용 통계 조회"""
+    try:
+        days = request.args.get('days', 7, type=int)
+        
+        manager = UserApiKeyManager(current_user.id)
+        stats = manager.get_usage_statistics(days=days)
+        
+        return jsonify({
+            'status': 'success',
+            'stats': stats
+        })
+        
+    except Exception as e:
+        app.logger.error(f"API 키 통계 조회 오류: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': '통계 조회 중 오류가 발생했습니다.'
+        }), 500
 
 @app.route('/saved-videos')
 @login_required
