@@ -4,7 +4,7 @@ venv/
 # 로그 폴더
 logs/
 
-# 실행 스크립트
+# 실행 스크립트 (민감한 환경변수 포함)
 start.command
 
 # Python 컴파일 캐시
@@ -13,3 +13,38 @@ __pycache__/
 
 # 환경 설정 파일 (예: 환경변수)
 .env
+.env.local
+.env.development
+.env.production
+
+# 데이터베이스 파일
+*.db
+*.sqlite
+*.sqlite3
+test.db
+test_migration.db
+instance/
+
+# 맥OS 시스템 파일
+.DS_Store
+.DS_Store?
+._*
+
+# 백업 파일
+*.bak
+*.backup
+*.tmp
+
+# API 키 및 인증 정보
+config.json
+secrets.json
+credentials.json
+*.pem
+*.key
+*.p12
+
+# 테스트 및 개발용 파일
+test_*.py
+debug_*.py
+temp_*
+scratch.*
