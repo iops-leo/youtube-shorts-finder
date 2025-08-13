@@ -49,10 +49,12 @@ Development server runs on http://localhost:8080
 - **Main Application**: `app.py` - Flask app with comprehensive routing and authentication
 - **Database Models**: `models.py` - SQLAlchemy models for users, channels, categories, notifications, YouTube management
 - **Search Engine**: `common_utils/search.py` - YouTube API integration with multi-key rotation and caching
+- **User Search Service**: `common_utils/user_search.py` - User-specific search functionality with personal API keys
 - **Email Service**: `services/email_service.py` - SMTP email service with HTML templates
 - **Notification Scheduler**: `services/notification_scheduler.py` - Background task scheduler for automated emails
+- **User API Service**: `services/user_api_service.py` - User API key management with encryption and quota tracking
 - **YouTube Management**: `youtube_management.py` - Business management features (editors, works, revenue tracking)
-- **Templates**: `templates/` - Jinja2 HTML templates with responsive design
+- **Templates**: `templates/` - Jinja2 HTML templates with responsive design (includes `api_keys.html`)
 - **Static Assets**: `static/` - CSS, JavaScript, and image assets
 
 ### Database Architecture
@@ -60,7 +62,10 @@ SQLAlchemy models with comprehensive relationships:
 - **User Management**: `User`, `ApiLog`, role-based access control (pending/approved/admin)
 - **Channel System**: `Channel`, `ChannelCategory`, `CategoryChannel` for organization
 - **Search Features**: `SearchPreference`, `SearchHistory`, `SavedVideo` for user experience
-- **API Management**: `UserApiKey`, `ApiKeyUsage`, `ApiKeyRotation` for quota tracking
+- **User API Management**: 
+  - `UserApiKey`: 사용자별 암호화된 API 키 저장 (일일 할당량, 사용량 추적)
+  - `ApiKeyUsage`: API 호출 이력 및 성능 메트릭 (응답시간, 성공률)
+  - `ApiKeyRotation`: API 키 순환 로그 (할당량 초과, 오류 등)
 - **Notifications**: `EmailNotification`, `NotificationSearch` for automated emails
 - **Business Management**: `Editor`, `Work`, `Revenue`, `EditorRateHistory` for YouTube business tracking
 
@@ -95,9 +100,11 @@ Key features:
 ### Security Implementation
 - Environment-based configuration with required variable validation
 - API key rotation and quota management to prevent service disruption
+- **User API Key Encryption**: Cryptography library를 사용한 API 키 암호화 저장
 - Secure logging filters to prevent sensitive data leakage
 - ProxyFix middleware for proper header handling behind reverse proxies
 - Rate limiting and quota monitoring for API usage
+- User-specific API key isolation and access control
 
 ### Performance Optimization
 - Multi-level caching: memory cache for API results, translation cache
@@ -152,12 +159,16 @@ OAUTHLIB_INSECURE_TRANSPORT=1  # for local OAuth
 ## Common Development Tasks
 
 1. **Database Schema Changes**: Use migration scripts in root directory (e.g., `migrate_*.py`)
-2. **API Key Management**: Monitor quota usage through admin dashboard, add keys as comma-separated values
+2. **API Key Management**: 
+   - Monitor quota usage through admin dashboard, add keys as comma-separated values
+   - Test user API key management through `/api-keys` page
+   - Use `/api/user-api-keys/test/<key_id>` endpoint to validate user API keys
 3. **Email Testing**: Use `/api/notifications/test` endpoint to verify email delivery
 4. **Authentication Flow**: Test Google OAuth with both development and production callback URLs
 5. **Background Tasks**: Verify APScheduler is running and email notifications are scheduled correctly
 6. **Performance Monitoring**: Monitor API usage, database query performance, and cache hit rates
 7. **Admin Features**: Test user approval workflow and admin panel functionality through `/admin/users`
+8. **User API Keys**: Test encryption/decryption, quota tracking, and automatic rotation functionality
 
 ### Development Environment Setup
 1. Set `FLASK_ENV=dev` for local development
