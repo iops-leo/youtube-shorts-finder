@@ -464,10 +464,10 @@
         // API 키 목록 로드
         async function loadApiKeys() {
             try {
-                const response = await fetch('/api/user/api-keys');
+                const response = await fetch('/api/user-api-keys');
                 const data = await response.json();
                 
-                if (data.status === 'success') {
+                if (data.success === true) {
                     apiKeys = data.api_keys;
                     renderApiKeys();
                 } else {
@@ -483,11 +483,11 @@
         // 통계 로드
         async function loadStats() {
             try {
-                const response = await fetch('/api/user/api-keys/stats?days=7');
+                const response = await fetch('/api/user-api-keys/statistics?days=7');
                 const data = await response.json();
                 
-                if (data.status === 'success') {
-                    stats = data.stats;
+                if (data.success === true) {
+                    stats = data.statistics;
                     renderStats();
                 }
             } catch (error) {
@@ -623,7 +623,7 @@
             };
             
             try {
-                const response = await fetch('/api/user/api-keys', {
+                const response = await fetch('/api/user-api-keys', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -633,7 +633,7 @@
                 
                 const data = await response.json();
                 
-                if (data.status === 'success') {
+                if (data.success === true) {
                     showAlert(data.message, 'success');
                     closeAddModal();
                     loadApiKeys();
@@ -657,7 +657,7 @@
             };
             
             try {
-                const response = await fetch(`/api/user/api-keys/${keyId}`, {
+                const response = await fetch(`/api/user-api-keys/${keyId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json'
@@ -667,7 +667,7 @@
                 
                 const data = await response.json();
                 
-                if (data.status === 'success') {
+                if (data.success === true) {
                     showAlert(data.message, 'success');
                     closeEditModal();
                     loadApiKeys();
@@ -682,7 +682,7 @@
         // API 키 활성/비활성 토글
         async function toggleApiKey(keyId, isActive) {
             try {
-                const response = await fetch(`/api/user/api-keys/${keyId}`, {
+                const response = await fetch(`/api/user-api-keys/${keyId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json'
@@ -692,7 +692,7 @@
                 
                 const data = await response.json();
                 
-                if (data.status === 'success') {
+                if (data.success === true) {
                     showAlert(`API 키가 ${isActive ? '활성화' : '비활성화'}되었습니다.`, 'success');
                     loadApiKeys();
                 } else {
@@ -714,14 +714,14 @@
             button.disabled = true;
             
             try {
-                const response = await fetch(`/api/user/api-keys/test/${keyId}`, {
+                const response = await fetch(`/api/user-api-keys/test/${keyId}`, {
                     method: 'POST'
                 });
                 
                 const data = await response.json();
                 
-                if (data.status === 'success') {
-                    showAlert(data.message, data.valid ? 'success' : 'error');
+                if (data.success === true) {
+                    showAlert(data.message, 'success');
                 } else {
                     showAlert('테스트 실패: ' + data.message, 'error');
                 }
@@ -740,13 +740,13 @@
             }
             
             try {
-                const response = await fetch(`/api/user/api-keys/${keyId}`, {
+                const response = await fetch(`/api/user-api-keys/${keyId}`, {
                     method: 'DELETE'
                 });
                 
                 const data = await response.json();
                 
-                if (data.status === 'success') {
+                if (data.success === true) {
                     showAlert(data.message, 'success');
                     loadApiKeys();
                 } else {
