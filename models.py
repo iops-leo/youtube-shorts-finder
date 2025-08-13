@@ -469,7 +469,7 @@ class ApiKeyUsage(db.Model):
     __table_args__ = (
         db.Index('idx_api_key_timestamp', 'api_key_id', 'timestamp'),
         db.Index('idx_user_timestamp', 'user_id', 'timestamp'),
-        db.Index('idx_date_success', db.func.date('timestamp'), 'success'),
+        db.Index('idx_date_success', db.text('(timestamp::date)'), 'success'),
     )
     
     def to_dict(self):
