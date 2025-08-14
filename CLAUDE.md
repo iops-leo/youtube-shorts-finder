@@ -173,26 +173,54 @@ OAUTHLIB_INSECURE_TRANSPORT=1  # for local OAuth
 7. **Performance Monitoring**: Monitor API usage, database query performance, and cache hit rates
 8. **Admin Features**: Test user approval workflow and admin panel functionality through `/admin/users`
 
-## Migration Status (2024-12-20)
+## ⚠️ 중요: API 키 관리 시스템 마이그레이션 (2024-12-20)
 
-**⚠️ 현재 진행 중인 대규모 마이그레이션**: 공용 API 키 → 사용자별 개인 API 키 시스템
+**현재 진행 중인 대규모 마이그레이션**: 공용 API 키 → 사용자별 개인 API 키 시스템
 
-### 완료된 작업
-- ✅ 사용자 API 키 데이터베이스 모델 (`UserApiKey`, `ApiKeyUsage`, `ApiKeyRotation`)
-- ✅ 암호화 서비스 및 할당량 관리 시스템 (`services/user_api_service.py`)
-- ✅ 사용자별 검색 서비스 (`common_utils/user_search.py`)
-- ✅ API 키 관리 UI 엔드포인트 (10개 라우트 추가)
-- ✅ 기존 검색 API 업데이트 (사용자별 키 우선 사용)
+### 📋 필수 참고 문서
+**작업 전 반드시 확인**: `API_MIGRATION_LOG.md` 파일로 현재 진행 상황과 다음 작업 확인 필수
 
-### 현재 진행 중
-- ⏳ 프론트엔드 API 키 관리 페이지 완성 (`templates/api_keys.html`)
-- ⏳ 데이터베이스 마이그레이션 실행 (`migrate_user_api_keys.py`)
-- ⏳ 전체 시스템 테스트 및 검증
+### 🔄 Phase 기반 순차 진행 (세션 연속성 보장)
+현재 **Phase 1** 진행 중 - 각 Phase 완료 시 `API_MIGRATION_LOG.md` 업데이트 필수
 
-### 다음 작업
-- [ ] 모든 API 엔드포인트를 사용자별 키로 전환
-- [ ] 관리자 대시보드에 사용자 API 키 모니터링 추가
-- [ ] 성능 최적화 및 보안 강화
+#### Phase 1: 기본 기능 완성 (진행 중)
+1. **데이터베이스 마이그레이션**: `python migrate_user_api_keys.py` 실행
+2. **프론트엔드 완성**: `templates/api_keys.html` 완성
+3. **CRUD 테스트**: 기본 API 키 관리 기능 검증
+
+#### Phase 2: 시스템 통합 (대기 중)
+1. 모든 검색 API를 사용자별 키로 전환
+2. 에러 처리 및 사용자 경험 개선
+3. 관리자 모니터링 대시보드 추가
+
+#### Phase 3: 최적화 및 보안 (대기 중)
+1. 성능 최적화 및 캐싱 개선
+2. 보안 감사 및 강화
+3. 사용자 가이드 문서화
+
+#### Phase 4: 공용 키 시스템 제거 (최종)
+1. 모든 사용자 개인 키 설정 확인
+2. 공용 키 관련 코드 제거
+3. 최종 검증
+
+### ✅ 완료된 작업
+- 사용자 API 키 데이터베이스 모델 (`UserApiKey`, `ApiKeyUsage`, `ApiKeyRotation`)
+- 암호화 서비스 및 할당량 관리 시스템 (`services/user_api_service.py`)
+- 사용자별 검색 서비스 (`common_utils/user_search.py`)
+- API 키 관리 UI 엔드포인트 (10개 라우트 추가)
+- 기존 검색 API 업데이트 (사용자별 키 우선 사용)
+
+### ⏳ 현재 진행 중 (Phase 1)
+- 프론트엔드 API 키 관리 페이지 완성 (`templates/api_keys.html`)
+- 데이터베이스 마이그레이션 실행 (`migrate_user_api_keys.py`)
+- 전체 시스템 테스트 및 검증
+
+### 🚨 작업 규칙
+1. **문서 우선**: 작업 시작 전 `API_MIGRATION_LOG.md` 확인 필수
+2. **Phase 순서**: 반드시 Phase 1 → 2 → 3 → 4 순서로 진행
+3. **업데이트 의무**: 각 작업 완료 시 마이그레이션 로그 즉시 업데이트
+4. **세션 연속성**: 중단 시에도 문서를 통해 작업 연속성 유지
+5. **테스트 필수**: 각 Phase 완료 전 기능 테스트 반드시 수행
 
 ### Development Environment Setup
 1. Set `FLASK_ENV=dev` for local development
