@@ -1,4 +1,3 @@
-<!-- login.html -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -7,107 +6,453 @@
     <title>로그인 - YouTube Shorts 도구</title>
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
     <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon">
-    <!-- 부트스트랩 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome 아이콘 -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body {
-            background-color: #f8f9fa;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
+        * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
         }
-        .login-container {
-            max-width: 400px;
+
+        :root {
+            --bg-primary: #121212;
+            --bg-secondary: #1e1e1e;
+            --bg-tertiary: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #b3b3b3;
+            --text-muted: #666666;
+            --accent-primary: #00d4ff;
+            --accent-secondary: #ff6b35;
+            --accent-gradient: linear-gradient(135deg, #00d4ff, #5b73ff, #ff6b35);
+            --shadow-light: 8px 8px 20px rgba(0, 0, 0, 0.4);
+            --shadow-inset: inset 4px 4px 12px rgba(0, 0, 0, 0.3), 
+                           inset -4px -4px 12px rgba(255, 255, 255, 0.02);
+            --border-radius: 20px;
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Background Animation */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
-            padding: 20px;
+            height: 100%;
+            background: radial-gradient(circle at 20% 80%, rgba(0, 212, 255, 0.1) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 20%, rgba(255, 107, 53, 0.1) 0%, transparent 50%),
+                        radial-gradient(circle at 40% 40%, rgba(91, 115, 255, 0.05) 0%, transparent 50%);
+            animation: backgroundFloat 20s ease-in-out infinite;
+            z-index: -1;
         }
-        .logo {
+
+        @keyframes backgroundFloat {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(2deg); }
+        }
+
+        /* Neomorphism Base */
+        .neumorphic {
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-light);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .neumorphic-inset {
+            background: var(--bg-primary);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-inset);
+        }
+
+        .login-container {
+            max-width: 480px;
+            width: 100%;
+            padding: 40px;
+            animation: slideInUp 0.8s ease-out;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-card {
+            padding: 50px 40px;
             text-align: center;
-            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
         }
+
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--accent-gradient);
+        }
+
+        .logo-container {
+            margin-bottom: 40px;
+        }
+
+        .logo-shape {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            border-radius: 20px;
+            background: var(--accent-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 2rem;
+            font-weight: 700;
+            position: relative;
+            overflow: hidden;
+            animation: logoFloat 3s ease-in-out infinite;
+        }
+
+        .logo-shape::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.2), transparent);
+            animation: logoShine 4s infinite;
+        }
+
+        @keyframes logoFloat {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-5px) scale(1.02); }
+        }
+
+        @keyframes logoShine {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            50% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+            100% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+        }
+
+        .app-title {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .app-subtitle {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-bottom: 35px;
+        }
+
+        .login-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: var(--text-primary);
+        }
+
+        .login-description {
+            color: var(--text-secondary);
+            margin-bottom: 35px;
+            font-size: 0.95rem;
+        }
+
         .google-btn {
-            background-color: #fff;
-            color: #444;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 10px 16px;
-            font-size: 16px;
-            font-weight: 500;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: none;
+            border-radius: 15px;
+            padding: 18px 30px;
+            font-size: 1rem;
+            font-weight: 600;
             width: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background-color 0.3s;
+            gap: 12px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-inset);
+            position: relative;
+            overflow: hidden;
         }
+
         .google-btn:hover {
-            background-color: #f8f8f8;
+            color: var(--text-primary);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-inset), 0 8px 25px rgba(0, 212, 255, 0.2);
         }
-        .google-btn img {
-            margin-right: 10px;
-            width: 20px;
-            height: 20px;
+
+        .google-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+            transition: left 0.5s;
         }
-        .card {
-            border: none;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+        .google-btn:hover::before {
+            left: 100%;
         }
-        .card-header {
-            background-color: #3498db;
-            color: white;
-            text-align: center;
-            border-radius: 10px 10px 0 0 !important;
-            padding: 20px;
+
+        .google-logo {
+            width: 24px;
+            height: 24px;
+            filter: brightness(1.2);
         }
+
         .info-section {
-            margin-top: 2rem;
+            margin-top: 35px;
+        }
+
+        .info-card {
+            background: var(--bg-primary);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            box-shadow: var(--shadow-inset);
+            position: relative;
+        }
+
+        .info-icon {
+            color: var(--accent-primary);
+            font-size: 1.2rem;
+            margin-right: 10px;
+        }
+
+        .info-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .info-text {
             font-size: 0.9rem;
-            color: #6c757d;
+            color: var(--text-secondary);
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        .floating-particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--accent-primary);
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: particleFloat 15s infinite linear;
+        }
+
+        @keyframes particleFloat {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.3;
+            }
+            90% {
+                opacity: 0.3;
+            }
+            100% {
+                transform: translateY(-100px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        /* Alert Styling */
+        .alert {
+            background: var(--bg-primary);
+            border: 1px solid var(--accent-secondary);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            box-shadow: var(--shadow-inset);
+        }
+
+        .alert-info {
+            border-color: var(--accent-primary);
+        }
+
+        .alert-danger {
+            border-color: var(--accent-secondary);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .login-container {
+                padding: 20px;
+                max-width: 360px;
+            }
+            
+            .login-card {
+                padding: 35px 25px;
+            }
+            
+            .app-title {
+                font-size: 1.6rem;
+            }
+            
+            .logo-shape {
+                width: 70px;
+                height: 70px;
+                font-size: 1.6rem;
+            }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, var(--accent-primary), var(--accent-secondary));
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, var(--accent-secondary), var(--accent-primary));
         }
     </style>
 </head>
 <body>
+    <!-- Floating Particles -->
+    <div class="floating-particles"></div>
+    
     <div class="login-container">
-        <div class="card">
-            <div class="card-header">
-                <h3 class="mb-0"><i class="fab fa-youtube text-danger me-2"></i>YouTube Shorts 도구</h3>
-                <p class="mb-0 mt-2">인기 YouTube Shorts 검색 및 분석</p>
-            </div>
-            <div class="card-body p-4">
-                <div class="logo">
-                    <h4 class="mb-3">로그인</h4>
-                    <p class="text-muted">서비스를 이용하려면 로그인이 필요합니다</p>
+        <div class="login-card neumorphic">
+            <div class="logo-container">
+                <div class="logo-shape">
+                    <i class="fab fa-youtube"></i>
                 </div>
+                <h1 class="app-title">YouTube Shorts 도구</h1>
+                <p class="app-subtitle">인기 YouTube Shorts 검색 및 분석</p>
+            </div>
+            
+            <div class="login-section">
+                <h2 class="login-title">로그인</h2>
+                <p class="login-description">서비스를 이용하려면 로그인이 필요합니다</p>
                 
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
                         {% for category, message in messages %}
-                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                            <div class="alert alert-{{ category }}">
+                                <i class="fas fa-exclamation-triangle info-icon"></i>
+                                {{ message }}
+                            </div>
                         {% endfor %}
                     {% endif %}
                 {% endwith %}
                 
                 <a href="{{ auth_url }}" class="google-btn">
-                    <img src="/static/img/google-logo.svg" alt="Google Logo">
+                    <img src="/static/img/google-logo.svg" alt="Google Logo" class="google-logo">
                     Google 계정으로 로그인
                 </a>
                 
-                <div class="info-section mt-4">
-                    <div class="alert alert-info" role="alert">
-                        <h5 class="alert-heading"><i class="fas fa-info-circle me-2"></i>알림</h5>
-                        <p class="mb-0">처음 로그인하시면 관리자의 승인 후 서비스를 이용하실 수 있습니다.</p>
+                <div class="info-section">
+                    <div class="info-card">
+                        <div class="info-title">
+                            <i class="fas fa-info-circle info-icon"></i>알림
+                        </div>
+                        <p class="info-text">처음 로그인하시면 관리자의 승인 후 서비스를 이용하실 수 있습니다.</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     
-    <!-- 부트스트랩 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Create floating particles
+            const particlesContainer = document.querySelector('.floating-particles');
+            const particleCount = 20;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 15 + 's';
+                particle.style.animationDuration = (Math.random() * 10 + 10) + 's';
+                particlesContainer.appendChild(particle);
+            }
+            
+            // Google button hover effect
+            const googleBtn = document.querySelector('.google-btn');
+            googleBtn.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-3px) scale(1.02)';
+            });
+            
+            googleBtn.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0) scale(1)';
+            });
+            
+            // Logo click animation
+            const logoShape = document.querySelector('.logo-shape');
+            logoShape.addEventListener('click', function() {
+                this.style.transform = 'rotate(360deg) scale(1.1)';
+                setTimeout(() => {
+                    this.style.transform = 'rotate(0deg) scale(1)';
+                }, 500);
+            });
+            
+            // Add pulse effect to info icon
+            const infoIcons = document.querySelectorAll('.info-icon');
+            infoIcons.forEach(icon => {
+                setInterval(() => {
+                    icon.style.transform = 'scale(1.1)';
+                    setTimeout(() => {
+                        icon.style.transform = 'scale(1)';
+                    }, 200);
+                }, 5000);
+            });
+        });
+    </script>
 </body>
 </html>

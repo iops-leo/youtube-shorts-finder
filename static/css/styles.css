@@ -1,5 +1,34 @@
 /* 기존 styles.css 파일 끝에 추가할 CSS */
 
+/* 대시보드 스타일 */
+.border-left-primary {
+    border-left: 4px solid #007bff !important;
+}
+
+.border-left-success {
+    border-left: 4px solid #28a745 !important;
+}
+
+.border-left-info {
+    border-left: 4px solid #17a2b8 !important;
+}
+
+.border-left-warning {
+    border-left: 4px solid #ffc107 !important;
+}
+
+.text-gray-800 {
+    color: #5a5c69 !important;
+}
+
+.text-xs {
+    font-size: 0.75rem;
+}
+
+.font-weight-bold {
+    font-weight: 700 !important;
+}
+
 /* 네비게이션 바 고정 및 z-index 개선 */
 .navbar {
     position: fixed !important;

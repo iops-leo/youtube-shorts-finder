@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ViralPulse - 콘텐츠 바이럴 예측 플랫폼</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        :root {
+            --bg-primary: #121212;
+            --bg-secondary: #1e1e1e;
+            --bg-tertiary: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #b3b3b3;
+            --text-muted: #666666;
+            --accent-primary: #00d4ff;
+            --accent-secondary: #ff6b35;
+            --accent-gradient: linear-gradient(135deg, #00d4ff, #5b73ff, #ff6b35);
+            --shadow-light: 8px 8px 20px rgba(0, 0, 0, 0.4);
+            --shadow-inset: inset 4px 4px 12px rgba(0, 0, 0, 0.3), 
+                           inset -4px -4px 12px rgba(255, 255, 255, 0.02);
+            --border-radius: 20px;
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Neomorphism Base */
+        .neumorphic {
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-light);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .neumorphic-inset {
+            background: var(--bg-primary);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-inset);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 15px 0;
+        }
+
+        .nav-wrapper {
+            background: rgba(18, 18, 18, 0.9);
+            padding: 15px 30px;
+            margin: 10px 0;
+        }
+
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-shape {
+            width: 50px;
+            height: 50px;
+            border-radius: 15px;
+            background: var(--accent-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.4rem;
+            font-weight: 700;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .logo-shape::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+            animation: logoShine 3s infinite;
+        }
+
+        @keyframes logoShine {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            50% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+            100% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+        }
+
+        .logo-text {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 40px;
+            list-style: none;
+        }
+
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            padding: 10px 20px;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: inset 2px 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .search-container {
+            position: relative;
+        }
+
+        .search-input {
+            background: var(--bg-primary);
+            border: none;
+            padding: 12px 45px 12px 20px;
+            border-radius: 25px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            width: 280px;
+            box-shadow: var(--shadow-inset);
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            box-shadow: var(--shadow-inset), 0 0 0 2px var(--accent-primary);
+            width: 320px;
+        }
+
+        .search-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .notification-icon {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: var(--bg-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            box-shadow: var(--shadow-inset);
+        }
+
+        .notification-icon:hover {
+            transform: scale(1.05);
+            color: var(--accent-primary);
+        }
+
+        .notification-dot {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 12px;
+            height: 12px;
+            background: var(--accent-secondary);
+            border-radius: 50%;
+            border: 2px solid var(--bg-secondary);
+        }
+
+        .user-avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: var(--accent-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .user-avatar:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+        }
+
+        /* Main Dashboard */
+        .dashboard {
+            padding: 40px 0;
+        }
+
+        .dashboard-intro {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .dashboard-title {
+            font-size: 3.2rem;
+            font-weight: 800;
+            margin-bottom: 20px;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(0, 212, 255, 0.3);
+        }
+
+        .dashboard-description {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            max-width: 700px;
+            margin: 0 auto;
+            line-height: 1.7;
+        }
+
+        /* Stats Section */
+        .stats-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            margin-bottom: 50px;
+        }
+
+        .stat-card {
+            padding: 35px 30px;
+            text-align: center;
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--accent-gradient);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-10px);
+            box-shadow: var(--shadow-light), 0 20px 40px rgba(0, 212, 255, 0.1);
+        }
+
+        .stat-icon-wrapper {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 25px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: white;
+            position: relative;
+        }
+
+        .stat-icon-wrapper.pulse {
+            background: var(--accent-gradient);
+            animation: pulse 2s infinite;
+        }
+
+        .stat-icon-wrapper.trending {
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+        }
+
+        .stat-icon-wrapper.engagement {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+
+        .stat-icon-wrapper.growth {
+            background: linear-gradient(135deg, #5cb85c, #4cae4c);
+        }
+
+        @keyframes pulse {
+            0%, 100% { 
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.4);
+            }
+            50% { 
+                transform: scale(1.05);
+                box-shadow: 0 0 0 20px rgba(0, 212, 255, 0);
+            }
+        }
+
+        .stat-value {
+            font-size: 2.8rem;
+            font-weight: 800;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent-primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 15px;
+        }
+
+        .stat-trend {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .stat-trend.up {
+            background: rgba(92, 184, 92, 0.2);
+            color: #5cb85c;
+        }
+
+        .stat-trend.down {
+            background: rgba(255, 107, 53, 0.2);
+            color: #ff6b35;
+        }
+
+        /* Main Content Layout */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 40px;
+            margin-bottom: 50px;
+        }
+
+        .content-panel {
+            padding: 40px;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 35px;
+        }
+
+        .panel-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .panel-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .panel-action {
+            background: var(--accent-gradient);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .panel-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 212, 255, 0.3);
+        }
+
+        /* Chart Visualization */
+        .chart-container {
+            height: 350px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background: var(--bg-primary);
+            box-shadow: var(--shadow-inset);
+        }
+
+        .chart-visual {
+            text-align: center;
+            color: var(--text-secondary);
+        }
+
+        .chart-visual i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .chart-controls {
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+            margin-top: 25px;
+        }
+
+        .chart-legend {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        /* Trending Videos Panel */
+        .trending-list {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .trending-item {
+            display: flex;
+            gap: 18px;
+            padding: 20px;
+            border-radius: 15px;
+            background: var(--bg-primary);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .trending-item:hover {
+            background: var(--bg-tertiary);
+            transform: translateX(8px);
+            border-color: var(--accent-primary);
+        }
+
+        .trend-thumbnail {
+            width: 70px;
+            height: 70px;
+            border-radius: 12px;
+            background: var(--accent-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.4rem;
+            flex-shrink: 0;
+        }
+
+        .trend-info {
+            flex: 1;
+        }
+
+        .trend-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .trend-channel {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            margin-bottom: 12px;
+        }
+
+        .trend-metrics {
+            display: flex;
+            gap: 15px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .trend-metrics span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .quick-action {
+            padding: 20px;
+            text-align: center;
+            border-radius: 15px;
+            background: var(--bg-primary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .quick-action:hover {
+            background: var(--bg-tertiary);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .quick-action i {
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+            color: var(--accent-primary);
+        }
+
+        .quick-action-text {
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        /* Bottom Features */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+
+        .feature-card {
+            padding: 35px 30px;
+            text-align: center;
+            transition: all 0.4s ease;
+            position: relative;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--shadow-light), 0 20px 40px rgba(0, 212, 255, 0.1);
+        }
+
+        .feature-icon {
+            width: 70px;
+            height: 70px;
+            margin: 0 auto 25px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            color: white;
+        }
+
+        .feature-icon.ai {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+
+        .feature-icon.alert {
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+        }
+
+        .feature-icon.export {
+            background: linear-gradient(135deg, #5cb85c, #4cae4c);
+        }
+
+        .feature-icon.premium {
+            background: var(--accent-gradient);
+        }
+
+        .feature-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+
+        .feature-description {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            font-size: 0.9rem;
+        }
+
+        /* Floating Elements */
+        .floating-add {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: var(--accent-gradient);
+            border: none;
+            color: white;
+            font-size: 1.6rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 50;
+            box-shadow: 0 10px 30px rgba(0, 212, 255, 0.4);
+        }
+
+        .floating-add:hover {
+            transform: scale(1.1) rotate(90deg);
+            box-shadow: 0 15px 40px rgba(0, 212, 255, 0.6);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+            
+            .nav-menu {
+                display: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-title {
+                font-size: 2.5rem;
+            }
+            
+            .stats-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .search-input {
+                width: 200px;
+            }
+            
+            .search-input:focus {
+                width: 220px;
+            }
+            
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Animations */
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-slide {
+            animation: slideInUp 0.6s ease-out forwards;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, var(--accent-primary), var(--accent-secondary));
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, var(--accent-secondary), var(--accent-primary));
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="nav-wrapper neumorphic">
+                <nav class="navbar">
+                    <div class="logo-container">
+                        <div class="logo-shape">
+                            <i class="fas fa-heartbeat"></i>
+                        </div>
+                        <div class="logo-text">ViralPulse</div>
+                    </div>
+
+                    <ul class="nav-menu">
+                        <li><a href="#dashboard" class="nav-link active">대시보드</a></li>
+                        <li><a href="#analytics" class="nav-link">실시간 분석</a></li>
+                        <li><a href="#prediction" class="nav-link">바이럴 예측</a></li>
+                        <li><a href="#reports" class="nav-link">리포트</a></li>
+                        <li><a href="#settings" class="nav-link">설정</a></li>
+                    </ul>
+
+                    <div class="nav-actions">
+                        <div class="search-container">
+                            <input type="text" class="search-input" placeholder="콘텐츠, 채널, 키워드 검색...">
+                            <i class="fas fa-search search-icon"></i>
+                        </div>
+                        <div class="user-menu">
+                            <div class="notification-icon">
+                                <i class="fas fa-bell"></i>
+                                <div class="notification-dot"></div>
+                            </div>
+                            <div class="user-avatar">박</div>
+                        </div>
+                    </div>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dashboard -->
+    <main class="dashboard">
+        <div class="container">
+            <!-- Dashboard Intro -->
+            <div class="dashboard-intro">
+                <h1 class="dashboard-title">바이럴 콘텐츠 예측 AI</h1>
+                <p class="dashboard-description">
+                    머신러닝과 빅데이터 분석을 통해 다음 바이럴 콘텐츠를 예측하고, 
+                    성공하는 콘텐츠 전략을 데이터 기반으로 수립하세요
+                </p>
+            </div>
+
+            <!-- Stats Section -->
+            <div class="stats-section">
+                <div class="stat-card neumorphic animate-slide">
+                    <div class="stat-icon-wrapper pulse">
+                        <i class="fas fa-fire"></i>
+                    </div>
+                    <div class="stat-value">3.2M</div>
+                    <div class="stat-label">분석된 바이럴 콘텐츠</div>
+                    <div class="stat-trend up">
+                        <i class="fas fa-arrow-up"></i>
+                        +28.5%
+                    </div>
+                </div>
+
+                <div class="stat-card neumorphic animate-slide">
+                    <div class="stat-icon-wrapper trending">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="stat-value">97.3%</div>
+                    <div class="stat-label">예측 정확도</div>
+                    <div class="stat-trend up">
+                        <i class="fas fa-arrow-up"></i>
+                        +3.2%
+                    </div>
+                </div>
+
+                <div class="stat-card neumorphic animate-slide">
+                    <div class="stat-icon-wrapper engagement">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-value">245</div>
+                    <div class="stat-label">모니터링 채널</div>
+                    <div class="stat-trend up">
+                        <i class="fas fa-arrow-up"></i>
+                        +12개
+                    </div>
+                </div>
+
+                <div class="stat-card neumorphic animate-slide">
+                    <div class="stat-icon-wrapper growth">
+                        <i class="fas fa-rocket"></i>
+                    </div>
+                    <div class="stat-value">$24.7K</div>
+                    <div class="stat-label">예상 수익 증가</div>
+                    <div class="stat-trend up">
+                        <i class="fas fa-arrow-up"></i>
+                        +42.1%
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content Layout -->
+            <div class="main-layout">
+                <!-- Left Panel - Analytics Dashboard -->
+                <div class="content-panel neumorphic">
+                    <div class="panel-header">
+                        <div>
+                            <h2 class="panel-title">🚀 바이럴 예측 분석</h2>
+                            <p class="panel-subtitle">AI 기반 실시간 트렌드 예측 및 성과 분석</p>
+                        </div>
+                        <button class="panel-action">
+                            <i class="fas fa-download"></i> 예측 리포트
+                        </button>
+                    </div>
+
+                    <div class="chart-container">
+                        <div class="chart-visual">
+                            <i class="fas fa-chart-area"></i>
+                            <h3>인터랙티브 바이럴 예측 차트</h3>
+                            <p>조회수 폭증 예측, 참여도 분석, 바이럴 확률</p>
+                        </div>
+                    </div>
+
+                    <div class="chart-controls">
+                        <div class="chart-legend">
+                            <div class="legend-dot" style="background: linear-gradient(135deg, #00d4ff, #5b73ff);"></div>
+                            <span>바이럴 확률</span>
+                        </div>
+                        <div class="chart-legend">
+                            <div class="legend-dot" style="background: linear-gradient(135deg, #ff6b35, #f7931e);"></div>
+                            <span>참여도</span>
+                        </div>
+                        <div class="chart-legend">
+                            <div class="legend-dot" style="background: linear-gradient(135deg, #5cb85c, #4cae4c);"></div>
+                            <span>성장률</span>
+                        </div>
+                        <div class="chart-legend">
+                            <div class="legend-dot" style="background: linear-gradient(135deg, #667eea, #764ba2);"></div>
+                            <span>수익성</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Panel - Trending Content -->
+                <div class="content-panel neumorphic">
+                    <div class="panel-header">
+                        <div>
+                            <h2 class="panel-title">⚡ 실시간 바이럴 예측</h2>
+                            <p class="panel-subtitle">지금 뜨고 있는 콘텐츠들</p>
+                        </div>
+                        <button class="panel-action">
+                            <i class="fas fa-sync-alt"></i> 새로고침
+                        </button>
+                    </div>
+
+                    <div class="trending-list">
+                        <div class="trending-item">
+                            <div class="trend-thumbnail">
+                                <i class="fas fa-fire"></i>
+                            </div>
+                            <div class="trend-info">
+                                <div class="trend-title">AI가 예측한 대박 요리법</div>
+                                <div class="trend-channel">테크쿡킹 • 1시간 전</div>
+                                <div class="trend-metrics">
+                                    <span><i class="fas fa-eye"></i> 3.2M</span>
+                                    <span><i class="fas fa-heart"></i> 187K</span>
+                                    <span><i class="fas fa-share"></i> 34K</span>
+                                    <span style="color: var(--accent-primary);">🔥 98% 바이럴</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="trending-item">
+                            <div class="trend-thumbnail">
+                                <i class="fas fa-music"></i>
+                            </div>
+                            <div class="trend-info">
+                                <div class="trend-title">초대형 댄스 챌린지 시작</div>
+                                <div class="trend-channel">댄스월드 • 3시간 전</div>
+                                <div class="trend-metrics">
+                                    <span><i class="fas fa-eye"></i> 2.8M</span>
+                                    <span><i class="fas fa-heart"></i> 156K</span>
+                                    <span><i class="fas fa-share"></i> 28K</span>
+                                    <span style="color: var(--accent-primary);">🔥 95% 바이럴</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="trending-item">
+                            <div class="trend-thumbnail">
+                                <i class="fas fa-gamepad"></i>
+                            </div>
+                            <div class="trend-info">
+                                <div class="trend-title">숨겨진 게임 꿀팁 대공개</div>
+                                <div class="trend-channel">게임마스터 • 5시간 전</div>
+                                <div class="trend-metrics">
+                                    <span><i class="fas fa-eye"></i> 2.1M</span>
+                                    <span><i class="fas fa-heart"></i> 123K</span>
+                                    <span><i class="fas fa-share"></i> 22K</span>
+                                    <span style="color: var(--accent-secondary);">🔥 92% 바이럴</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="trending-item">
+                            <div class="trend-thumbnail">
+                                <i class="fas fa-magic"></i>
+                            </div>
+                            <div class="trend-info">
+                                <div class="trend-title">불가능한 마술 트릭</div>
+                                <div class="trend-channel">마법사김 • 7시간 전</div>
+                                <div class="trend-metrics">
+                                    <span><i class="fas fa-eye"></i> 1.7M</span>
+                                    <span><i class="fas fa-heart"></i> 98K</span>
+                                    <span><i class="fas fa-share"></i> 18K</span>
+                                    <span style="color: var(--accent-secondary);">🔥 89% 바이럴</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="trending-item">
+                            <div class="trend-thumbnail">
+                                <i class="fas fa-cat"></i>
+                            </div>
+                            <div class="trend-info">
+                                <div class="trend-title">고양이의 놀라운 재능</div>
+                                <div class="trend-channel">펫러버 • 9시간 전</div>
+                                <div class="trend-metrics">
+                                    <span><i class="fas fa-eye"></i> 1.4M</span>
+                                    <span><i class="fas fa-heart"></i> 87K</span>
+                                    <span><i class="fas fa-share"></i> 15K</span>
+                                    <span style="color: #5cb85c;">🔥 85% 바이럴</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="quick-actions">
+                        <div class="quick-action">
+                            <i class="fas fa-plus-circle"></i>
+                            <div class="quick-action-text">채널 추가</div>
+                        </div>
+                        <div class="quick-action">
+                            <i class="fas fa-bell"></i>
+                            <div class="quick-action-text">알림 설정</div>
+                        </div>
+                        <div class="quick-action">
+                            <i class="fas fa-robot"></i>
+                            <div class="quick-action-text">AI 분석</div>
+                        </div>
+                        <div class="quick-action">
+                            <i class="fas fa-cog"></i>
+                            <div class="quick-action-text">설정</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Features Section -->
+            <div class="features-grid">
+                <div class="feature-card neumorphic">
+                    <div class="feature-icon ai">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <h3 class="feature-title">AI 바이럴 예측</h3>
+                    <p class="feature-description">
+                        딥러닝 알고리즘으로 콘텐츠의 바이럴 가능성을 실시간으로 분석하고 예측합니다
+                    </p>
+                </div>
+
+                <div class="feature-card neumorphic">
+                    <div class="feature-icon alert">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <h3 class="feature-title">실시간 트렌드 알림</h3>
+                    <p class="feature-description">
+                        급상승하는 트렌드와 바이럴 콘텐츠를 즉시 알림으로 받아보세요
+                    </p>
+                </div>
+
+                <div class="feature-card neumorphic">
+                    <div class="feature-icon export">
+                        <i class="fas fa-chart-bar"></i>
+                    </div>
+                    <h3 class="feature-title">성과 분석 리포트</h3>
+                    <p class="feature-description">
+                        상세한 분석 리포트와 인사이트로 콘텐츠 전략을 최적화하세요
+                    </p>
+                </div>
+
+                <div class="feature-card neumorphic">
+                    <div class="feature-icon premium">
+                        <i class="fas fa-crown"></i>
+                    </div>
+                    <h3 class="feature-title">프리미엄 인사이트</h3>
+                    <p class="feature-description">
+                        경쟁사 분석, 시장 동향, 수익 예측까지 전문가급 분석을 제공합니다
+                    </p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Floating Action Button -->
+    <button class="floating-add">
+        <i class="fas fa-plus"></i>
+    </button>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Smooth animations on load
+            const animateElements = document.querySelectorAll('.animate-slide');
+            animateElements.forEach((element, index) => {
+                element.style.animationDelay = `${index * 0.1}s`;
+            });
+
+            // Interactive trending items
+            const trendingItems = document.querySelectorAll('.trending-item');
+            trendingItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    // Add click animation
+                    this.style.transform = 'translateX(12px) scale(1.02)';
+                    this.style.background = 'var(--bg-tertiary)';
+                    
+                    setTimeout(() => {
+                        this.style.transform = 'translateX(0) scale(1)';
+                        this.style.background = 'var(--bg-primary)';
+                    }, 200);
+                });
+            });
+
+            // Search input interactions
+            const searchInput = document.querySelector('.search-input');
+            searchInput.addEventListener('focus', function() {
+                this.parentElement.style.transform = 'scale(1.02)';
+            });
+            
+            searchInput.addEventListener('blur', function() {
+                this.parentElement.style.transform = 'scale(1)';
+            });
+
+            // Floating button animation
+            const floatingBtn = document.querySelector('.floating-add');
+            floatingBtn.addEventListener('click', function() {
+                this.style.transform = 'scale(0.9) rotate(135deg)';
+                setTimeout(() => {
+                    this.style.transform = 'scale(1) rotate(0deg)';
+                }, 150);
+            });
+
+            // Statistics counter animation
+            function animateCounter(element, target, duration = 2000) {
+                let start = 0;
+                const increment = target / (duration / 16);
+                
+                function updateCounter() {
+                    start += increment;
+                    if (start < target) {
+                        element.textContent = Math.floor(start).toLocaleString();
+                        requestAnimationFrame(updateCounter);
+                    } else {
+                        element.textContent = target.toLocaleString();
+                    }
+                }
+                updateCounter();
+            }
+
+            // Interactive stat cards
+            const statCards = document.querySelectorAll('.stat-card');
+            statCards.forEach((card, index) => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-15px) scale(1.03)';
+                    this.style.zIndex = '10';
+                });
+                
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0) scale(1)';
+                    this.style.zIndex = '1';
+                });
+            });
+
+            // Feature cards hover effects
+            const featureCards = document.querySelectorAll('.feature-card');
+            featureCards.forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-12px) scale(1.02)';
+                });
+                
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0) scale(1)';
+                });
+            });
+
+            // Notification pulse effect
+            const notificationIcon = document.querySelector('.notification-icon');
+            setInterval(() => {
+                notificationIcon.style.transform = 'scale(1.1)';
+                setTimeout(() => {
+                    notificationIcon.style.transform = 'scale(1)';
+                }, 200);
+            }, 5000);
+
+            // Simulated real-time updates
+            setInterval(() => {
+                const viralPercentages = document.querySelectorAll('.trend-metrics span:last-child');
+                viralPercentages.forEach(span => {
+                    if (Math.random() > 0.7) {
+                        span.style.color = 'var(--accent-primary)';
+                        span.style.fontWeight = '700';
+                        setTimeout(() => {
+                            span.style.color = 'var(--accent-secondary)';
+                            span.style.fontWeight = '500';
+                        }, 1000);
+                    }
+                });
+            }, 8000);
+
+            // Logo shine animation trigger
+            const logoShape = document.querySelector('.logo-shape');
+            logoShape.addEventListener('click', function() {
+                this.style.transform = 'rotate(360deg) scale(1.1)';
+                setTimeout(() => {
+                    this.style.transform = 'rotate(0deg) scale(1)';
+                }, 500);
+            });
+        });
+    </script>
+</body>
+</html>
