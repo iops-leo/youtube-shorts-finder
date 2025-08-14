@@ -2090,7 +2090,7 @@ def dashboard():
         # 활성 알림 수
         stats['active_notifications'] = EmailNotification.query.filter_by(
             user_id=current_user.id, 
-            is_active=True
+            active=True
         ).count()
         
         # 최근 7일 API 사용량 차트 데이터
