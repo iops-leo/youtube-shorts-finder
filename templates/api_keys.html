@@ -4,8 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>API 키 관리 - YouTube Shorts 도구</title>
-    <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet">
-    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon">
+    <!-- 부트스트랩 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 아이콘 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- 커스텀 CSS -->
+    <link rel="stylesheet" href="/static/css/styles.css">
     
     <style>
         .api-key-card {
@@ -19,7 +25,7 @@
         
         .api-key-header {
             display: flex;
-            justify-content: between;
+            justify-content: space-between;
             align-items: center;
             margin-bottom: 16px;
         }
@@ -330,36 +336,104 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <div class="header-left">
-                <h1>
-                    <a href="{{ url_for('index') }}" style="color: inherit; text-decoration: none;">
-                        📺 YouTube Shorts 도구
-                    </a>
-                </h1>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fab fa-youtube text-danger me-2"></i>YouTube Shorts 도구
+            </a>
+            <button class="navbar-toggler d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarCollapse">
+                <!-- 우측 메뉴 -->
+                <ul class="navbar-nav ms-auto">
+                    {% if current_user.is_admin() %}
+                    <li class="nav-item dropdown d-none d-lg-block">
+                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-cog me-1"></i>관리자
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="adminDropdown" style="background-color: #343a40 !important; border: 1px solid #495057;">
+                            <li><a class="dropdown-item" href="/admin/users" style="color: #ffffff !important;"><i class="fas fa-users me-1"></i>사용자 관리</a></li>
+                            <li><a class="dropdown-item" href="/admin/stats" style="color: #ffffff !important;"><i class="fas fa-chart-line me-1"></i>API 통계</a></li>
+                        </ul>
+                    </li>
+                    {% endif %}
+                    
+                    <!-- 사용자 프로필 드롭다운 -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <img src="{{ current_user.picture }}" alt="프로필" class="rounded-circle me-1" style="width: 24px; height: 24px;">
+                            {{ current_user.name }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li>
+                                <div class="dropdown-item text-muted">
+                                    <small>
+                                        <i class="fas fa-envelope me-1"></i>{{ current_user.email }}<br>
+                                        <i class="fas fa-chart-line me-1"></i>API 호출: {{ current_user.api_calls }}회
+                                    </small>
+                                </div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>로그아웃</a></li>
+                        </ul>
+                    </li>
+                </ul>
             </div>
-            <div class="header-right">
-                <a href="{{ url_for('index') }}" class="nav-link">홈</a>
-                <a href="{{ url_for('notifications_page') }}" class="nav-link">알림 설정</a>
-                <a href="{{ url_for('saved_videos_page') }}" class="nav-link">저장된 영상</a>
-                <a href="{{ url_for('youtube_management') }}" class="nav-link">YouTube 관리</a>
-                <a href="{{ url_for('api_keys_page') }}" class="nav-link active">API 키 관리</a>
-                {% if current_user.is_admin() %}
-                <a href="{{ url_for('admin_users') }}" class="nav-link">관리자</a>
-                {% endif %}
-                <a href="/logout" class="nav-link">로그아웃</a>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-5 pt-3">
+        <div class="row">
+            <!-- 사이드바 메뉴 -->
+            <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse show" id="sidebarMenu">
+                <div class="position-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">
+                                <i class="fas fa-search me-2"></i>인기 Shorts 검색
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/saved-videos">
+                                <i class="fas fa-bookmark me-2"></i>저장된 영상
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/notifications">
+                                <i class="fas fa-bell me-2"></i>이메일 알림
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/youtube-management">
+                                <i class="fas fa-video me-2"></i>YouTube 관리
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/api-keys">
+                                <i class="fas fa-key me-2"></i>API 키 관리
+                                {% if user_has_api_keys %}
+                                    <span class="badge bg-success ms-2">{{ user_api_keys_count }}</span>
+                                {% endif %}
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </div>
-        </header>
+
+            <!-- 메인 콘텐츠 -->
+            <div class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
         
-        <main class="main-content">
-            <div class="section-header">
-                <h2>🔑 API 키 관리</h2>
-                <p>개인 YouTube API 키를 관리하여 더 많은 할당량을 사용하세요.</p>
-                <button class="btn btn-primary" onclick="openAddModal()">
-                    ➕ 새 API 키 추가
-                </button>
-            </div>
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">🔑 API 키 관리</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <button class="btn btn-primary" onclick="openAddModal()">
+                            <i class="fas fa-plus me-1"></i>새 API 키 추가
+                        </button>
+                    </div>
+                </div>
+                
+                <p class="text-muted mb-4">개인 YouTube API 키를 관리하여 더 많은 할당량을 사용하세요.</p>
             
             <div id="alert-container"></div>
             
@@ -397,24 +471,26 @@
                         <h3 class="modal-title">새 API 키 추가</h3>
                     </div>
                     <form id="add-form">
-                        <div class="form-group">
+                        <div class="mb-3">
                             <label class="form-label" for="api-key-name">키 이름</label>
-                            <input type="text" id="api-key-name" class="form-input" placeholder="예: 내 개인 키" required>
-                            <div class="form-help">구분하기 쉬운 이름을 입력하세요.</div>
+                            <input type="text" id="api-key-name" class="form-control" placeholder="예: 내 개인 키" required>
+                            <div class="form-text">구분하기 쉬운 이름을 입력하세요.</div>
                         </div>
-                        <div class="form-group">
+                        <div class="mb-3">
                             <label class="form-label" for="api-key-value">YouTube API 키</label>
-                            <input type="text" id="api-key-value" class="form-input" placeholder="AIza..." required>
-                            <div class="form-help">Google Cloud Console에서 발급받은 YouTube Data API v3 키를 입력하세요.</div>
+                            <input type="text" id="api-key-value" class="form-control" placeholder="AIza..." required>
+                            <div class="form-text">Google Cloud Console에서 발급받은 YouTube Data API v3 키를 입력하세요.</div>
                         </div>
-                        <div class="form-group">
+                        <div class="mb-3">
                             <label class="form-label" for="daily-quota">일일 할당량</label>
-                            <input type="number" id="daily-quota" class="form-input" value="10000" min="1000" max="50000">
-                            <div class="form-help">일일 사용 한도를 설정하세요 (1,000 ~ 50,000).</div>
+                            <input type="number" id="daily-quota" class="form-control" value="10000" min="1000" max="50000">
+                            <div class="form-text">일일 사용 한도를 설정하세요 (1,000 ~ 50,000).</div>
                         </div>
-                        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <div class="d-flex gap-2 justify-content-end">
                             <button type="button" class="btn btn-secondary" onclick="closeAddModal()">취소</button>
-                            <button type="submit" class="btn btn-primary">추가</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-plus me-1"></i>추가
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -428,28 +504,34 @@
                     </div>
                     <form id="edit-form">
                         <input type="hidden" id="edit-key-id">
-                        <div class="form-group">
+                        <div class="mb-3">
                             <label class="form-label" for="edit-api-key-name">키 이름</label>
-                            <input type="text" id="edit-api-key-name" class="form-input" required>
+                            <input type="text" id="edit-api-key-name" class="form-control" required>
                         </div>
-                        <div class="form-group">
+                        <div class="mb-3">
                             <label class="form-label" for="edit-daily-quota">일일 할당량</label>
-                            <input type="number" id="edit-daily-quota" class="form-input" min="1000" max="50000">
+                            <input type="number" id="edit-daily-quota" class="form-control" min="1000" max="50000">
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="edit-is-active"> 활성화
-                            </label>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" id="edit-is-active" class="form-check-input">
+                                <label class="form-check-label" for="edit-is-active">활성화</label>
+                            </div>
                         </div>
-                        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <div class="d-flex gap-2 justify-content-end">
                             <button type="button" class="btn btn-secondary" onclick="closeEditModal()">취소</button>
-                            <button type="submit" class="btn btn-primary">저장</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>저장
+                            </button>
                         </div>
                     </form>
                 </div>
             </div>
-        </main>
+        </div>
     </div>
+
+    <!-- 부트스트랩 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
         let apiKeys = [];
@@ -507,7 +589,9 @@
                     <div class="no-api-keys">
                         <h3>등록된 API 키가 없습니다</h3>
                         <p>YouTube API 키를 추가하여 개인 할당량을 사용하세요.</p>
-                        <button class="btn btn-primary" onclick="openAddModal()">첫 번째 API 키 추가</button>
+                        <button class="btn btn-primary" onclick="openAddModal()">
+                            <i class="fas fa-plus me-1"></i>첫 번째 API 키 추가
+                        </button>
                     </div>
                 `;
                 return;
@@ -556,9 +640,15 @@
                         </div>
                         
                         <div class="api-key-actions">
-                            <button class="btn btn-secondary" onclick="testApiKey(${key.id})">🧪 테스트</button>
-                            <button class="btn btn-secondary" onclick="editApiKey(${key.id})">✏️ 편집</button>
-                            <button class="btn btn-danger" onclick="deleteApiKey(${key.id}, '${escapeHtml(key.name)}')">🗑️ 삭제</button>
+                            <button class="btn btn-outline-info btn-sm" onclick="testApiKey(${key.id})">
+                                <i class="fas fa-flask me-1"></i>테스트
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="editApiKey(${key.id})">
+                                <i class="fas fa-edit me-1"></i>편집
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="deleteApiKey(${key.id}, '${escapeHtml(key.name)}')">
+                                <i class="fas fa-trash me-1"></i>삭제
+                            </button>
                         </div>
                     </div>
                 `;
