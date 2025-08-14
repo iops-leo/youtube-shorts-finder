@@ -476,7 +476,10 @@
             } catch (error) {
                 showAlert('API 키 로드 중 오류가 발생했습니다.', 'error');
             } finally {
-                document.getElementById('loading').style.display = 'none';
+                const loadingElement = document.getElementById('loading');
+                if (loadingElement) {
+                    loadingElement.style.display = 'none';
+                }
             }
         }
 

@@ -172,17 +172,34 @@ class UserApiKeyManager:
             UserApiKey.id
         ).all()
         
-        if not available_keys:
-            return None
+        # 사용자 개인 키가 있는 경우 우선 사용
+        if available_keys:
+            # 일일 사용량 리셋 및 건강한 키 찾기
+            for key in available_keys:
+                key.reset_daily_usage()
+                if key.is_healthy() and not key.is_quota_exceeded():
+                    self.current_key = key
+                    return self.decrypt_api_key(key.api_key)
         
-        # 일일 사용량 리셋 및 건강한 키 찾기
-        for key in available_keys:
-            key.reset_daily_usage()
-            if key.is_healthy() and not key.is_quota_exceeded():
-                self.current_key = key
-                return self.decrypt_api_key(key.api_key)
+        # 개인 키가 없거나 모두 사용불가한 경우 시스템 키 사용
+        return self._get_system_fallback_key()
+    
+    def _get_system_fallback_key(self):
+        """시스템 기본 API 키 사용 (Railway 환경변수)"""
+        try:
+            # 기존 시스템의 할당량 관리자 사용
+            from common_utils.quota_manager import get_quota_manager
+            quota_manager = get_quota_manager()
+            
+            if quota_manager and quota_manager.has_available_quota():
+                system_key = quota_manager.get_current_api_key()
+                if system_key:
+                    current_app.logger.info(f"사용자 {self.user_id}: 시스템 API 키 사용 (개인 키 없음)")
+                    self.current_key = None  # 시스템 키 사용 시 current_key는 None
+                    return system_key
+        except Exception as e:
+            current_app.logger.error(f"시스템 API 키 접근 중 오류: {str(e)}")
         
-        # 모든 키가 할당량 초과 또는 오류 상태인 경우
         return None
     
     def switch_to_next_key(self, reason="quota_exceeded"):
@@ -209,6 +226,7 @@ class UserApiKeyManager:
     
     def record_api_usage(self, endpoint, quota_cost=1, success=True, error_message=None, response_time=None):
         """API 사용 기록"""
+        # 시스템 키 사용 시에는 기록하지 않음
         if not self.current_key:
             return
         
@@ -242,50 +260,69 @@ class UserApiKeyManager:
         from sqlalchemy import func
         from datetime import timedelta
         
-        start_date = datetime.utcnow() - timedelta(days=days)
-        
-        # 일별 사용량
-        daily_usage = db.session.query(
-            func.date(ApiKeyUsage.timestamp).label('date'),
-            func.count().label('total_calls'),
-            func.sum(func.case([(ApiKeyUsage.success == True, 1)], else_=0)).label('successful_calls'),
-            func.avg(ApiKeyUsage.response_time).label('avg_response_time')
-        ).filter(
-            ApiKeyUsage.user_id == self.user_id,
-            ApiKeyUsage.timestamp >= start_date
-        ).group_by(func.date(ApiKeyUsage.timestamp)).all()
-        
-        # API 키별 사용량
-        key_usage = db.session.query(
-            UserApiKey.name,
-            func.count(ApiKeyUsage.id).label('total_calls'),
-            func.sum(func.case([(ApiKeyUsage.success == True, 1)], else_=0)).label('successful_calls')
-        ).join(ApiKeyUsage).filter(
-            UserApiKey.user_id == self.user_id,
-            ApiKeyUsage.timestamp >= start_date
-        ).group_by(UserApiKey.id, UserApiKey.name).all()
-        
-        return {
-            'daily_usage': [
-                {
+        try:
+            start_date = datetime.utcnow() - timedelta(days=days)
+            
+            # 일별 사용량
+            daily_usage = db.session.query(
+                func.date(ApiKeyUsage.timestamp).label('date'),
+                func.count().label('total_calls'),
+                func.sum(func.case([(ApiKeyUsage.success == True, 1)], else_=0)).label('successful_calls'),
+                func.avg(ApiKeyUsage.response_time).label('avg_response_time')
+            ).filter(
+                ApiKeyUsage.user_id == self.user_id,
+                ApiKeyUsage.timestamp >= start_date
+            ).group_by(func.date(ApiKeyUsage.timestamp)).all()
+            
+            # API 키별 사용량
+            key_usage = db.session.query(
+                UserApiKey.name,
+                func.count(ApiKeyUsage.id).label('total_calls'),
+                func.sum(func.case([(ApiKeyUsage.success == True, 1)], else_=0)).label('successful_calls')
+            ).join(ApiKeyUsage).filter(
+                UserApiKey.user_id == self.user_id,
+                ApiKeyUsage.timestamp >= start_date
+            ).group_by(UserApiKey.id, UserApiKey.name).all()
+            
+            # 안전한 데이터 변환
+            daily_usage_data = []
+            for day in daily_usage:
+                total_calls = int(day.total_calls) if day.total_calls else 0
+                successful_calls = int(day.successful_calls) if day.successful_calls else 0
+                avg_response_time = float(day.avg_response_time) if day.avg_response_time else 0.0
+                
+                daily_usage_data.append({
                     'date': day.date.isoformat(),
-                    'total_calls': day.total_calls,
-                    'successful_calls': day.successful_calls,
-                    'success_rate': round((day.successful_calls / day.total_calls) * 100, 1) if day.total_calls > 0 else 0,
-                    'avg_response_time': round(day.avg_response_time, 2) if day.avg_response_time else 0
-                }
-                for day in daily_usage
-            ],
-            'key_usage': [
-                {
+                    'total_calls': total_calls,
+                    'successful_calls': successful_calls,
+                    'success_rate': round((successful_calls / total_calls) * 100, 1) if total_calls > 0 else 0,
+                    'avg_response_time': round(avg_response_time, 2)
+                })
+            
+            key_usage_data = []
+            for key in key_usage:
+                total_calls = int(key.total_calls) if key.total_calls else 0
+                successful_calls = int(key.successful_calls) if key.successful_calls else 0
+                
+                key_usage_data.append({
                     'key_name': key.name,
-                    'total_calls': key.total_calls,
-                    'successful_calls': key.successful_calls,
-                    'success_rate': round((key.successful_calls / key.total_calls) * 100, 1) if key.total_calls > 0 else 0
-                }
-                for key in key_usage
-            ]
-        }
+                    'total_calls': total_calls,
+                    'successful_calls': successful_calls,
+                    'success_rate': round((successful_calls / total_calls) * 100, 1) if total_calls > 0 else 0
+                })
+            
+            return {
+                'daily_usage': daily_usage_data,
+                'key_usage': key_usage_data
+            }
+            
+        except Exception as e:
+            current_app.logger.error(f"사용 통계 조회 중 오류: {str(e)}")
+            # 기본값 반환
+            return {
+                'daily_usage': [],
+                'key_usage': []
+            }
     
     def get_youtube_service(self):
         """YouTube API 서비스 인스턴스 반환"""
@@ -298,12 +335,19 @@ class UserApiKeyManager:
             youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=api_key)
             response_time = time.time() - start_time
             
-            self.record_api_usage("service.build", success=True, response_time=response_time)
+            # 개인 키 사용 시에만 사용량 기록
+            if self.current_key:
+                self.record_api_usage("service.build", success=True, response_time=response_time)
+            
             return youtube
             
         except Exception as e:
             response_time = time.time() - start_time
-            self.record_api_usage("service.build", success=False, error_message=str(e), response_time=response_time)
+            
+            # 개인 키 사용 시에만 오류 기록
+            if self.current_key:
+                self.record_api_usage("service.build", success=False, error_message=str(e), response_time=response_time)
+            
             raise
     
     def execute_api_call(self, api_call_func, endpoint_name, quota_cost=1, max_retries=3):
@@ -316,7 +360,7 @@ class UserApiKeyManager:
                 result = api_call_func()
                 response_time = time.time() - start_time
                 
-                # 성공 기록
+                # 성공 기록 (개인 키 사용 시에만)
                 self.record_api_usage(endpoint_name, quota_cost, success=True, response_time=response_time)
                 return result
                 
@@ -327,16 +371,37 @@ class UserApiKeyManager:
                 
                 # 할당량 초과 또는 키 오류인 경우
                 if any(keyword in error_str for keyword in ['quota', 'exceeded', 'invalid', 'forbidden']):
+                    # 오류 기록 (개인 키 사용 시에만)
                     self.record_api_usage(endpoint_name, quota_cost, success=False, 
                                         error_message=str(e), response_time=response_time)
                     
-                    # 다음 키로 전환 시도
+                    # 시스템 키 사용 중인 경우 시스템 할당량 관리자에 위임
+                    if not self.current_key:
+                        # 시스템 키를 사용하는 경우 기존 시스템 로직에 위임
+                        try:
+                            from common_utils.search import switch_to_next_api_key
+                            next_system_key = switch_to_next_api_key()
+                            if next_system_key and attempt < max_retries - 1:
+                                current_app.logger.info(f"시스템 API 키 전환 후 재시도 ({attempt + 1}/{max_retries}): {endpoint_name}")
+                                continue
+                        except:
+                            pass
+                        
+                        raise Exception("시스템 API 키 할당량이 초과되었습니다. 개인 API 키를 등록해주세요.")
+                    
+                    # 개인 키 사용 중인 경우 다음 개인 키로 전환 시도
                     next_key = self.switch_to_next_key("quota_exceeded" if 'quota' in error_str else "key_error")
                     
                     if next_key and attempt < max_retries - 1:
-                        current_app.logger.info(f"API 키 전환 후 재시도 ({attempt + 1}/{max_retries}): {endpoint_name}")
+                        current_app.logger.info(f"개인 API 키 전환 후 재시도 ({attempt + 1}/{max_retries}): {endpoint_name}")
                         continue
                     else:
+                        # 모든 개인 키 실패 시 시스템 키로 fallback
+                        fallback_key = self._get_system_fallback_key()
+                        if fallback_key and attempt < max_retries - 1:
+                            current_app.logger.info(f"시스템 키로 fallback 재시도 ({attempt + 1}/{max_retries}): {endpoint_name}")
+                            continue
+                        
                         raise Exception("모든 API 키의 할당량이 초과되었거나 사용할 수 없습니다.")
                 else:
                     # 다른 오류는 기록하고 재시도
