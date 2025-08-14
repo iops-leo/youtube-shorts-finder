@@ -292,7 +292,7 @@ def logout():
 @login_required
 def pending():
     if current_user.is_approved():
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
     return render_template('pending.html')
 
 # 관리자 페이지 - 사용자 관리
