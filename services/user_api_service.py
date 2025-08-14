@@ -34,7 +34,7 @@ class UserApiKeyManager:
         """API 키 복호화"""
         return self.cipher.decrypt(encrypted_key.encode()).decode()
     
-    def add_api_key(self, name, api_key, daily_quota=10000):
+    def add_api_key(self, name, api_key):
         """새 API 키 추가"""
         try:
             # API 키 유효성 검증
@@ -59,12 +59,11 @@ class UserApiKeyManager:
             if name_exists:
                 return False, "이미 사용중인 이름입니다."
             
-            # 새 API 키 생성
+            # 새 API 키 생성 (daily_quota는 기본값 10000 사용)
             new_key = UserApiKey(
                 user_id=self.user_id,
                 name=name,
-                api_key=self.encrypt_api_key(api_key),
-                daily_quota=daily_quota
+                api_key=self.encrypt_api_key(api_key)
             )
             
             db.session.add(new_key)
@@ -105,7 +104,7 @@ class UserApiKeyManager:
         
         return [key.to_dict(include_key=True) for key in keys]
     
-    def update_api_key(self, key_id, name=None, daily_quota=None, is_active=None):
+    def update_api_key(self, key_id, name=None, is_active=None):
         """API 키 정보 업데이트"""
         try:
             api_key = UserApiKey.query.filter_by(id=key_id, user_id=self.user_id).first()
@@ -123,9 +122,6 @@ class UserApiKeyManager:
                     return False, "이미 사용중인 이름입니다."
                 
                 api_key.name = name
-            
-            if daily_quota is not None:
-                api_key.daily_quota = max(1000, min(50000, daily_quota))  # 1,000 ~ 50,000 제한
             
             if is_active is not None:
                 api_key.is_active = is_active

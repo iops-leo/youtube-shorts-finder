@@ -481,11 +481,6 @@
                             <input type="text" id="api-key-value" class="form-control" placeholder="AIza..." required>
                             <div class="form-text">Google Cloud Console에서 발급받은 YouTube Data API v3 키를 입력하세요.</div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="daily-quota">일일 할당량</label>
-                            <input type="number" id="daily-quota" class="form-control" value="10000" min="1000" max="50000">
-                            <div class="form-text">일일 사용 한도를 설정하세요 (1,000 ~ 50,000).</div>
-                        </div>
                         <div class="d-flex gap-2 justify-content-end">
                             <button type="button" class="btn btn-secondary" onclick="closeAddModal()">취소</button>
                             <button type="submit" class="btn btn-primary">
@@ -507,10 +502,6 @@
                         <div class="mb-3">
                             <label class="form-label" for="edit-api-key-name">키 이름</label>
                             <input type="text" id="edit-api-key-name" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="edit-daily-quota">일일 할당량</label>
-                            <input type="number" id="edit-daily-quota" class="form-control" min="1000" max="50000">
                         </div>
                         <div class="mb-3">
                             <div class="form-check">
@@ -693,7 +684,6 @@
             
             document.getElementById('edit-key-id').value = keyId;
             document.getElementById('edit-api-key-name').value = key.name;
-            document.getElementById('edit-daily-quota').value = key.daily_quota;
             document.getElementById('edit-is-active').checked = key.is_active;
             
             document.getElementById('edit-modal').style.display = 'block';
@@ -712,7 +702,6 @@
             const formData = {
                 name: document.getElementById('api-key-name').value,
                 api_key: document.getElementById('api-key-value').value,
-                daily_quota: parseInt(document.getElementById('daily-quota').value)
             };
             
             try {
@@ -745,7 +734,6 @@
             const keyId = document.getElementById('edit-key-id').value;
             const formData = {
                 name: document.getElementById('edit-api-key-name').value,
-                daily_quota: parseInt(document.getElementById('edit-daily-quota').value),
                 is_active: document.getElementById('edit-is-active').checked
             };
             

@@ -1812,17 +1812,12 @@ def add_user_api_key():
         
         name = data['name'].strip()
         api_key = data['api_key'].strip()
-        daily_quota = data.get('daily_quota', 10000)
         
         # 이름 길이 제한
         if len(name) > 50:
             return jsonify({'success': False, 'message': 'API 키 이름은 50자를 초과할 수 없습니다.'}), 400
         
-        # 할당량 범위 제한
-        if not (1000 <= daily_quota <= 50000):
-            return jsonify({'success': False, 'message': '일일 할당량은 1,000 ~ 50,000 사이여야 합니다.'}), 400
-        
-        success, message = manager.add_api_key(name, api_key, daily_quota)
+        success, message = manager.add_api_key(name, api_key)
         
         if success:
             app.logger.info(f"사용자 {current_user.email}가 새 API 키를 추가했습니다: {name}")
@@ -1842,19 +1837,14 @@ def update_user_api_key(key_id):
         data = request.get_json()
         
         name = data.get('name', '').strip() if data.get('name') else None
-        daily_quota = data.get('daily_quota')
         is_active = data.get('is_active')
         
         # 이름 길이 제한
         if name and len(name) > 50:
             return jsonify({'success': False, 'message': 'API 키 이름은 50자를 초과할 수 없습니다.'}), 400
         
-        # 할당량 범위 제한
-        if daily_quota is not None and not (1000 <= daily_quota <= 50000):
-            return jsonify({'success': False, 'message': '일일 할당량은 1,000 ~ 50,000 사이여야 합니다.'}), 400
-        
         manager = UserApiKeyManager(current_user.id)
-        success, message = manager.update_api_key(key_id, name, daily_quota, is_active)
+        success, message = manager.update_api_key(key_id, name, None, is_active)
         
         if success:
             app.logger.info(f"사용자 {current_user.email}가 API 키를 업데이트했습니다: ID {key_id}")
