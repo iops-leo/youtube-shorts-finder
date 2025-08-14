@@ -159,16 +159,40 @@ OAUTHLIB_INSECURE_TRANSPORT=1  # for local OAuth
 ## Common Development Tasks
 
 1. **Database Schema Changes**: Use migration scripts in root directory (e.g., `migrate_*.py`)
-2. **API Key Management**: 
+2. **API Key Management System (NEW)**: 
+   - **사용자 API 키 관리**: `/api-keys` 페이지에서 개인 API 키 추가/수정/삭제
+   - **키 테스트**: `/api/user-api-keys/test/<key_id>` 엔드포인트로 API 키 유효성 검증
+   - **할당량 모니터링**: 일일 사용량 및 할당량 추적 (`daily_quota`: 1,000-50,000)
+   - **암호화 보안**: Fernet 대칭 암호화로 API 키 보안 저장
+   - **자동 순환**: 할당량 초과 시 다음 키로 자동 전환
+3. **시스템 API 키 관리**: 
    - Monitor quota usage through admin dashboard, add keys as comma-separated values
-   - Test user API key management through `/api-keys` page
-   - Use `/api/user-api-keys/test/<key_id>` endpoint to validate user API keys
-3. **Email Testing**: Use `/api/notifications/test` endpoint to verify email delivery
-4. **Authentication Flow**: Test Google OAuth with both development and production callback URLs
-5. **Background Tasks**: Verify APScheduler is running and email notifications are scheduled correctly
-6. **Performance Monitoring**: Monitor API usage, database query performance, and cache hit rates
-7. **Admin Features**: Test user approval workflow and admin panel functionality through `/admin/users`
-8. **User API Keys**: Test encryption/decryption, quota tracking, and automatic rotation functionality
+4. **Email Testing**: Use `/api/notifications/test` endpoint to verify email delivery
+5. **Authentication Flow**: Test Google OAuth with both development and production callback URLs
+6. **Background Tasks**: Verify APScheduler is running and email notifications are scheduled correctly
+7. **Performance Monitoring**: Monitor API usage, database query performance, and cache hit rates
+8. **Admin Features**: Test user approval workflow and admin panel functionality through `/admin/users`
+
+## Migration Status (2024-12-20)
+
+**⚠️ 현재 진행 중인 대규모 마이그레이션**: 공용 API 키 → 사용자별 개인 API 키 시스템
+
+### 완료된 작업
+- ✅ 사용자 API 키 데이터베이스 모델 (`UserApiKey`, `ApiKeyUsage`, `ApiKeyRotation`)
+- ✅ 암호화 서비스 및 할당량 관리 시스템 (`services/user_api_service.py`)
+- ✅ 사용자별 검색 서비스 (`common_utils/user_search.py`)
+- ✅ API 키 관리 UI 엔드포인트 (10개 라우트 추가)
+- ✅ 기존 검색 API 업데이트 (사용자별 키 우선 사용)
+
+### 현재 진행 중
+- ⏳ 프론트엔드 API 키 관리 페이지 완성 (`templates/api_keys.html`)
+- ⏳ 데이터베이스 마이그레이션 실행 (`migrate_user_api_keys.py`)
+- ⏳ 전체 시스템 테스트 및 검증
+
+### 다음 작업
+- [ ] 모든 API 엔드포인트를 사용자별 키로 전환
+- [ ] 관리자 대시보드에 사용자 API 키 모니터링 추가
+- [ ] 성능 최적화 및 보안 강화
 
 ### Development Environment Setup
 1. Set `FLASK_ENV=dev` for local development
