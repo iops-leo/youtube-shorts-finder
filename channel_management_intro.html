@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Shorts 검색 시스템 - 트렌드를 앞서가는 콘텐츠 발견</title>
+    
+    <!-- CSS 라이브러리 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- 아이콘 폰트 대체 (CDN 문제 시) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+    
+    <style>
+        * {
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        
+        body {
+            line-height: 1.7;
+            color: #333;
+            overflow-x: hidden;
+        }
+        
+        /* Hero 섹션 */
+        .hero-section {
+            background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"><defs><radialGradient id="a" cx="50%" cy="50%"><stop offset="0%" stop-color="%23ffffff" stop-opacity="0.1"/><stop offset="100%" stop-color="%23ffffff" stop-opacity="0"/></radialGradient></defs><circle cx="200" cy="200" r="100" fill="url(%23a)"/><circle cx="800" cy="300" r="150" fill="url(%23a)"/><circle cx="600" cy="700" r="120" fill="url(%23a)"/></svg>');
+            opacity: 0.1;
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 2;
+        }
+        
+        .hero-title {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            animation: slideInDown 1s ease-out;
+        }
+        
+        .hero-subtitle {
+            font-size: 1.3rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+            animation: slideInUp 1s ease-out 0.3s both;
+        }
+        
+        .cta-button {
+            background: linear-gradient(45deg, #ffffff, #f0f0f0);
+            color: #ff0000;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 50px;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 25px rgba(255, 255, 255, 0.3);
+            animation: slideInUp 1s ease-out 0.6s both;
+        }
+        
+        .cta-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 35px rgba(255, 255, 255, 0.4);
+            color: #cc0000;
+        }
+        
+        /* 통계 섹션 */
+        .stats-section {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: white;
+            padding: 80px 0;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 30px 15px;
+        }
+        
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 700;
+            display: block;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #ff0000, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .stat-label {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        /* 핵심 기능 섹션 */
+        .core-features-section {
+            padding: 100px 0;
+            background: #f8f9fa;
+        }
+        
+        .section-title {
+            text-align: center;
+            font-size: 2.8rem;
+            font-weight: 700;
+            margin-bottom: 3rem;
+            color: #2c3e50;
+            position: relative;
+        }
+        
+        .section-title::after {
+            content: '';
+            position: absolute;
+            bottom: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 4px;
+            background: linear-gradient(45deg, #ff0000, #cc0000);
+            border-radius: 2px;
+        }
+        
+        .core-feature-card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px 30px;
+            text-align: center;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            height: 100%;
+            border: 1px solid #e9ecef;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .core-feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(45deg, #ff0000, #cc0000);
+        }
+        
+        .core-feature-card:hover {
+            transform: translateY(-15px);
+            box-shadow: 0 25px 60px rgba(255, 0, 0, 0.15);
+        }
+        
+        .core-feature-icon {
+            font-size: 4rem;
+            background: linear-gradient(45deg, #ff0000, #cc0000);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 25px;
+            display: block;
+        }
+        
+        .core-feature-title {
+            font-size: 1.6rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        .core-feature-description {
+            color: #6c757d;
+            line-height: 1.7;
+            margin-bottom: 20px;
+        }
+        
+        .feature-highlights {
+            text-align: left;
+            padding-left: 0;
+            list-style: none;
+        }
+        
+        .feature-highlights li {
+            padding: 8px 0;
+            position: relative;
+            padding-left: 25px;
+        }
+        
+        .feature-highlights li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: #ff0000;
+            font-weight: 700;
+        }
+        
+        /* 검색 프로세스 섹션 */
+        .process-section {
+            padding: 100px 0;
+            background: white;
+        }
+        
+        .process-step {
+            text-align: center;
+            margin-bottom: 50px;
+            position: relative;
+        }
+        
+        .step-number {
+            background: linear-gradient(45deg, #ff0000, #cc0000);
+            color: white;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 0 auto 25px;
+            box-shadow: 0 10px 30px rgba(255, 0, 0, 0.3);
+        }
+        
+        .step-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        
+        .step-description {
+            color: #6c757d;
+            line-height: 1.6;
+        }
+        
+        /* 추가 기능 섹션 */
+        .additional-features-section {
+            background: #f8f9fa;
+            padding: 80px 0;
+        }
+        
+        .feature-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px 25px;
+            text-align: center;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            height: 100%;
+            border: 1px solid #e9ecef;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.12);
+        }
+        
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: #ff0000;
+        }
+        
+        .feature-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        
+        .feature-description {
+            color: #6c757d;
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+        
+        /* CTA 섹션 */
+        .final-cta {
+            background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+            color: white;
+            padding: 80px 0;
+            text-align: center;
+        }
+        
+        .final-cta h2 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+        
+        .final-cta p {
+            font-size: 1.2rem;
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
+        
+        /* 아이콘 폰트 fallback */
+        .fas, .fab, .far {
+            font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands", "FontAwesome", sans-serif !important;
+            font-weight: 900;
+        }
+        
+        /* 아이콘이 깨질 경우 대체 텍스트 */
+        .fas.fa-search::before { content: "🔍"; }
+        .fab.fa-youtube::before { content: "📺"; }
+        .fas.fa-users::before { content: "👥"; }
+        .fas.fa-envelope::before { content: "📧"; }
+        .fas.fa-fire::before { content: "🔥"; }
+        .fas.fa-bookmark::before { content: "🔖"; }
+        .fas.fa-chart-line::before { content: "📈"; }
+        .fas.fa-filter::before { content: "🔧"; }
+        .fas.fa-file-export::before { content: "📤"; }
+        .fas.fa-video::before { content: "🎬"; }
+        .fas.fa-dollar-sign::before { content: "💰"; }
+        .fas.fa-mobile-alt::before { content: "📱"; }
+        .fas.fa-shield-alt::before { content: "🛡️"; }
+        .fas.fa-rocket::before { content: "🚀"; }
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 2.5rem;
+            }
+            
+            .hero-subtitle {
+                font-size: 1.1rem;
+            }
+            
+            .section-title {
+                font-size: 2.2rem;
+            }
+            
+            .core-feature-card {
+                padding: 30px 20px;
+                margin-bottom: 30px;
+            }
+            
+            .stat-number {
+                font-size: 2.5rem;
+            }
+            
+            .step-number {
+                width: 60px;
+                height: 60px;
+                font-size: 1.5rem;
+            }
+        }
+        
+        /* 애니메이션 */
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .animate-on-scroll {
+            opacity: 0;
+            transform: translateY(50px);
+            transition: all 0.8s ease;
+        }
+        
+        .animate-on-scroll.animated {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero 섹션 -->
+    <section class="hero-section">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-7">
+                    <div class="hero-content">
+                        <h1 class="hero-title">
+                            <i class="fab fa-youtube me-3"></i>
+                            YouTube Shorts<br>검색 시스템
+                        </h1>
+                        <p class="hero-subtitle">
+                            바이럴 영상을 먼저 발견하고, 트렌드를 앞서가는 콘텐츠를 만들어보세요.<br>
+                            등록한 채널별 맞춤 검색과 자동 이메일 알림까지!
+                        </p>
+                        <a href="#core-features" class="cta-button">
+                            <i class="fas fa-search me-2"></i>
+                            지금 시작하기
+                        </a>
+                    </div>
+                </div>
+                <div class="col-lg-5 text-center">
+                    <div class="hero-visual">
+                        <i class="fas fa-fire" style="font-size: 12rem; opacity: 0.15; color: white;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 통계 섹션 -->
+    <section class="stats-section">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-3 col-6">
+                    <div class="stat-item animate-on-scroll">
+                        <span class="stat-number">1M+</span>
+                        <span class="stat-label">검색된 Shorts</span>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="stat-item animate-on-scroll">
+                        <span class="stat-number">실시간</span>
+                        <span class="stat-label">트렌드 분석</span>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="stat-item animate-on-scroll">
+                        <span class="stat-number">자동</span>
+                        <span class="stat-label">이메일 알림</span>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="stat-item animate-on-scroll">
+                        <span class="stat-number">무제한</span>
+                        <span class="stat-label">채널 등록</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 핵심 기능 섹션 -->
+    <section id="core-features" class="core-features-section">
+        <div class="container">
+            <h2 class="section-title animate-on-scroll">핵심 기능</h2>
+            <div class="row">
+                <div class="col-lg-4 mb-4">
+                    <div class="core-feature-card animate-on-scroll">
+                        <i class="fas fa-search core-feature-icon"></i>
+                        <h3 class="core-feature-title">스마트 Shorts 검색</h3>
+                        <p class="core-feature-description">
+                            키워드, 조회수, 업로드 시간 등 다양한 조건으로 인기 YouTube Shorts를 실시간 검색
+                        </p>
+                        <ul class="feature-highlights">
+                            <li>조회수 기준 필터링</li>
+                            <li>업로드 날짜 범위 설정</li>
+                            <li>카테고리별 분류</li>
+                            <li>언어 및 지역 설정</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-lg-4 mb-4">
+                    <div class="core-feature-card animate-on-scroll">
+                        <i class="fas fa-users core-feature-icon"></i>
+                        <h3 class="core-feature-title">채널별 맞춤 검색</h3>
+                        <p class="core-feature-description">
+                            관심 있는 채널들을 등록하고 해당 채널들의 최신 인기 영상을 자동으로 추적
+                        </p>
+                        <ul class="feature-highlights">
+                            <li>무제한 채널 등록</li>
+                            <li>채널 카테고리 분류</li>
+                            <li>채널별 성과 분석</li>
+                            <li>구독자 변화 추적</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-lg-4 mb-4">
+                    <div class="core-feature-card animate-on-scroll">
+                        <i class="fas fa-envelope core-feature-icon"></i>
+                        <h3 class="core-feature-title">자동 이메일 알림</h3>
+                        <p class="core-feature-description">
+                            설정한 시간에 맞춤형 트렌드 리포트를 이메일로 자동 발송받아 놓치지 마세요
+                        </p>
+                        <ul class="feature-highlights">
+                            <li>맞춤 알림 시간 설정</li>
+                            <li>주간/월간 리포트</li>
+                            <li>채널별 요약 정보</li>
+                            <li>트렌드 인사이트 제공</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 검색 프로세스 섹션 -->
+    <section class="process-section">
+        <div class="container">
+            <h2 class="section-title animate-on-scroll">간단한 3단계 프로세스</h2>
+            <div class="row">
+                <div class="col-lg-4">
+                    <div class="process-step animate-on-scroll">
+                        <div class="step-number">1</div>
+                        <h3 class="step-title">채널 등록 & 검색 설정</h3>
+                        <p class="step-description">
+                            관심 있는 YouTube 채널들을 등록하고<br>
+                            검색 조건(조회수, 기간 등)을 설정합니다.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="process-step animate-on-scroll">
+                        <div class="step-number">2</div>
+                        <h3 class="step-title">실시간 트렌드 분석</h3>
+                        <p class="step-description">
+                            AI가 실시간으로 등록된 채널들의<br>
+                            인기 Shorts를 분석하고 수집합니다.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="process-step animate-on-scroll">
+                        <div class="step-number">3</div>
+                        <h3 class="step-title">맞춤 알림 받기</h3>
+                        <p class="step-description">
+                            설정한 시간에 트렌드 리포트를<br>
+                            이메일로 받고 바로 활용하세요.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 추가 기능 섹션 -->
+    <section class="additional-features-section">
+        <div class="container">
+            <h2 class="section-title animate-on-scroll">더 많은 기능들</h2>
+            <div class="row">
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <div class="feature-card animate-on-scroll">
+                        <i class="fas fa-bookmark feature-icon"></i>
+                        <h3 class="feature-title">영상 북마크</h3>
+                        <p class="feature-description">
+                            관심 있는 영상을 저장하고 나중에 참고할 수 있는 개인 라이브러리
+                        </p>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <div class="feature-card animate-on-scroll">
+                        <i class="fas fa-chart-line feature-icon"></i>
+                        <h3 class="feature-title">트렌드 분석</h3>
+                        <p class="feature-description">
+                            조회수 변화, 인기 키워드, 업로드 패턴 등 상세 분석 리포트
+                        </p>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <div class="feature-card animate-on-scroll">
+                        <i class="fas fa-filter feature-icon"></i>
+                        <h3 class="feature-title">고급 필터링</h3>
+                        <p class="feature-description">
+                            카테고리, 언어, 지역, 길이 등 세밀한 조건으로 원하는 영상 검색
+                        </p>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <div class="feature-card animate-on-scroll">
+                        <i class="fas fa-file-export feature-icon"></i>
+                        <h3 class="feature-title">데이터 내보내기</h3>
+                        <p class="feature-description">
+                            검색 결과를 CSV, Excel 형태로 내보내어 추가 분석 가능
+                        </p>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <div class="feature-card animate-on-scroll">
+                        <i class="fas fa-video feature-icon"></i>
+                        <h3 class="feature-title">편집자 관리</h3>
+                        <p class="feature-description">
+                            영상 편집자 정보 관리, 작업 할당 및 정산 시스템
+                        </p>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <div class="feature-card animate-on-scroll">
+                        <i class="fas fa-dollar-sign feature-icon"></i>
+                        <h3 class="feature-title">수익 관리</h3>
+                        <p class="feature-description">
+                            유튜브, 음원 등 다양한 수익원 통합 관리 및 분석
+                        </p>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <div class="feature-card animate-on-scroll">
+                        <i class="fas fa-mobile-alt feature-icon"></i>
+                        <h3 class="feature-title">모바일 최적화</h3>
+                        <p class="feature-description">
+                            언제 어디서나 스마트폰으로 트렌드를 확인하고 관리
+                        </p>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <div class="feature-card animate-on-scroll">
+                        <i class="fas fa-shield-alt feature-icon"></i>
+                        <h3 class="feature-title">보안 인증</h3>
+                        <p class="feature-description">
+                            Google OAuth 기반 안전한 로그인 및 데이터 보호
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Final CTA 섹션 -->
+    <section class="final-cta">
+        <div class="container">
+            <h2 class="animate-on-scroll">트렌드를 앞서가는 콘텐츠를 만들어보세요!</h2>
+            <p class="animate-on-scroll">
+                YouTube Shorts의 바이럴 패턴을 분석하고, 성공하는 콘텐츠의 비밀을 발견하세요.
+            </p>
+            <a href="/" class="cta-button animate-on-scroll">
+                <i class="fas fa-rocket me-2"></i>
+                무료로 시작하기
+            </a>
+        </div>
+    </section>
+
+    <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // 스크롤 애니메이션
+        function handleScrollAnimation() {
+            const elements = document.querySelectorAll('.animate-on-scroll');
+            
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('animated');
+                    }
+                });
+            }, {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            });
+            
+            elements.forEach(element => {
+                observer.observe(element);
+            });
+        }
+        
+        // 부드러운 스크롤
+        function setupSmoothScroll() {
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+        }
+        
+        // 숫자 카운트 애니메이션
+        function animateNumbers() {
+            const statNumbers = document.querySelectorAll('.stat-number');
+            
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting && !entry.target.classList.contains('counted')) {
+                        entry.target.classList.add('counted');
+                        const target = entry.target;
+                        const originalText = target.textContent;
+                        
+                        if (originalText.includes('1M+')) {
+                            animateToText(target, '1M+');
+                        } else {
+                            // 다른 텍스트들은 타이핑 효과
+                            typeWriter(target, originalText);
+                        }
+                    }
+                });
+            }, { threshold: 0.5 });
+            
+            statNumbers.forEach(stat => observer.observe(stat));
+        }
+        
+        function animateToText(element, finalText) {
+            element.textContent = finalText;
+        }
+        
+        function typeWriter(element, text) {
+            element.textContent = '';
+            let i = 0;
+            const timer = setInterval(() => {
+                if (i < text.length) {
+                    element.textContent += text.charAt(i);
+                    i++;
+                } else {
+                    clearInterval(timer);
+                }
+            }, 100);
+        }
+        
+        // 페이지 로드 시 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            handleScrollAnimation();
+            setupSmoothScroll();
+            animateNumbers();
+            
+            // 로딩 애니메이션
+            document.body.style.opacity = '0';
+            setTimeout(() => {
+                document.body.style.transition = 'opacity 0.5s ease';
+                document.body.style.opacity = '1';
+            }, 100);
+        });
+        
+        // 스크롤 효과
+        let ticking = false;
+        
+        function updateScrollEffects() {
+            const scrolled = window.pageYOffset;
+            const rate = scrolled * -0.5;
+            
+            // 패럴랙스 효과
+            const heroSection = document.querySelector('.hero-section');
+            if (heroSection) {
+                heroSection.style.transform = `translateY(${rate}px)`;
+            }
+            
+            ticking = false;
+        }
+        
+        function requestTick() {
+            if (!ticking) {
+                requestAnimationFrame(updateScrollEffects);
+                ticking = true;
+            }
+        }
+        
+        window.addEventListener('scroll', requestTick);
+    </script>
+</body>
+</html>

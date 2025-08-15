@@ -47,18 +47,17 @@ from services.user_api_service import UserApiKeyManager
 cache = {}
 CACHE_TIMEOUT = 28800  # 캐시 유효시간 (초)
 
-# 보안 설정 초기화
+# 개발 환경에서 .env 먼저 로드 (검증보다 선행되어야 함)
+if os.environ.get('FLASK_ENV') != 'production':
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except Exception:
+        pass
+
+# 보안 설정 초기화 및 환경변수 검증 (이제 .env 로드 이후 실행)
 setup_secure_logging()  # 보안 로깅 필터 적용
 validate_required_environment()  # 필수 환경변수 검증
-
-if os.environ.get('FLASK_ENV') == 'production':
-    # 운영 환경 설정
-    # 환경변수는 클라우드 서비스에서 설정됨
-    pass  # 필요한 경우 여기에 운영 환경 특정 코드 추가
-else:
-    # 개발 환경 설정
-    from dotenv import load_dotenv
-    load_dotenv()  # .env 파일에서 환경변수 로드
 
 # 스레드풀 생성
 executor = ThreadPoolExecutor(max_workers=10)
@@ -427,10 +426,7 @@ def index():
     if not current_user.is_approved():
         return redirect(url_for('pending'))
     
-    # 대시보드를 기본 홈페이지로 설정
-    # 검색 페이지로 이동하려면 /?page=search 파라미터 사용
-    if request.args.get('page') != 'search':
-        return redirect(url_for('dashboard'))
+    # 대시보드 제거: 기본 진입 시 검색 페이지를 렌더링
     
     # 오늘 API 호출 횟수 계산
     today = datetime.utcnow().date()
@@ -539,6 +535,13 @@ def admin_stats():
                          daily_stats=daily_stats,
                          user_stats=user_stats,
                          endpoint_stats=endpoint_stats)
+
+# ===================== 컴포넌트 데모 페이지 =====================
+
+@app.route('/components')
+def components():
+    """Linear 테마 컴포넌트 데모 페이지"""
+    return render_template('components.html')
 
 # ===================== YouTube API 할당량 관리 API =====================
 
@@ -2068,123 +2071,8 @@ def saved_videos_page():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    """대시보드 메인 페이지"""
-    if not current_user.is_approved():
-        return redirect(url_for('pending'))
-    
-    try:
-        # 통계 데이터 수집
-        stats = {}
-        
-        # 총 검색 횟수
-        stats['total_searches'] = SearchHistory.query.filter_by(user_id=current_user.id).count()
-        
-        # 저장된 영상 수
-        stats['saved_videos'] = SavedVideo.query.filter_by(user_id=current_user.id).count()
-        
-        # 사용자 API 키 수
-        user_api_keys = UserApiKey.query.filter_by(user_id=current_user.id).all()
-        stats['api_keys'] = len(user_api_keys)
-        stats['active_api_keys'] = len([k for k in user_api_keys if k.is_active and not k.is_quota_exceeded()])
-        
-        # 활성 알림 수
-        stats['active_notifications'] = EmailNotification.query.filter_by(
-            user_id=current_user.id, 
-            active=True
-        ).count()
-        
-        # 최근 7일 API 사용량 차트 데이터
-        from datetime import timedelta
-        today = datetime.utcnow().date()
-        chart_data = {
-            'labels': [],
-            'data': []
-        }
-        
-        for i in range(7):
-            date = today - timedelta(days=i)
-            day_calls = ApiLog.query.filter(
-                ApiLog.user_id == current_user.id,
-                db.func.date(ApiLog.timestamp) == date
-            ).count()
-            
-            chart_data['labels'].insert(0, date.strftime('%m/%d'))
-            chart_data['data'].insert(0, day_calls)
-        
-        # 최근 활동 (검색 기록, 저장된 영상 등)
-        recent_activities = []
-        
-        # 최근 검색 기록
-        recent_searches = SearchHistory.query.filter_by(user_id=current_user.id)\
-            .order_by(SearchHistory.created_at.desc())\
-            .limit(5).all()
-        
-        for search in recent_searches:
-            recent_activities.append({
-                'type': '검색',
-                'description': f'"{search.query or "인기 Shorts"}" 검색',
-                'timestamp': search.created_at
-            })
-        
-        # 최근 저장된 영상
-        recent_saved = SavedVideo.query.filter_by(user_id=current_user.id)\
-            .order_by(SavedVideo.created_at.desc())\
-            .limit(3).all()
-        
-        for video in recent_saved:
-            recent_activities.append({
-                'type': '저장',
-                'description': f'영상 저장: {video.title[:30]}...',
-                'timestamp': video.created_at
-            })
-        
-        # 시간순 정렬
-        recent_activities.sort(key=lambda x: x['timestamp'], reverse=True)
-        recent_activities = recent_activities[:10]  # 최근 10개만
-        
-        # 시스템 상태 (관리자용)
-        system_status = None
-        if current_user.is_admin():
-            try:
-                # API 상태 체크 (간단한 체크)
-                api_status = len(api_keys) > 0
-                
-                # 데이터베이스 상태 체크
-                db.session.execute(text('SELECT 1'))
-                db_status = True
-                
-                # 이메일 서비스 상태 (기본적으로 True, 실제 테스트는 복잡함)
-                email_status = True
-                
-                # 총 사용자 수
-                total_users = User.query.count()
-                
-                system_status = {
-                    'api_status': api_status,
-                    'db_status': db_status,
-                    'email_status': email_status,
-                    'total_users': total_users
-                }
-            except Exception as e:
-                app.logger.error(f"시스템 상태 체크 오류: {str(e)}")
-                system_status = {
-                    'api_status': False,
-                    'db_status': False,
-                    'email_status': False,
-                    'total_users': 0
-                }
-        
-        return render_template('dashboard.html',
-                             user=current_user,
-                             stats=stats,
-                             chart_data=chart_data,
-                             recent_activities=recent_activities,
-                             system_status=system_status)
-    
-    except Exception as e:
-        app.logger.error(f"대시보드 로드 오류: {str(e)}")
-        flash('대시보드를 로드하는 중 오류가 발생했습니다.', 'error')
-        return redirect(url_for('index'))
+    """대시보드 제거: 루트로 리디렉션"""
+    return redirect(url_for('index'))
 
 @app.route('/health')
 def health():
